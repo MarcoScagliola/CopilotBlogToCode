@@ -14,6 +14,10 @@ Use this skill when:
 - the user wants Terraform code
 - the user wants Databricks Declarative Automation Bundles (DAB) code
 - the user wants infra inferred from architecture, setup, pipeline, job, storage, secrets, identities, networking, or deployment details in a blog post
+- for the region use the blog's location hints or default to `uksouth`
+- all infrastructure should be generated as Terraform, except for Databricks jobs, clusters, and notebooks which should be generated as DAB
+- remember this is a clean deployment-ready code generation, not a learning exercise — the output should be production quality and follow best practices for Terraform and DAB structure, modularity, naming, etc.
+- for naming conventions use the Microsoft CAF as a guide, but adapt as needed based on the blog's content and context
 
 ## Goal
 
