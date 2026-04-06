@@ -1,0 +1,81 @@
+bundle:
+  name: secure-medallion
+
+workspace:
+  host: ${var.databricks_workspace_url}
+
+variables:
+  databricks_workspace_url:
+    description: Databricks workspace URL
+    default: <TODO_DATABRICKS_WORKSPACE_URL>
+
+  environment:
+    description: Deployment environment
+    default: <TODO_ENVIRONMENT>
+
+  secret_scope_name:
+    description: Databricks secret scope backed by Azure Key Vault
+    default: <TODO_DATABRICKS_SECRET_SCOPE_NAME>
+
+  notification_email:
+    description: Notification recipient for failed runs
+    default: <TODO_NOTIFICATION_EMAIL>
+
+  bronze_service_principal_application_id:
+    description: Bronze SP app ID from Terraform output
+    default: <TODO_BRONZE_SP_APP_ID>
+
+  silver_service_principal_application_id:
+    description: Silver SP app ID from Terraform output
+    default: <TODO_SILVER_SP_APP_ID>
+
+  gold_service_principal_application_id:
+    description: Gold SP app ID from Terraform output
+    default: <TODO_GOLD_SP_APP_ID>
+
+  bronze_catalog:
+    default: <TODO_CATALOG_BRONZE>
+  silver_catalog:
+    default: <TODO_CATALOG_SILVER>
+  gold_catalog:
+    default: <TODO_CATALOG_GOLD>
+
+  bronze_schema:
+    default: <TODO_SCHEMA_BRONZE>
+  silver_schema:
+    default: <TODO_SCHEMA_SILVER>
+  gold_schema:
+    default: <TODO_SCHEMA_GOLD>
+
+  job_schedule_quartz:
+    description: Quartz cron for orchestrator
+    default: <TODO_QUARTZ_CRON>
+
+  job_schedule_timezone:
+    description: Quartz timezone
+    default: <TODO_TIMEZONE>
+
+  bronze_runtime:
+    default: <TODO_BRONZE_RUNTIME>
+  silver_runtime:
+    default: <TODO_SILVER_RUNTIME>
+  gold_runtime:
+    default: <TODO_GOLD_RUNTIME>
+
+  bronze_node_type_id:
+    default: <TODO_BRONZE_NODE_TYPE_ID>
+  silver_node_type_id:
+    default: <TODO_SILVER_NODE_TYPE_ID>
+  gold_node_type_id:
+    default: <TODO_GOLD_NODE_TYPE_ID>
+
+include:
+  - resources/jobs.yml
+
+targets:
+  dev:
+    default: true
+    mode: development
+
+  prod:
+    mode: production
