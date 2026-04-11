@@ -1,0 +1,34 @@
+# TODO - Unresolved Inputs
+
+Only unresolved values are listed below.
+
+## Required Cloud Inputs
+- TODO_AZURE_TENANT_ID
+- TODO_AZURE_SUBSCRIPTION_ID
+
+## Required Databricks Inputs
+- TODO_DATABRICKS_ACCOUNT_ID
+- TODO_DATABRICKS_METASTORE_ID
+- TODO_DATABRICKS_WORKSPACE_PAT_TOKEN
+- TODO_DATABRICKS_CLIENT_ID
+- TODO_DATABRICKS_CLIENT_SECRET
+
+## Layer Operational Inputs
+- TODO_BRONZE_JOB_CRON
+- TODO_BRONZE_JOB_ALERT_EMAIL
+- TODO_SILVER_JOB_CRON
+- TODO_SILVER_JOB_ALERT_EMAIL
+- TODO_GOLD_JOB_CRON
+- TODO_GOLD_JOB_ALERT_EMAIL
+- TODO_ORCHESTRATOR_JOB_CRON
+- TODO_ORCHESTRATOR_JOB_ALERT_EMAIL
+
+## Source System Inputs
+- TODO_JDBC_CONNECTION_STRING
+- TODO_JDBC_USERNAME
+- TODO_JDBC_PASSWORD
+- TODO_SOURCE_TABLE_NAME
+
+## Notes
+- Region provided: `uksouth`
+- Naming derived from `workload=blg`, `environment=dev`, `azure_region=uksouth` in `infra/terraform/locals.tf`.
