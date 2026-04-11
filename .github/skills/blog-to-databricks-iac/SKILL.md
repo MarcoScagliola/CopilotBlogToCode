@@ -33,16 +33,29 @@ Rules:
 - Always append the execution date in `YYYY-MM-DD` format.
 - If a file already exists for the same date, append time as `YYYY-MM-DD-HHmmss` to avoid overwrite.
 
+### 1.2 Generate validation workflow dynamically
+Before generating Terraform/DAB code, create (or refresh) `.github/workflows/validate-terraform.yml` by running:
+
+```bash
+python .github/skills/blog-to-databricks-iac/scripts/azure/generate_validate_workflow.py \
+	--workflow-name "Validate Terraform" \
+	--tenant-secret "AZURE_TENANT_ID" \
+	--subscription-secret "AZURE_SUBSCRIPTION_ID"
+```
+
 ### 2. Validate deployment model
 Load from `./references/azure/cloud-deployment.md` and ensure conformance.
 
-### 3. Apply region policy
+### 3. Apply core variables policy
+Load from `./references/azure/core-variables.md` and enforce the mandatory baseline inputs `TODO_AZURE_TENANT_ID` and `TODO_AZURE_SUBSCRIPTION_ID` as unresolved values unless securely provided.
+
+### 4. Apply region policy
 Load from `./references/azure/region-policy.md` and apply to region inputs.
 
-### 4. Apply naming conventions
+### 5. Apply naming conventions
 Load from `./references/azure/naming-conventions.md`. All resource names must be derived in `locals.tf` from `workload`, `environment`, and `azure_region`. Do not accept resource names as Terraform input variables.
 
-### 5. Validate output
+### 6. Validate output
 Terraform: syntactically valid, internally consistent
 DAB: syntactically valid, uses placeholders for unknowns
 TODO: only unresolved values

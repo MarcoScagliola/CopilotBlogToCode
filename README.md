@@ -56,3 +56,24 @@ DAB owns:
 - Names are derived in `infra/terraform/locals.tf` from `workload`, `environment`, `azure_region`.
 - No resource names should be passed as Terraform variables.
 - Region policy is explicit and does not assume defaults.
+
+## GitHub Secure Variables
+
+To let contributors reuse this repo safely, configure these repository-level GitHub secrets:
+
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+
+Set them with GitHub CLI:
+
+```bash
+gh secret set AZURE_TENANT_ID --body "<your-tenant-id>"
+gh secret set AZURE_SUBSCRIPTION_ID --body "<your-subscription-id>"
+```
+
+Or in GitHub UI:
+
+1. Open `Settings` > `Secrets and variables` > `Actions`.
+2. Create the two secrets above.
+
+This repo includes `.github/workflows/validate-terraform.yml`, which reads those secrets and runs Terraform validation in CI.

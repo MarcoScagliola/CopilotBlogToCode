@@ -29,6 +29,7 @@ def _fail(code: str, reason: str, details: str = "") -> None:
 GENERATED_FILES = [
     REPO_ROOT / "SPEC.md",
     REPO_ROOT / "TODO.md",
+    REPO_ROOT / ".github" / "workflows" / "validate-terraform.yml",
 ]
 
 # Generated code directories. Their contents will be removed,
@@ -76,6 +77,8 @@ def remove_path(path: Path, dry_run: bool) -> None:
         _fail("PERMISSION_ERROR", f"Cannot remove {rel}", str(e))
     except OSError as e:
         _fail("OS_ERROR", f"Failed to remove {rel}", str(e))
+    except Exception as e:
+        _fail("UNEXPECTED_ERROR", f"Unexpected error removing {rel}", str(e))
 
 
 def recreate_skeleton(dry_run: bool) -> None:
@@ -90,6 +93,8 @@ def recreate_skeleton(dry_run: bool) -> None:
                 _fail("PERMISSION_ERROR", f"Cannot create directory {rel}", str(e))
             except OSError as e:
                 _fail("OS_ERROR", f"Failed to create directory {rel}", str(e))
+            except Exception as e:
+                _fail("UNEXPECTED_ERROR", f"Unexpected error creating directory {rel}", str(e))
 
     for file_path in SKELETON_FILES:
         rel = file_path.relative_to(REPO_ROOT)
@@ -103,15 +108,21 @@ def recreate_skeleton(dry_run: bool) -> None:
                 _fail("PERMISSION_ERROR", f"Cannot create file {rel}", str(e))
             except OSError as e:
                 _fail("OS_ERROR", f"Failed to create file {rel}", str(e))
+            except Exception as e:
+                _fail("UNEXPECTED_ERROR", f"Unexpected error creating file {rel}", str(e))
 
 
 def confirm(force: bool) -> None:
     if force:
         return
 
-    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, and TODO.md.")
+    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, and validate-terraform.yml.")
     print("It will keep the Copilot skill scaffold under .github/skills/.")
-    reply = input("Continue? [y/N]: ").strip().lower()
+    try:
+        reply = input("Continue? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAborted.")
+        sys.exit(0)
     if reply not in {"y", "yes"}:
         print("Aborted.")
         sys.exit(0)
@@ -135,6 +146,14 @@ def main() -> None:
 
     confirm(force=args.force)
 
+    try:
+        _run(args)
+    except KeyboardInterrupt:
+        print("\nInterrupted. Some files may have been partially removed.")
+        sys.exit(1)
+
+
+def _run(args: argparse.Namespace) -> None:
     if not REPO_ROOT.is_dir():
         _fail("INVALID_ROOT", "Computed REPO_ROOT does not exist", str(REPO_ROOT))
 
