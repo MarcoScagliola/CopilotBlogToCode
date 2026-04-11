@@ -1,146 +1,56 @@
-variable "subscription_id" {
-  description = "Azure subscription ID"
+variable "azure_subscription_id" {
+  description = "Azure subscription ID where all resources will be deployed."
   type        = string
+  # TODO: set in terraform.tfvars — see TODO.md
 }
 
-variable "tenant_id" {
-  description = "Microsoft Entra tenant ID"
+variable "azure_tenant_id" {
+  description = "Microsoft Entra ID (Azure AD) tenant ID."
   type        = string
+  # TODO: set in terraform.tfvars — see TODO.md
 }
 
 variable "azure_region" {
-  description = "Azure region"
+  description = "Azure region for all resources."
   type        = string
   default     = "uksouth"
 }
 
-variable "resource_group_name" {
-  description = "Resource group name"
-  type        = string
-}
-
 variable "environment" {
-  description = "Environment name"
+  description = "Deployment environment label used in resource names (e.g. dev, test, prod)."
   type        = string
+  default     = "prod"
 }
 
-variable "databricks_workspace_url" {
-  description = "Databricks workspace URL"
+variable "project_prefix" {
+  description = "Short project prefix used in resource names (lowercase alphanumeric, no hyphens)."
   type        = string
+  default     = "medallion"
 }
 
 variable "databricks_account_id" {
-  description = "Databricks account ID"
+  description = "Databricks account UUID (shown in the Databricks account console)."
   type        = string
+  # TODO: set in terraform.tfvars — see TODO.md
 }
 
-variable "unity_catalog_metastore_id" {
-  description = "Unity Catalog metastore ID (optional / environment dependent)"
+variable "databricks_metastore_id" {
+  description = "Unity Catalog metastore UUID to assign to the new workspace. One metastore per account per region is typical."
   type        = string
-  default     = ""
+  # TODO: set in terraform.tfvars — see TODO.md
 }
 
-variable "key_vault_name" {
-  description = "Key Vault name"
+variable "secret_scope_name" {
+  description = "Name of the AKV-backed Databricks secret scope created in this workspace."
   type        = string
-}
-
-variable "storage_container_name" {
-  description = "Container name in each layer storage account"
-  type        = string
-  default     = "data"
-}
-
-variable "layer_storage_account_names" {
-  description = "Storage account names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_managed_identity_names" {
-  description = "User-assigned managed identity names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_access_connector_names" {
-  description = "Databricks access connector names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_service_principal_display_names" {
-  description = "Service principal display names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_storage_credential_names" {
-  description = "Unity Catalog storage credential names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_external_location_names" {
-  description = "Unity Catalog external location names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_catalog_names" {
-  description = "Unity Catalog catalog names keyed by layer"
-  type        = map(string)
-}
-
-variable "layer_schema_names" {
-  description = "Unity Catalog schema names keyed by layer"
-  type        = map(string)
-}
-
-variable "enable_networking" {
-  description = "Set true to create VNet/subnets/NSG resources"
-  type        = bool
-  default     = false
-}
-
-variable "vnet_name" {
-  description = "Virtual network name"
-  type        = string
-  default     = ""
-}
-
-variable "vnet_address_space" {
-  description = "Virtual network CIDR"
-  type        = list(string)
-  default     = []
-}
-
-variable "public_subnet_name" {
-  description = "Public subnet name"
-  type        = string
-  default     = ""
-}
-
-variable "public_subnet_address_prefixes" {
-  description = "Public subnet CIDR(s)"
-  type        = list(string)
-  default     = []
-}
-
-variable "private_subnet_name" {
-  description = "Private subnet name"
-  type        = string
-  default     = ""
-}
-
-variable "private_subnet_address_prefixes" {
-  description = "Private subnet CIDR(s)"
-  type        = list(string)
-  default     = []
-}
-
-variable "nsg_name" {
-  description = "Network security group name"
-  type        = string
-  default     = ""
+  default     = "akv-scope"
 }
 
 variable "tags" {
-  description = "Tags for Azure resources"
+  description = "Tags applied to all Azure resources."
   type        = map(string)
-  default     = {}
+  default = {
+    project    = "secure-medallion"
+    managed_by = "terraform"
+  }
 }

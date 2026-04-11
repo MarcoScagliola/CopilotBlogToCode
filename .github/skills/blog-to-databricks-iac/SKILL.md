@@ -1,11 +1,11 @@
 ---
 name: blog-to-databricks-iac
-description: Use this skill when the user provides a technical blog URL and wants Terraform plus Declarative Automation Bundles (DAB) code generated from the article.
+description: Use this skill when the user provides a technical blog URL and wants Terraform plus Databricks Declarative Automation Bundles (DAB) code generated from the article.
 ---
 
-# Blog URL to Terraform + DAB
-
-This skill converts a technical article into implementation-ready infrastructure code.
+-- # Blog URL to Terraform and Databricks Declarative Automation Bundles (DAB)
+## Overview
+This skill converts a technical article into implementation-ready infrastructure code based on Terraform for the infrastructure and Databricks Declarative Automation Bundles (DAB) for Databricks resources.
 
 ## When to use this skill
 

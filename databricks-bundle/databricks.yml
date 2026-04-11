@@ -1,81 +1,60 @@
 bundle:
   name: secure-medallion
 
+# ── Workspace connection ──────────────────────────────────────────────────────
+# Set the actual workspace URL after Terraform apply.
+# Use Terraform output: databricks_workspace_url
 workspace:
-  host: ${var.databricks_workspace_url}
+  host: <TODO_DATABRICKS_WORKSPACE_URL>
 
+# ── Bundle-level variables ────────────────────────────────────────────────────
 variables:
-  databricks_workspace_url:
-    description: Databricks workspace URL
-    default: <TODO_DATABRICKS_WORKSPACE_URL>
-
   environment:
-    description: Deployment environment
-    default: <TODO_ENVIRONMENT>
+    description: "Deployment environment label (dev, test, prod)."
+    default: prod
 
-  secret_scope_name:
-    description: Databricks secret scope backed by Azure Key Vault
-    default: <TODO_DATABRICKS_SECRET_SCOPE_NAME>
+  secret_scope:
+    description: "AKV-backed Databricks secret scope name — must match Terraform var.secret_scope_name."
+    default: akv-scope
 
-  notification_email:
-    description: Notification recipient for failed runs
-    default: <TODO_NOTIFICATION_EMAIL>
-
-  bronze_service_principal_application_id:
-    description: Bronze SP app ID from Terraform output
-    default: <TODO_BRONZE_SP_APP_ID>
-
-  silver_service_principal_application_id:
-    description: Silver SP app ID from Terraform output
-    default: <TODO_SILVER_SP_APP_ID>
-
-  gold_service_principal_application_id:
-    description: Gold SP app ID from Terraform output
-    default: <TODO_GOLD_SP_APP_ID>
-
+  # Unity Catalog names — copy from Terraform output: unity_catalog_names
   bronze_catalog:
-    default: <TODO_CATALOG_BRONZE>
+    description: "Unity Catalog name for the Bronze layer."
+    default: <TODO_BRONZE_CATALOG_NAME>
+
   silver_catalog:
-    default: <TODO_CATALOG_SILVER>
+    description: "Unity Catalog name for the Silver layer."
+    default: <TODO_SILVER_CATALOG_NAME>
+
   gold_catalog:
-    default: <TODO_CATALOG_GOLD>
+    description: "Unity Catalog name for the Gold layer."
+    default: <TODO_GOLD_CATALOG_NAME>
 
-  bronze_schema:
-    default: <TODO_SCHEMA_BRONZE>
-  silver_schema:
-    default: <TODO_SCHEMA_SILVER>
-  gold_schema:
-    default: <TODO_SCHEMA_GOLD>
+  # Service principal client IDs — copy from Terraform output: service_principal_client_ids
+  bronze_sp_client_id:
+    description: "Bronze SP application (client) ID from Entra ID."
+    default: <TODO_BRONZE_SP_CLIENT_ID>
 
-  job_schedule_quartz:
-    description: Quartz cron for orchestrator
-    default: <TODO_QUARTZ_CRON>
+  silver_sp_client_id:
+    description: "Silver SP application (client) ID from Entra ID."
+    default: <TODO_SILVER_SP_CLIENT_ID>
 
-  job_schedule_timezone:
-    description: Quartz timezone
-    default: <TODO_TIMEZONE>
+  gold_sp_client_id:
+    description: "Gold SP application (client) ID from Entra ID."
+    default: <TODO_GOLD_SP_CLIENT_ID>
 
-  bronze_runtime:
-    default: <TODO_BRONZE_RUNTIME>
-  silver_runtime:
-    default: <TODO_SILVER_RUNTIME>
-  gold_runtime:
-    default: <TODO_GOLD_RUNTIME>
+  alert_email:
+    description: "Email address for job failure notifications."
+    default: <TODO_ALERT_EMAIL>
 
-  bronze_node_type_id:
-    default: <TODO_BRONZE_NODE_TYPE_ID>
-  silver_node_type_id:
-    default: <TODO_SILVER_NODE_TYPE_ID>
-  gold_node_type_id:
-    default: <TODO_GOLD_NODE_TYPE_ID>
-
+# ── Resource includes ─────────────────────────────────────────────────────────
 include:
   - resources/jobs.yml
 
+# ── Deployment targets ────────────────────────────────────────────────────────
 targets:
-  dev:
-    default: true
-    mode: development
-
   prod:
     mode: production
+    default: true
+    workspace:
+      host: <TODO_DATABRICKS_WORKSPACE_URL>

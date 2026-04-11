@@ -1,76 +1,82 @@
-# TODO.md
+# TODO — Values Required Before Deployment
 
-Fill these unresolved values before deploy.
+Fill each `<TODO_...>` placeholder before running `terraform apply` or `databricks bundle deploy`.
 
-Region is fixed by skill default to `uksouth` and is not listed as unresolved.
+---
 
-## Global
-- `subscription_id`: `<TODO_SUBSCRIPTION_ID>`
-- `tenant_id`: `<TODO_TENANT_ID>`
-- `resource_group_name`: `<TODO_RESOURCE_GROUP_NAME>`
-- `environment`: `<TODO_ENVIRONMENT>`
+## Terraform (`infra/terraform/terraform.tfvars`)
 
-## Databricks
-- `databricks_workspace_url`: `<TODO_DATABRICKS_WORKSPACE_URL>`
-- `databricks_account_id`: `<TODO_DATABRICKS_ACCOUNT_ID>`
-- `unity_catalog_metastore_id` (if assignment/validation is needed in your environment): `<TODO_METASTORE_ID>`
+| Variable | Description | Where to find it |
+|---|---|---|
+| `azure_subscription_id` | Azure subscription GUID | Azure Portal → Subscriptions |
+| `azure_tenant_id` | Entra ID tenant GUID | Azure Portal → Microsoft Entra ID → Overview |
+| `databricks_account_id` | Databricks account UUID | https://accounts.azuredatabricks.net → Account Info |
+| `databricks_metastore_id` | Unity Catalog metastore UUID | Databricks account console → Data → Metastores |
 
-## Azure Networking (optional, only if `enable_networking = true`)
-- `vnet_name`: `<TODO_VNET_NAME>`
-- `vnet_address_space`: `<TODO_VNET_CIDR>`
-- `public_subnet_name`: `<TODO_PUBLIC_SUBNET_NAME>`
-- `public_subnet_address_prefixes`: `<TODO_PUBLIC_SUBNET_CIDR_LIST>`
-- `private_subnet_name`: `<TODO_PRIVATE_SUBNET_NAME>`
-- `private_subnet_address_prefixes`: `<TODO_PRIVATE_SUBNET_CIDR_LIST>`
-- `nsg_name`: `<TODO_NSG_NAME>`
+> `azure_region` defaults to `uksouth`. Override only if needed.  
+> `environment` defaults to `prod`. Set to `dev` or `test` for non-production deployments.
 
-## Layer-specific Names (do not invent)
-- `layer_storage_account_names.bronze`: `<TODO_STORAGE_ACCOUNT_BRONZE>`
-- `layer_storage_account_names.silver`: `<TODO_STORAGE_ACCOUNT_SILVER>`
-- `layer_storage_account_names.gold`: `<TODO_STORAGE_ACCOUNT_GOLD>`
+---
 
-- `layer_managed_identity_names.bronze`: `<TODO_UAMI_BRONZE>`
-- `layer_managed_identity_names.silver`: `<TODO_UAMI_SILVER>`
-- `layer_managed_identity_names.gold`: `<TODO_UAMI_GOLD>`
+## Databricks Bundle (`databricks-bundle/databricks.yml` or target override)
 
-- `layer_access_connector_names.bronze`: `<TODO_ACCESS_CONNECTOR_BRONZE>`
-- `layer_access_connector_names.silver`: `<TODO_ACCESS_CONNECTOR_SILVER>`
-- `layer_access_connector_names.gold`: `<TODO_ACCESS_CONNECTOR_GOLD>`
+| Variable | Description | How to get it |
+|---|---|---|
+| `<TODO_DATABRICKS_WORKSPACE_URL>` | Workspace URL (e.g. `https://adb-XXXX.azuredatabricks.net`) | Terraform output: `databricks_workspace_url` |
+| `<TODO_BRONZE_SP_CLIENT_ID>` | Bronze SP application/client ID | Terraform output: `service_principal_client_ids["bronze"]` |
+| `<TODO_SILVER_SP_CLIENT_ID>` | Silver SP application/client ID | Terraform output: `service_principal_client_ids["silver"]` |
+| `<TODO_GOLD_SP_CLIENT_ID>` | Gold SP application/client ID | Terraform output: `service_principal_client_ids["gold"]` |
+| `<TODO_BRONZE_CATALOG_NAME>` | Unity Catalog name for Bronze | Terraform output: `unity_catalog_names["bronze"]` → e.g. `bronze_catalog` |
+| `<TODO_SILVER_CATALOG_NAME>` | Unity Catalog name for Silver | Terraform output: `unity_catalog_names["silver"]` → e.g. `silver_catalog` |
+| `<TODO_GOLD_CATALOG_NAME>` | Unity Catalog name for Gold | Terraform output: `unity_catalog_names["gold"]` → e.g. `gold_catalog` |
+| `<TODO_ALERT_EMAIL>` | E-mail for job failure notifications | Your ops / data-engineering team address |
 
-- `layer_service_principal_display_names.bronze`: `<TODO_SP_BRONZE_DISPLAY_NAME>`
-- `layer_service_principal_display_names.silver`: `<TODO_SP_SILVER_DISPLAY_NAME>`
-- `layer_service_principal_display_names.gold`: `<TODO_SP_GOLD_DISPLAY_NAME>`
+---
 
-- `layer_storage_credential_names.bronze`: `<TODO_STORAGE_CREDENTIAL_BRONZE>`
-- `layer_storage_credential_names.silver`: `<TODO_STORAGE_CREDENTIAL_SILVER>`
-- `layer_storage_credential_names.gold`: `<TODO_STORAGE_CREDENTIAL_GOLD>`
+## Python Source (`databricks-bundle/src/*/main.py`)
 
-- `layer_external_location_names.bronze`: `<TODO_EXTERNAL_LOCATION_BRONZE>`
-- `layer_external_location_names.silver`: `<TODO_EXTERNAL_LOCATION_SILVER>`
-- `layer_external_location_names.gold`: `<TODO_EXTERNAL_LOCATION_GOLD>`
+### Bronze layer
 
-- `layer_catalog_names.bronze`: `<TODO_CATALOG_BRONZE>`
-- `layer_catalog_names.silver`: `<TODO_CATALOG_SILVER>`
-- `layer_catalog_names.gold`: `<TODO_CATALOG_GOLD>`
+| Placeholder | Description |
+|---|---|
+| `<TODO_SOURCE_URL_SECRET_KEY>` | AKV secret key name for the source system JDBC URL / API endpoint |
+| `<TODO_SOURCE_USER_SECRET_KEY>` | AKV secret key name for the source system username |
+| `<TODO_SOURCE_PASSWORD_SECRET_KEY>` | AKV secret key name for the source system password/token |
+| `<TODO_SOURCE_TABLE>` | Source table or resource name to read from |
+| `<TODO_TARGET_TABLE>` | Target managed table name in the Bronze catalog |
 
-- `layer_schema_names.bronze`: `<TODO_SCHEMA_BRONZE>`
-- `layer_schema_names.silver`: `<TODO_SCHEMA_SILVER>`
-- `layer_schema_names.gold`: `<TODO_SCHEMA_GOLD>`
+### Silver layer
 
-## Security / Secrets
-- `key_vault_name`: `<TODO_KEY_VAULT_NAME>`
-- `secret_scope_name`: `<TODO_DATABRICKS_SECRET_SCOPE_NAME>`
+| Placeholder | Description |
+|---|---|
+| `<TODO_BRONZE_SOURCE_TABLE>` | Fully qualified bronze table to read (`bronze_catalog.raw.<table>`) |
+| `<TODO_SILVER_TARGET_TABLE>` | Target managed table name in the Silver catalog |
+| `<TODO_SILVER_TRANSFORM_LOGIC>` | Data quality / transformation rules specific to your domain |
 
-## Bundle Runtime
-- `notification_email`: `<TODO_NOTIFICATION_EMAIL>`
-- `job_schedule_quartz`: `<TODO_QUARTZ_CRON>`
-- `job_schedule_timezone`: `<TODO_TIMEZONE>`
-- `bronze_service_principal_application_id`: `<TODO_BRONZE_SP_APP_ID>`
-- `silver_service_principal_application_id`: `<TODO_SILVER_SP_APP_ID>`
-- `gold_service_principal_application_id`: `<TODO_GOLD_SP_APP_ID>`
-- `bronze_runtime`: `<TODO_BRONZE_RUNTIME>`
-- `silver_runtime`: `<TODO_SILVER_RUNTIME>`
-- `gold_runtime`: `<TODO_GOLD_RUNTIME>`
-- `bronze_node_type_id`: `<TODO_BRONZE_NODE_TYPE_ID>`
-- `silver_node_type_id`: `<TODO_SILVER_NODE_TYPE_ID>`
-- `gold_node_type_id`: `<TODO_GOLD_NODE_TYPE_ID>`
+### Gold layer
+
+| Placeholder | Description |
+|---|---|
+| `<TODO_SILVER_SOURCE_TABLE>` | Fully qualified silver table to read (`silver_catalog.clean.<table>`) |
+| `<TODO_GOLD_TARGET_TABLE>` | Target managed table name in the Gold catalog |
+| `<TODO_GOLD_AGGREGATION_LOGIC>` | Business aggregation / metric logic specific to your domain |
+
+---
+
+## Post-Terraform Manual Steps
+
+| Step | Notes |
+|---|---|
+| Confirm metastore assignment | Verify in Databricks account console → Workspaces that the metastore is assigned |
+| AKV diagnostic logging | Add a Monitor diagnostic setting on the Key Vault to a Log Analytics workspace |
+| System tables enablement | In Databricks workspace: `ALTER CATALOG system SET OWNER TO ...` and grant access to system catalog |
+| SP secret rotation policy | Configure AKV secret rotation for `bronze-sp-client-secret`, `silver-sp-client-secret`, `gold-sp-client-secret` |
+| Job schedules | Set `quartz_cron_expression` in `databricks-bundle/resources/jobs.yml` for each layer job and the orchestrator |
+
+---
+
+## Not Required (resolved by defaults)
+
+- `azure_region` → `uksouth` (default; not an unresolved value)
+- `environment` → `prod` (default; change as needed)
+- `secret_scope_name` → `akv-scope` (default; change if your naming standard differs)
