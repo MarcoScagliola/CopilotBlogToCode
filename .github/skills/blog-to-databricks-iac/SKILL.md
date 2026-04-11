@@ -14,6 +14,7 @@ Converts a technical article into deployment-ready infrastructure code: Terrafor
 3. Terraform code (`infra/terraform/`)
 4. DAB project (`databricks-bundle/`)
 5. `README.md` – deployment guide
+6. Execution plan prompt under `.github/prompts/` with the execution date appended to filename
 
 ## Implementation Steps
 
@@ -22,6 +23,15 @@ Converts a technical article into deployment-ready infrastructure code: Terrafor
 python .github/skills/blog-to-databricks-iac/scripts/fetch_blog.py "<URL>"
 ```
 If fetch fails, stop and return the fetch error output.
+
+### 1.1 Save execution plan prompt
+Before generating code, create and save the execution plan in `.github/prompts/` as:
+`plan-blogToDatabricksIac-YYYY-MM-DD.prompt.md`
+
+Rules:
+- The file must contain the current execution plan content only (no YAML frontmatter).
+- Always append the execution date in `YYYY-MM-DD` format.
+- If a file already exists for the same date, append time as `YYYY-MM-DD-HHmmss` to avoid overwrite.
 
 ### 2. Validate deployment model
 Load from `./references/azure/cloud-deployment.md` and ensure conformance.
