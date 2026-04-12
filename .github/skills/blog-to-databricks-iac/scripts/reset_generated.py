@@ -30,6 +30,7 @@ GENERATED_FILES = [
     REPO_ROOT / "SPEC.md",
     REPO_ROOT / "TODO.md",
     REPO_ROOT / ".github" / "workflows" / "validate-terraform.yml",
+    REPO_ROOT / ".github" / "workflows" / "deploy.yml",
 ]
 
 # Generated code directories. Their contents will be removed,

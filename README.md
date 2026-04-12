@@ -34,22 +34,51 @@ DAB owns:
 
 ## Deploy Steps
 
+### Step 1 — Terraform
 1. Fill unresolved values in `TODO.md`.
 2. Create `infra/terraform/terraform.tfvars` with required inputs.
 3. Run Terraform:
-   - `terraform -chdir=infra/terraform init`
-   - `terraform -chdir=infra/terraform validate`
-   - `terraform -chdir=infra/terraform apply -var-file=terraform.tfvars`
-4. Store secrets in Key Vault:
-   - `jdbc-connection-string`
-   - `jdbc-username`
+   ```bash
+   terraform -chdir=infra/terraform init
+   terraform -chdir=infra/terraform validate
+   terraform -chdir=infra/terraform apply -var-file=terraform.tfvars
+   ```
+4. Store JDBC secrets in Key Vault (once workspace is provisioned):
+   - `jdbc-host`
+   - `jdbc-database`
+   - `jdbc-user`
    - `jdbc-password`
-   - `source-table-name`
-5. Update `databricks-bundle/databricks.yml` using Terraform outputs.
-6. Validate and deploy DAB:
-   - `cd databricks-bundle`
-   - `databricks bundle validate`
-   - `databricks bundle deploy`
+
+### Step 2 — Databricks Asset Bundle
+The bridge script reads all Terraform outputs and wires them directly into the bundle deploy command — no manual copy-paste of workspace IDs, SP client IDs, or catalog names.
+
+**Preview the generated command (dry run):**
+```bash
+python .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py \
+  --target dev \
+  --environment dev
+```
+
+**Execute the deploy:**
+```bash
+python .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py \
+  --target dev \
+  --environment dev \
+  --run
+```
+
+The script maps these Terraform outputs to DAB variables automatically:
+
+| Terraform output | DAB variable |
+|-----------------|-------------|
+| `databricks_workspace_url` | `workspace_host` |
+| `bronze_sp_client_id` | `bronze_sp_client_id` |
+| `silver_sp_client_id` | `silver_sp_client_id` |
+| `gold_sp_client_id` | `gold_sp_client_id` |
+| `uc_catalog_bronze` | `bronze_catalog` |
+| `uc_catalog_silver` | `silver_catalog` |
+| `uc_catalog_gold` | `gold_catalog` |
+| `secret_scope_name` | `secret_scope` |
 
 ## Notes
 
