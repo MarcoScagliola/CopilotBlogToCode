@@ -88,21 +88,34 @@ The script maps these Terraform outputs to DAB variables automatically:
 
 ## GitHub Secure Variables
 
-To let contributors reuse this repo safely, configure these repository-level GitHub secrets:
+Configure these repository-level GitHub secrets for deployment:
 
-- `AZURE_TENANT_ID`
-- `AZURE_SUBSCRIPTION_ID`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `DATABRICKS_TOKEN`
+- `DATABRICKS_ACCOUNT_ID`
+- `DATABRICKS_METASTORE_ID`
+- `JDBC_HOST`
+- `JDBC_DATABASE`
+- `JDBC_USER`
+- `JDBC_PASSWORD`
 
-Set them with GitHub CLI:
+Set them with GitHub CLI (example):
 
 ```bash
-gh secret set AZURE_TENANT_ID --body "<your-tenant-id>"
-gh secret set AZURE_SUBSCRIPTION_ID --body "<your-subscription-id>"
+gh secret set AZURE_CLIENT_ID --body "<your-client-id>"
+gh secret set AZURE_CLIENT_SECRET --body "<your-client-secret>"
+gh secret set DATABRICKS_TOKEN --body "<your-databricks-token>"
 ```
 
 Or in GitHub UI:
 
 1. Open `Settings` > `Secrets and variables` > `Actions`.
-2. Create the two secrets above.
+2. Create the secrets listed above.
 
-This repo includes `.github/workflows/validate-terraform.yml`, which reads those secrets and runs Terraform validation in CI.
+This repo includes:
+
+- `.github/workflows/validate-terraform.yml` (manual validation)
+- `.github/workflows/deploy.yml` (terraform apply -> outputs -> DAB deploy)
+
+`azure_tenant_id` and `azure_subscription_id` are passed as required `workflow_dispatch` inputs when you run either workflow.

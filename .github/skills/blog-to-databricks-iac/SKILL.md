@@ -39,18 +39,22 @@ Before generating Terraform/DAB code, create (or refresh) `.github/workflows/val
 ```bash
 python .github/skills/blog-to-databricks-iac/scripts/azure/generate_validate_workflow.py \
 	--workflow-name "Validate Terraform" \
-	--tenant-input "azure_tenant_id" \
-	--subscription-input "azure_subscription_id"
+	--github-environment "BLG2CODEDEV" \
+	--tenant-secret "AZURE_TENANT_ID" \
+	--subscription-secret "AZURE_SUBSCRIPTION_ID"
 ```
 
 ### 1.3 Generate deploy workflow dynamically
 Create (or refresh) `.github/workflows/deploy.yml` by running:
 
 ```bash
-python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workflow.py
+python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workflow.py \
+	--github-environment "BLG2CODEDEV" \
+	--tenant-secret "AZURE_TENANT_ID" \
+	--subscription-secret "AZURE_SUBSCRIPTION_ID"
 ```
 
-This workflow runs `terraform apply` then — if no errors — reads the Terraform outputs and deploys the Databricks Asset Bundle automatically. It requires these additional GitHub secrets: `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `DATABRICKS_TOKEN`, `DATABRICKS_ACCOUNT_ID`, `DATABRICKS_METASTORE_ID`, `JDBC_HOST`, `JDBC_DATABASE`, `JDBC_USER`, `JDBC_PASSWORD`.
+This workflow runs `terraform apply` then — if no errors — reads the Terraform outputs and deploys the Databricks Asset Bundle automatically. It uses environment secrets for tenant/subscription and requires these additional GitHub secrets: `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `DATABRICKS_TOKEN`, `DATABRICKS_ACCOUNT_ID`, `DATABRICKS_METASTORE_ID`, `JDBC_HOST`, `JDBC_DATABASE`, `JDBC_USER`, `JDBC_PASSWORD`.
 
 ### 2. Validate deployment model
 Load from `./references/azure/cloud-deployment.md` and ensure conformance.

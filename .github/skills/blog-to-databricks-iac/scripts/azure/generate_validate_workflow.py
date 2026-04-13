@@ -6,37 +6,32 @@ from pathlib import Path
 
 def build_workflow_yaml(
     workflow_name: str,
-    tenant_input: str,
-    subscription_input: str,
+    github_environment: str,
+    tenant_secret: str,
+    subscription_secret: str,
 ) -> str:
     return f"""name: {workflow_name}
 
 on:
   workflow_dispatch:
-    inputs:
-      {tenant_input}:
-        description: Azure tenant ID
-        required: true
-      {subscription_input}:
-        description: Azure subscription ID
-        required: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    environment: {github_environment}
 
     env:
-      AZURE_TENANT_ID: ${{{{ github.event.inputs.{tenant_input} }}}}
-      AZURE_SUBSCRIPTION_ID: ${{{{ github.event.inputs.{subscription_input} }}}}
+      AZURE_TENANT_ID: ${{{{ secrets.{tenant_secret} }}}}
+      AZURE_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} }}}}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure required inputs are set
+      - name: Ensure required environment secrets are set
         run: |
-          test -n "$AZURE_TENANT_ID" || (echo "Missing input: {tenant_input}" && exit 1)
-          test -n "$AZURE_SUBSCRIPTION_ID" || (echo "Missing input: {subscription_input}" && exit 1)
+          test -n "$AZURE_TENANT_ID" || (echo "Missing secret: {tenant_secret}" && exit 1)
+          test -n "$AZURE_SUBSCRIPTION_ID" || (echo "Missing secret: {subscription_secret}" && exit 1)
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -64,14 +59,19 @@ def main() -> int:
         help="GitHub Actions workflow display name.",
     )
     parser.add_argument(
-        "--tenant-input",
-        default="azure_tenant_id",
-        help="workflow_dispatch input name for tenant ID.",
+        "--github-environment",
+        default="BLG2CODEDEV",
+        help="GitHub Actions environment name.",
     )
     parser.add_argument(
-        "--subscription-input",
-        default="azure_subscription_id",
-        help="workflow_dispatch input name for subscription ID.",
+        "--tenant-secret",
+        default="AZURE_TENANT_ID",
+        help="Environment secret name for tenant ID.",
+    )
+    parser.add_argument(
+        "--subscription-secret",
+        default="AZURE_SUBSCRIPTION_ID",
+        help="Environment secret name for subscription ID.",
     )
 
     args = parser.parse_args()
@@ -80,8 +80,9 @@ def main() -> int:
 
     content = build_workflow_yaml(
         workflow_name=args.workflow_name,
-        tenant_input=args.tenant_input,
-        subscription_input=args.subscription_input,
+        github_environment=args.github_environment,
+        tenant_secret=args.tenant_secret,
+        subscription_secret=args.subscription_secret,
     )
     output.write_text(content, encoding="utf-8")
 

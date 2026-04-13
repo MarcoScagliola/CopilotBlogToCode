@@ -6,8 +6,9 @@ from pathlib import Path
 
 def build_workflow_yaml(
     workflow_name: str,
-    tenant_input: str,
-    subscription_input: str,
+  github_environment: str,
+  tenant_secret: str,
+  subscription_secret: str,
     client_id_secret: str,
     client_secret_secret: str,
     databricks_token_secret: str,
@@ -28,23 +29,18 @@ on:
         description: Environment variable passed to DAB
         required: true
         default: dev
-      {tenant_input}:
-        description: Azure tenant ID
-        required: true
-      {subscription_input}:
-        description: Azure subscription ID
-        required: true
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
-  ARM_TENANT_ID: ${{{{ github.event.inputs.{tenant_input} }}}}
-  ARM_SUBSCRIPTION_ID: ${{{{ github.event.inputs.{subscription_input} }}}}
+  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} }}}}
+  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} }}}}
   ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} }}}}
   ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} }}}}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: {github_environment}
 
     steps:
       - name: Checkout
@@ -82,8 +78,8 @@ jobs:
 
       - name: Terraform Apply
         env:
-          TF_VAR_azure_tenant_id: ${{{{ github.event.inputs.{tenant_input} }}}}
-          TF_VAR_azure_subscription_id: ${{{{ github.event.inputs.{subscription_input} }}}}
+          TF_VAR_azure_tenant_id: ${{{{ secrets.{tenant_secret} }}}}
+          TF_VAR_azure_subscription_id: ${{{{ secrets.{subscription_secret} }}}}
           TF_VAR_databricks_account_id: ${{{{ secrets.DATABRICKS_ACCOUNT_ID }}}}
           TF_VAR_metastore_id: ${{{{ secrets.DATABRICKS_METASTORE_ID }}}}
           TF_VAR_jdbc_host: ${{{{ secrets.JDBC_HOST }}}}
@@ -116,8 +112,9 @@ def main() -> int:
     )
     parser.add_argument("--output", default=".github/workflows/deploy.yml")
     parser.add_argument("--workflow-name", default="Deploy Infrastructure and DAB")
-    parser.add_argument("--tenant-input", default="azure_tenant_id")
-    parser.add_argument("--subscription-input", default="azure_subscription_id")
+    parser.add_argument("--github-environment", default="BLG2CODEDEV")
+    parser.add_argument("--tenant-secret", default="AZURE_TENANT_ID")
+    parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")
     parser.add_argument("--client-id-secret", default="AZURE_CLIENT_ID")
     parser.add_argument("--client-secret-secret", default="AZURE_CLIENT_SECRET")
     parser.add_argument("--databricks-token-secret", default="DATABRICKS_TOKEN")
@@ -128,8 +125,9 @@ def main() -> int:
 
     content = build_workflow_yaml(
         workflow_name=args.workflow_name,
-        tenant_input=args.tenant_input,
-        subscription_input=args.subscription_input,
+      github_environment=args.github_environment,
+      tenant_secret=args.tenant_secret,
+      subscription_secret=args.subscription_secret,
         client_id_secret=args.client_id_secret,
         client_secret_secret=args.client_secret_secret,
         databricks_token_secret=args.databricks_token_secret,
