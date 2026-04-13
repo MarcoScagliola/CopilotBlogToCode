@@ -28,10 +28,15 @@ Ask the user for the following values before proceeding. If they were already pr
 | `environment` | Target deployment environment | `dev`, `prd` |
 | `azure_region` | Azure region for deployment | `uksouth`, `eastus2` |
 | `github_environment` | GitHub Environment name that holds the tenant and subscription secrets | `MYAPP-DEV`, `BLG2CODEDEV` |
+| `tenant_secret_name` | GitHub secret name that stores Azure tenant ID | `AZURE_TENANT_ID`, `MY_TENANT_ID` |
+| `subscription_secret_name` | GitHub secret name that stores Azure subscription ID | `AZURE_SUBSCRIPTION_ID`, `MY_SUBSCRIPTION_ID` |
 
-Store these as the active run context. Reference them as `{workload}`, `{environment}`, `{azure_region}`, `{github_environment}` throughout all subsequent steps.
+Store these as the active run context. Reference them as `{workload}`, `{environment}`, `{azure_region}`, `{github_environment}`, `{tenant_secret_name}`, `{subscription_secret_name}` throughout all subsequent steps.
 
-If the user does not provide `github_environment`, derive a default as `{WORKLOAD_UPPER}-{ENVIRONMENT_UPPER}` (e.g. workload `blg` + environment `dev` → `BLG-DEV`).
+If the user does not provide:
+- `github_environment`: derive a default as `{WORKLOAD_UPPER}-{ENVIRONMENT_UPPER}` (e.g. workload `blg` + environment `dev` -> `BLG-DEV`)
+- `tenant_secret_name`: default to `AZURE_TENANT_ID`
+- `subscription_secret_name`: default to `AZURE_SUBSCRIPTION_ID`
 
 ### 1. Fetch article
 ```bash
@@ -55,8 +60,8 @@ Before generating Terraform/DAB code, create (or refresh) `.github/workflows/val
 python .github/skills/blog-to-databricks-iac/scripts/azure/generate_validate_workflow.py \
 	--workflow-name "Validate Terraform" \
 	--github-environment "{github_environment}" \
-	--tenant-secret "AZURE_TENANT_ID" \
-	--subscription-secret "AZURE_SUBSCRIPTION_ID"
+	--tenant-secret "{tenant_secret_name}" \
+	--subscription-secret "{subscription_secret_name}"
 ```
 
 ### 1.3 Generate deploy workflow dynamically
@@ -66,14 +71,14 @@ Create (or refresh) `.github/workflows/deploy.yml` by running:
 python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workflow.py \
 	--workflow-name "Deploy Infrastructure and DAB" \
 	--github-environment "{github_environment}" \
-	--tenant-secret "AZURE_TENANT_ID" \
-	--subscription-secret "AZURE_SUBSCRIPTION_ID"
+	--tenant-secret "{tenant_secret_name}" \
+	--subscription-secret "{subscription_secret_name}"
 ```
 
 This workflow runs `terraform apply` then — if no errors — reads Terraform outputs and deploys the Databricks Asset Bundle. **No Databricks PAT is required.** The Databricks CLI authenticates using the same Azure Service Principal (`ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) already used by Terraform, combined with the workspace resource ID from the `databricks_workspace_resource_id` Terraform output.
 
 **Required GitHub secrets** (all known before deployment):
-- From GitHub Environment `{github_environment}`: `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`
+- From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`
 - Repository secrets: `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `DATABRICKS_ACCOUNT_ID`, `DATABRICKS_METASTORE_ID`
 
 **Architecture-specific secrets** (vary by blog — add to TODO.md if the architecture requires them):
