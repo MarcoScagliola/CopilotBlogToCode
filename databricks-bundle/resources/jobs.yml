@@ -1,0 +1,156 @@
+resources:
+  jobs:
+    job-blg-brz-dev:
+      name: job-blg-brz-dev
+      description: "Bronze ingestion job – reads source via JDBC and writes to Bronze managed table."
+
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+
+      tasks:
+        - task_key: bronze_ingest
+          description: "Ingest source data into Bronze catalog via JDBC."
+          python_file: ../src/bronze/main.py
+          parameters:
+            - "--catalog"
+            - "${var.bronze_catalog}"
+            - "--schema"
+            - "${var.bronze_schema}"
+            - "--secret_scope"
+            - "${var.secret_scope}"
+            - "--source_table_name"
+            - "${var.source_table_name}"
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "Standard_DS3_v2"
+            num_workers: 2
+            spark_conf:
+              spark.databricks.service.client.enabled: "true"
+              spark.databricks.passthrough.enabled: "false"
+              fs.azure.account.auth.type: "OAuth"
+              fs.azure.account.oauth.provider.type: "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+              fs.azure.account.oauth2.client.id: "${var.bronze_sp_app_id}"
+              fs.azure.account.oauth2.client.secret: "{{secrets/${var.secret_scope}/bronze-sp-secret}}"
+              fs.azure.account.oauth2.client.endpoint: "https://login.microsoftonline.com/{{secrets/${var.secret_scope}/tenant-id}}/oauth2/token"
+            azure_attributes:
+              availability: ON_DEMAND_AZURE
+
+    job-blg-slv-dev:
+      name: job-blg-slv-dev
+      description: "Silver transformation job – deduplicates and cleanses Bronze data."
+
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+
+      tasks:
+        - task_key: silver_transform
+          description: "Transform Bronze data into Silver layer with deduplication."
+          python_file: ../src/silver/main.py
+          parameters:
+            - "--bronze_catalog"
+            - "${var.bronze_catalog}"
+            - "--bronze_schema"
+            - "${var.bronze_schema}"
+            - "--silver_catalog"
+            - "${var.silver_catalog}"
+            - "--silver_schema"
+            - "${var.silver_schema}"
+            - "--source_table_name"
+            - "${var.source_table_name}"
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "Standard_DS3_v2"
+            num_workers: 2
+            spark_conf:
+              spark.databricks.service.client.enabled: "true"
+              fs.azure.account.auth.type: "OAuth"
+              fs.azure.account.oauth.provider.type: "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+              fs.azure.account.oauth2.client.id: "${var.silver_sp_app_id}"
+              fs.azure.account.oauth2.client.secret: "{{secrets/${var.secret_scope}/silver-sp-secret}}"
+              fs.azure.account.oauth2.client.endpoint: "https://login.microsoftonline.com/{{secrets/${var.secret_scope}/tenant-id}}/oauth2/token"
+            azure_attributes:
+              availability: ON_DEMAND_AZURE
+
+    job-blg-gld-dev:
+      name: job-blg-gld-dev
+      description: "Gold aggregation job – aggregates Silver data into Gold layer."
+
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+
+      tasks:
+        - task_key: gold_aggregate
+          description: "Aggregate Silver data into Gold catalog."
+          python_file: ../src/gold/main.py
+          parameters:
+            - "--silver_catalog"
+            - "${var.silver_catalog}"
+            - "--silver_schema"
+            - "${var.silver_schema}"
+            - "--gold_catalog"
+            - "${var.gold_catalog}"
+            - "--gold_schema"
+            - "${var.gold_schema}"
+            - "--source_table_name"
+            - "${var.source_table_name}"
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "Standard_DS3_v2"
+            num_workers: 2
+            spark_conf:
+              spark.databricks.service.client.enabled: "true"
+              fs.azure.account.auth.type: "OAuth"
+              fs.azure.account.oauth.provider.type: "org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider"
+              fs.azure.account.oauth2.client.id: "${var.gold_sp_app_id}"
+              fs.azure.account.oauth2.client.secret: "{{secrets/${var.secret_scope}/gold-sp-secret}}"
+              fs.azure.account.oauth2.client.endpoint: "https://login.microsoftonline.com/{{secrets/${var.secret_scope}/tenant-id}}/oauth2/token"
+            azure_attributes:
+              availability: ON_DEMAND_AZURE
+
+    job-blg-orch-dev:
+      name: job-blg-orch-dev
+      description: "Orchestrator job – chains Bronze → Silver → Gold then writes checkpoint."
+
+      email_notifications:
+        on_failure:
+          - ${var.alert_email}
+
+      tasks:
+        - task_key: run_bronze
+          description: "Trigger Bronze ingestion job."
+          run_job_task:
+            job_id: ${resources.jobs.job-blg-brz-dev.id}
+
+        - task_key: run_silver
+          description: "Trigger Silver transformation job (depends on Bronze)."
+          depends_on:
+            - task_key: run_bronze
+          run_job_task:
+            job_id: ${resources.jobs.job-blg-slv-dev.id}
+
+        - task_key: run_gold
+          description: "Trigger Gold aggregation job (depends on Silver)."
+          depends_on:
+            - task_key: run_silver
+          run_job_task:
+            job_id: ${resources.jobs.job-blg-gld-dev.id}
+
+        - task_key: checkpoint
+          description: "Write UTC timestamp and run status to checkpoint table."
+          depends_on:
+            - task_key: run_gold
+          python_file: ../src/orchestrator/main.py
+          parameters:
+            - "--gold_catalog"
+            - "${var.gold_catalog}"
+            - "--gold_schema"
+            - "${var.gold_schema}"
+          new_cluster:
+            spark_version: "14.3.x-scala2.12"
+            node_type_id: "Standard_DS3_v2"
+            num_workers: 1
+            azure_attributes:
+              availability: ON_DEMAND_AZURE
