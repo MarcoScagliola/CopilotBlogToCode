@@ -8,8 +8,6 @@ import shutil
 import sys
 from pathlib import Path
 
-#REPO_ROOT = Path(__file__).resolve().parent.parent
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 
@@ -117,7 +115,7 @@ def confirm(force: bool) -> None:
     if force:
         return
 
-    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, and validate-terraform.yml.")
+    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, validate-terraform.yml, and deploy.yml.")
     print("It will keep the Copilot skill scaffold under .github/skills/.")
     try:
         reply = input("Continue? [y/N]: ").strip().lower()

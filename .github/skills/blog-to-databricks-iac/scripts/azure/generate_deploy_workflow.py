@@ -6,12 +6,11 @@ from pathlib import Path
 
 def build_workflow_yaml(
     workflow_name: str,
-  github_environment: str,
-  tenant_secret: str,
-  subscription_secret: str,
+    github_environment: str,
+    tenant_secret: str,
+    subscription_secret: str,
     client_id_secret: str,
     client_secret_secret: str,
-    databricks_token_secret: str,
 ) -> str:
     return f"""\
 name: {workflow_name}
@@ -48,10 +47,15 @@ jobs:
 
       - name: Validate required inputs and secrets
         env:
-          DATABRICKS_TOKEN: ${{{{ secrets.{databricks_token_secret} }}}}
+          DATABRICKS_ACCOUNT_ID: ${{{{ secrets.DATABRICKS_ACCOUNT_ID }}}}
+          DATABRICKS_METASTORE_ID: ${{{{ secrets.DATABRICKS_METASTORE_ID }}}}
+          JDBC_HOST: ${{{{ secrets.JDBC_HOST }}}}
+          JDBC_DATABASE: ${{{{ secrets.JDBC_DATABASE }}}}
+          JDBC_USER: ${{{{ secrets.JDBC_USER }}}}
+          JDBC_PASSWORD: ${{{{ secrets.JDBC_PASSWORD }}}}
         run: |
           missing=()
-          for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET DATABRICKS_TOKEN; do
+          for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET DATABRICKS_ACCOUNT_ID DATABRICKS_METASTORE_ID JDBC_HOST JDBC_DATABASE JDBC_USER JDBC_PASSWORD; do
             [ -n "${{!var}}" ] || missing+=("$var")
           done
           if [ ${{#missing[@]}} -gt 0 ]; then
@@ -88,16 +92,20 @@ jobs:
           TF_VAR_jdbc_password: ${{{{ secrets.JDBC_PASSWORD }}}}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
-      - name: Get Databricks workspace URL from Terraform
+      - name: Get Terraform outputs
         id: tf_out
         run: |
           ws_url=$(terraform -chdir=infra/terraform output -raw databricks_workspace_url)
+          ws_rid=$(terraform -chdir=infra/terraform output -raw databricks_workspace_resource_id)
           echo "workspace_url=$ws_url" >> "$GITHUB_OUTPUT"
+          echo "workspace_resource_id=$ws_rid" >> "$GITHUB_OUTPUT"
 
       - name: Deploy Databricks Asset Bundle
         env:
           DATABRICKS_HOST: ${{{{ steps.tf_out.outputs.workspace_url }}}}
-          DATABRICKS_TOKEN: ${{{{ secrets.{databricks_token_secret} }}}}
+          DATABRICKS_AZURE_RESOURCE_ID: ${{{{ steps.tf_out.outputs.workspace_resource_id }}}}
+          # ARM_CLIENT_ID / ARM_CLIENT_SECRET / ARM_TENANT_ID already set at workflow level.
+          # The Databricks CLI uses these with DATABRICKS_AZURE_RESOURCE_ID for SP auth — no PAT needed.
         run: |
           python .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py \\
             --target ${{{{ github.event.inputs.target }}}} \\
@@ -117,7 +125,6 @@ def main() -> int:
     parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")
     parser.add_argument("--client-id-secret", default="AZURE_CLIENT_ID")
     parser.add_argument("--client-secret-secret", default="AZURE_CLIENT_SECRET")
-    parser.add_argument("--databricks-token-secret", default="DATABRICKS_TOKEN")
 
     args = parser.parse_args()
     output = Path(args.output)
@@ -125,12 +132,11 @@ def main() -> int:
 
     content = build_workflow_yaml(
         workflow_name=args.workflow_name,
-      github_environment=args.github_environment,
-      tenant_secret=args.tenant_secret,
-      subscription_secret=args.subscription_secret,
+        github_environment=args.github_environment,
+        tenant_secret=args.tenant_secret,
+        subscription_secret=args.subscription_secret,
         client_id_secret=args.client_id_secret,
         client_secret_secret=args.client_secret_secret,
-        databricks_token_secret=args.databricks_token_secret,
     )
     output.write_text(content, encoding="utf-8")
     print(f"Generated workflow: {output}")
