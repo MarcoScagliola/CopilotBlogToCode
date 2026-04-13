@@ -21,22 +21,32 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
-# Maps Terraform output key → DAB variable name
-TF_TO_DAB: dict[str, str] = {
-    "databricks_workspace_url": "workspace_host",
-    "bronze_sp_client_id":      "bronze_sp_client_id",
-    "silver_sp_client_id":      "silver_sp_client_id",
-    "gold_sp_client_id":        "gold_sp_client_id",
-    "uc_catalog_bronze":        "bronze_catalog",
-    "uc_catalog_silver":        "silver_catalog",
-    "uc_catalog_gold":          "gold_catalog",
-    "secret_scope_name":        "secret_scope",
+# Maps DAB variable name -> Terraform output keys (new names first, then backward-compatible aliases)
+DAB_TO_TF_KEYS: dict[str, list[str]] = {
+    "workspace_host": ["databricks_workspace_url"],
+    "bronze_sp_client_id": ["bronze_sp_application_id", "bronze_sp_client_id"],
+    "silver_sp_client_id": ["silver_sp_application_id", "silver_sp_client_id"],
+    "gold_sp_client_id": ["gold_sp_application_id", "gold_sp_client_id"],
+    "bronze_catalog": ["bronze_catalog_name", "uc_catalog_bronze"],
+    "silver_catalog": ["silver_catalog_name", "uc_catalog_silver"],
+    "gold_catalog": ["gold_catalog_name", "uc_catalog_gold"],
+    "secret_scope": ["secret_scope_name"],
 }
 
 
 def _fail(reason: str) -> None:
     print(f"ERROR: {reason}", file=sys.stderr)
     sys.exit(1)
+
+
+def _normalize_tf_output_json(raw: dict) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for k, v in raw.items():
+        if isinstance(v, dict) and "value" in v:
+            normalized[k] = v["value"]
+        else:
+            normalized[k] = v
+    return normalized
 
 
 def get_tf_outputs(terraform_dir: Path) -> dict[str, str]:
@@ -70,21 +80,39 @@ def get_tf_outputs(terraform_dir: Path) -> dict[str, str]:
     except json.JSONDecodeError as e:
         _fail(f"Could not parse terraform output JSON: {e}")
 
-    return {k: v["value"] for k, v in raw.items()}
+    return _normalize_tf_output_json(raw)
+
+
+def get_tf_outputs_from_file(outputs_json_file: Path) -> dict[str, str]:
+    if not outputs_json_file.is_file():
+        _fail(f"Terraform outputs JSON file not found: {outputs_json_file}")
+
+    try:
+        raw = json.loads(outputs_json_file.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        _fail(f"Could not parse outputs JSON file: {e}")
+    except OSError as e:
+        _fail(f"Failed reading outputs JSON file: {e}")
+
+    if not isinstance(raw, dict):
+        _fail("Outputs JSON file has invalid format: expected object at root")
+
+    return _normalize_tf_output_json(raw)
 
 
 def build_dab_vars(tf_outputs: dict[str, str], environment: str) -> dict[str, str]:
     dab_vars: dict[str, str] = {"environment": environment}
     missing: list[str] = []
 
-    for tf_key, dab_key in TF_TO_DAB.items():
-        if tf_key not in tf_outputs:
-            missing.append(tf_key)
-        else:
-            dab_vars[dab_key] = str(tf_outputs[tf_key])
+    for dab_key, candidate_tf_keys in DAB_TO_TF_KEYS.items():
+        selected_key = next((k for k in candidate_tf_keys if k in tf_outputs), None)
+        if not selected_key:
+            missing.append(f"{dab_key} (expected one of: {', '.join(candidate_tf_keys)})")
+            continue
+        dab_vars[dab_key] = str(tf_outputs[selected_key])
 
     if missing:
-        print("WARNING: The following Terraform outputs were not found and will be skipped:", file=sys.stderr)
+        print("WARNING: The following required Terraform outputs were not found and will be skipped:", file=sys.stderr)
         for m in missing:
             print(f"  - {m}", file=sys.stderr)
         print("  Run `terraform apply` to ensure all outputs are available.", file=sys.stderr)
@@ -116,6 +144,11 @@ def main() -> None:
         help="Terraform directory relative to repo root. Default: infra/terraform",
     )
     parser.add_argument(
+        "--outputs-json-file",
+        default="",
+        help="Optional path to a Terraform output -json file. If set, skips calling terraform output.",
+    )
+    parser.add_argument(
         "--bundle-dir",
         default="databricks-bundle",
         help="DAB directory relative to repo root. Default: databricks-bundle",
@@ -141,14 +174,26 @@ def main() -> None:
     terraform_dir = REPO_ROOT / args.terraform_dir
     bundle_dir = REPO_ROOT / args.bundle_dir
 
-    if not terraform_dir.is_dir():
+    if args.outputs_json_file:
+        outputs_json_file = REPO_ROOT / args.outputs_json_file
+    else:
+        outputs_json_file = None
+
+    if outputs_json_file is None and not terraform_dir.is_dir():
         _fail(f"Terraform directory not found: {terraform_dir}")
     if not bundle_dir.is_dir():
         _fail(f"Bundle directory not found: {bundle_dir}")
 
-    print(f"Reading Terraform outputs from: {terraform_dir}")
+    if outputs_json_file is not None:
+        print(f"Reading Terraform outputs from JSON file: {outputs_json_file}")
+    else:
+        print(f"Reading Terraform outputs from: {terraform_dir}")
+
     try:
-        tf_outputs = get_tf_outputs(terraform_dir)
+        if outputs_json_file is not None:
+            tf_outputs = get_tf_outputs_from_file(outputs_json_file)
+        else:
+            tf_outputs = get_tf_outputs(terraform_dir)
     except SystemExit:
         raise
     except Exception as e:

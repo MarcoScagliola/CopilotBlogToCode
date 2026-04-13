@@ -17,17 +17,6 @@ name: {workflow_name}
 
 on:
   workflow_dispatch:
-    inputs:
-      target:
-        description: DAB target (dev or prd)
-        required: true
-        default: dev
-        type: choice
-        options: [dev, prd]
-      environment:
-        description: Environment variable passed to DAB
-        required: true
-        default: dev
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
@@ -37,7 +26,7 @@ env:
   ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} }}}}
 
 jobs:
-  deploy:
+  deploy_infrastructure:
     runs-on: ubuntu-latest
     environment: {github_environment}
 
@@ -68,15 +57,6 @@ jobs:
         with:
           terraform_wrapper: false  # Required for clean terraform output -raw
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install Databricks CLI
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
-
       - name: Terraform Init
         run: terraform -chdir=infra/terraform init
 
@@ -92,34 +72,25 @@ jobs:
           TF_VAR_jdbc_password: ${{{{ secrets.JDBC_PASSWORD }}}}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
-      - name: Get Terraform outputs
-        id: tf_out
+      - name: Export Terraform outputs
         run: |
-          ws_url=$(terraform -chdir=infra/terraform output -raw databricks_workspace_url)
-          ws_rid=$(terraform -chdir=infra/terraform output -raw databricks_workspace_resource_id)
-          echo "workspace_url=$ws_url" >> "$GITHUB_OUTPUT"
-          echo "workspace_resource_id=$ws_rid" >> "$GITHUB_OUTPUT"
+          terraform -chdir=infra/terraform output -json > infra/terraform/terraform-outputs.json
 
-      - name: Deploy Databricks Asset Bundle
-        env:
-          DATABRICKS_HOST: ${{{{ steps.tf_out.outputs.workspace_url }}}}
-          DATABRICKS_AZURE_RESOURCE_ID: ${{{{ steps.tf_out.outputs.workspace_resource_id }}}}
-          # ARM_CLIENT_ID / ARM_CLIENT_SECRET / ARM_TENANT_ID already set at workflow level.
-          # The Databricks CLI uses these with DATABRICKS_AZURE_RESOURCE_ID for SP auth — no PAT needed.
-        run: |
-          python .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py \\
-            --target ${{{{ github.event.inputs.target }}}} \\
-            --environment ${{{{ github.event.inputs.environment }}}} \\
-            --run
+      - name: Upload Terraform outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs
+          path: infra/terraform/terraform-outputs.json
+          retention-days: 7
 """
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate .github/workflows/deploy.yml — Terraform apply then DAB deploy."
+        description="Generate .github/workflows/deploy-infrastructure.yml — Terraform apply only."
     )
-    parser.add_argument("--output", default=".github/workflows/deploy.yml")
-    parser.add_argument("--workflow-name", default="Deploy Infrastructure and DAB")
+    parser.add_argument("--output", default=".github/workflows/deploy-infrastructure.yml")
+    parser.add_argument("--workflow-name", default="Deploy Infrastructure")
     parser.add_argument("--github-environment", default="BLG2CODEDEV")
     parser.add_argument("--tenant-secret", default="AZURE_TENANT_ID")
     parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")

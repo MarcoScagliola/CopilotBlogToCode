@@ -28,7 +28,8 @@ GENERATED_FILES = [
     REPO_ROOT / "SPEC.md",
     REPO_ROOT / "TODO.md",
     REPO_ROOT / ".github" / "workflows" / "validate-terraform.yml",
-    REPO_ROOT / ".github" / "workflows" / "deploy.yml",
+    REPO_ROOT / ".github" / "workflows" / "deploy-infrastructure.yml",
+    REPO_ROOT / ".github" / "workflows" / "deploy-dab.yml",
 ]
 
 # Generated code directories. Their contents will be removed,
@@ -115,7 +116,7 @@ def confirm(force: bool) -> None:
     if force:
         return
 
-    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, validate-terraform.yml, and deploy.yml.")
+    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, validate-terraform.yml, deploy-infrastructure.yml, and deploy-dab.yml.")
     print("It will keep the Copilot skill scaffold under .github/skills/.")
     try:
         reply = input("Continue? [y/N]: ").strip().lower()
