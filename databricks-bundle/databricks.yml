@@ -1,0 +1,89 @@
+bundle:
+  name: secure-medallion-blg
+
+include:
+  - resources/*.yml
+
+variables:
+  environment:
+    description: Environment name used in job names and tags.
+    default: dev
+  workspace_host:
+    description: Databricks workspace host supplied from Terraform outputs.
+    default: ""
+  secret_scope:
+    description: AKV-backed secret scope name.
+    default: ""
+  bronze_sp_client_id:
+    description: Bronze service principal application ID.
+    default: ""
+  silver_sp_client_id:
+    description: Silver service principal application ID.
+    default: ""
+  gold_sp_client_id:
+    description: Gold service principal application ID.
+    default: ""
+  bronze_catalog:
+    description: Bronze Unity Catalog catalog name.
+    default: ""
+  silver_catalog:
+    description: Silver Unity Catalog catalog name.
+    default: ""
+  gold_catalog:
+    description: Gold Unity Catalog catalog name.
+    default: ""
+  bronze_schema:
+    description: Bronze schema name.
+    default: bronze_schema
+  silver_schema:
+    description: Silver schema name.
+    default: silver_schema
+  gold_schema:
+    description: Gold schema name.
+    default: gold_schema
+  bronze_table:
+    description: Bronze managed table name.
+    default: inbound_events
+  silver_table:
+    description: Silver managed table name.
+    default: refined_events
+  gold_table:
+    description: Gold managed table name.
+    default: curated_daily_metrics
+  bronze_source_query:
+    description: JDBC query or table reference used by the Bronze ingestion job.
+    default: "(SELECT 1 AS record_id, CURRENT_TIMESTAMP AS source_ts) AS bronze_source"
+  jdbc_host_key:
+    description: Secret key name for the JDBC host.
+    default: jdbc-host
+  jdbc_database_key:
+    description: Secret key name for the JDBC database.
+    default: jdbc-database
+  jdbc_user_key:
+    description: Secret key name for the JDBC user.
+    default: jdbc-user
+  jdbc_password_key:
+    description: Secret key name for the JDBC password.
+    default: jdbc-password
+  orchestrator_cron:
+    description: Quartz cron expression for the orchestrator.
+    default: "0 0 * * * ?"
+  alert_email:
+    description: Optional email recipient for job failures.
+    default: ""
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${var.workspace_host}
+    variables:
+      environment: dev
+
+  prd:
+    mode: production
+    workspace:
+      host: ${var.workspace_host}
+    variables:
+      environment: prd
