@@ -25,6 +25,7 @@ def _fail(code: str, reason: str, details: str = "") -> None:
 
 # Files generated from the blog-to-code workflow.
 GENERATED_FILES = [
+    REPO_ROOT / "README.md",
     REPO_ROOT / "SPEC.md",
     REPO_ROOT / "TODO.md",
     REPO_ROOT / ".github" / "workflows" / "validate-terraform.yml",
@@ -49,6 +50,7 @@ SKELETON_DIRS = [
 
 # Files to recreate as placeholders after reset.
 SKELETON_FILES = [
+    REPO_ROOT / "README.md",
     REPO_ROOT / "infra" / "terraform" / ".gitkeep",
     REPO_ROOT / "databricks-bundle" / ".gitkeep",
     REPO_ROOT / "databricks-bundle" / "resources" / ".gitkeep",
@@ -116,7 +118,7 @@ def confirm(force: bool) -> None:
     if force:
         return
 
-    print("This will remove generated Terraform, Databricks bundle files, SPEC.md, TODO.md, validate-terraform.yml, deploy-infrastructure.yml, and deploy-dab.yml.")
+    print("This will remove generated Terraform, Databricks bundle files, empty README.md, SPEC.md, TODO.md, validate-terraform.yml, deploy-infrastructure.yml, and deploy-dab.yml.")
     print("It will keep the Copilot skill scaffold under .github/skills/.")
     try:
         reply = input("Continue? [y/N]: ").strip().lower()
