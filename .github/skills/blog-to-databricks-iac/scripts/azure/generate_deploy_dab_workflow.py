@@ -19,18 +19,16 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: DAB target (dev or prd)
-        required: true
-        default: dev
-        type: choice
-        options: [dev, prd]
+        description: Optional DAB target override. Leave empty to reuse the infrastructure deployment context.
+        required: false
+        default: ""
       environment:
-        description: Environment variable passed to DAB
-        required: true
-        default: dev
+        description: Optional environment override. Leave empty to reuse the infrastructure deployment context.
+        required: false
+        default: ""
       infra_run_id:
         description: Run ID of a successful 'Deploy Infrastructure' workflow run
-        required: false
+        required: true
         default: ""
   workflow_run:
     workflows: ["Deploy Infrastructure"]
@@ -50,9 +48,6 @@ jobs:
     environment: {github_environment}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Validate required secrets
         run: |
           missing=()
@@ -80,18 +75,47 @@ jobs:
 
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve target and environment values
+      - name: Download deployment context artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-context
+          run-id: ${{{{ steps.resolve_run.outputs.run_id }}}}
+          github-token: ${{{{ secrets.GITHUB_TOKEN }}}}
+          path: infra/terraform
+
+      - name: Resolve target, environment, and git ref
         id: resolve_args
         run: |
-          if [ "${{{{ github.event_name }}}}" = "workflow_run" ]; then
-            target="dev"
-            env_name="dev"
-          else
-            target="${{{{ github.event.inputs.target }}}}"
-            env_name="${{{{ github.event.inputs.environment }}}}"
+          context_file="infra/terraform/deploy-context.json"
+          if [ ! -f "$context_file" ]; then
+            echo "deploy-context artifact not found at $context_file"
+            exit 1
           fi
+
+          context_target=$(python -c "import json; print(json.load(open('$context_file', encoding='utf-8'))['target'])")
+          context_environment=$(python -c "import json; print(json.load(open('$context_file', encoding='utf-8'))['environment'])")
+          context_git_sha=$(python -c "import json; print(json.load(open('$context_file', encoding='utf-8'))['git_sha'])")
+
+          if [ "${{{{ github.event_name }}}}" = "workflow_dispatch" ] && [ -n "${{{{ github.event.inputs.target }}}}" ]; then
+            target="${{{{ github.event.inputs.target }}}}"
+          else
+            target="$context_target"
+          fi
+
+          if [ "${{{{ github.event_name }}}}" = "workflow_dispatch" ] && [ -n "${{{{ github.event.inputs.environment }}}}" ]; then
+            env_name="${{{{ github.event.inputs.environment }}}}"
+          else
+            env_name="$context_environment"
+          fi
+
           echo "target=$target" >> "$GITHUB_OUTPUT"
           echo "environment=$env_name" >> "$GITHUB_OUTPUT"
+          echo "git_ref=$context_git_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout matching infrastructure commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{{{ steps.resolve_args.outputs.git_ref }}}}
 
       - name: Download Terraform outputs artifact
         uses: actions/download-artifact@v4

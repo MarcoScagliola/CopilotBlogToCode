@@ -46,12 +46,12 @@ If fetch fails, stop and return the fetch error output.
 
 ### 1.1 Save execution plan prompt
 Before generating code, create and save the execution plan in `.github/prompts/` as:
-`plan-blogToDatabricksIac-YYYY-MM-DD.prompt.md`
+`plan-blogToDatabricksIac-YYYYY-MM-DD-HHmmss.prompt.md`
 
 Rules:
 - The file must contain the current execution plan content only (no YAML frontmatter).
 - Always append the execution date in `YYYY-MM-DD` format.
-- If a file already exists for the same date, append time as `YYYY-MM-DD-HHmmss` to avoid overwrite.
+- Keep only 3 full execution plan files in total, delete older ones if necessary.
 
 ### 1.2 Generate validation workflow dynamically
 Before generating Terraform/DAB code, create (or refresh) `.github/workflows/validate-terraform.yml` by running:
@@ -76,6 +76,7 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workf
 ```
 
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`.
+It also uploads a `deploy-context` artifact that records the intended DAB target, environment, and source commit SHA for downstream deployment.
 
 ### 1.4 Generate DAB deploy workflow dynamically
 Create (or refresh) `.github/workflows/deploy-dab.yml` by running:
@@ -88,7 +89,7 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_dab_w
 	--subscription-secret "{subscription_secret_name}"
 ```
 
-This workflow downloads the `terraform-outputs` artifact from the infrastructure workflow run and deploys the Databricks Asset Bundle. **No Databricks PAT is required.** The Databricks CLI authenticates using the same Azure Service Principal (`ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) already used by Terraform, combined with the workspace resource ID from the `databricks_workspace_resource_id` Terraform output.
+This workflow downloads the `terraform-outputs` and `deploy-context` artifacts from the infrastructure workflow run, checks out the matching commit SHA, and then deploys the Databricks Asset Bundle. **No Databricks PAT is required.** The Databricks CLI authenticates using the same Azure Service Principal (`ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) already used by Terraform, combined with the workspace resource ID from the `databricks_workspace_resource_id` Terraform output.
 
 **Required GitHub secrets** (all known before deployment):
 - From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`

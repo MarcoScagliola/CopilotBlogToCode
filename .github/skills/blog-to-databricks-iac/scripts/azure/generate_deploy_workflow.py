@@ -17,6 +17,17 @@ name: {workflow_name}
 
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: DAB target to pair with this infrastructure deployment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prd]
+      environment:
+        description: Environment value to pass to the downstream DAB deployment
+        required: true
+        default: dev
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
@@ -76,11 +87,28 @@ jobs:
         run: |
           terraform -chdir=infra/terraform output -json > infra/terraform/terraform-outputs.json
 
+      - name: Export deployment context
+        run: |
+          cat > infra/terraform/deploy-context.json <<'EOF'
+          {{
+            "target": "${{{{ github.event.inputs.target }}}}",
+            "environment": "${{{{ github.event.inputs.environment }}}}",
+            "git_sha": "${{{{ github.sha }}}}"
+          }}
+          EOF
+
       - name: Upload Terraform outputs artifact
         uses: actions/upload-artifact@v4
         with:
           name: terraform-outputs
           path: infra/terraform/terraform-outputs.json
+          retention-days: 7
+
+      - name: Upload deployment context artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-context
+          path: infra/terraform/deploy-context.json
           retention-days: 7
 """
 

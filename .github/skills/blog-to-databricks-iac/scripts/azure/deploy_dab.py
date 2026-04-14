@@ -19,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 
 # Maps DAB variable name -> Terraform output keys (new names first, then backward-compatible aliases)
 DAB_TO_TF_KEYS: dict[str, list[str]] = {
@@ -112,10 +112,10 @@ def build_dab_vars(tf_outputs: dict[str, str], environment: str) -> dict[str, st
         dab_vars[dab_key] = str(tf_outputs[selected_key])
 
     if missing:
-        print("WARNING: The following required Terraform outputs were not found and will be skipped:", file=sys.stderr)
-        for m in missing:
-            print(f"  - {m}", file=sys.stderr)
-        print("  Run `terraform apply` to ensure all outputs are available.", file=sys.stderr)
+        _fail(
+            "Missing required Terraform outputs for DAB deployment:\n"
+            + "\n".join(f"  - {m}" for m in missing)
+        )
 
     return dab_vars
 

@@ -62,13 +62,15 @@ Validate Terraform workflow:
 Deploy Infrastructure workflow:
 1. Open GitHub Actions.
 2. Run Deploy Infrastructure.
-3. The workflow applies Terraform and uploads a `terraform-outputs` artifact.
+3. The workflow applies Terraform and uploads two artifacts:
+	- `terraform-outputs`
+	- `deploy-context`
 
 Deploy DAB workflow:
 1. Open GitHub Actions.
 2. Run Deploy DAB after a successful Deploy Infrastructure run.
 3. For manual runs, set `infra_run_id` to the run ID of the successful Deploy Infrastructure run.
-4. The workflow downloads the `terraform-outputs` artifact and deploys the Databricks bundle.
+4. The workflow downloads the `terraform-outputs` and `deploy-context` artifacts, checks out the same commit used by the infrastructure run, and deploys the Databricks bundle.
 
 ## Local Usage (Optional)
 Terraform:
