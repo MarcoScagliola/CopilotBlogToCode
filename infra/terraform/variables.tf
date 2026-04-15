@@ -28,18 +28,6 @@ variable "azure_subscription_id" {
   sensitive   = true
 }
 
-variable "databricks_account_id" {
-  description = "Databricks account ID."
-  type        = string
-  sensitive   = true
-}
-
-variable "metastore_id" {
-  description = "Existing Unity Catalog metastore ID."
-  type        = string
-  sensitive   = true
-}
-
 variable "databricks_sku" {
   description = "Azure Databricks workspace SKU."
   type        = string
@@ -50,30 +38,6 @@ variable "secret_scope_name" {
   description = "Optional override for the AKV-backed Databricks secret scope name."
   type        = string
   default     = ""
-}
-
-variable "jdbc_host" {
-  description = "JDBC host stored in Key Vault for Bronze ingestion."
-  type        = string
-  sensitive   = true
-}
-
-variable "jdbc_database" {
-  description = "JDBC database name stored in Key Vault for Bronze ingestion."
-  type        = string
-  sensitive   = true
-}
-
-variable "jdbc_user" {
-  description = "JDBC user name stored in Key Vault for Bronze ingestion."
-  type        = string
-  sensitive   = true
-}
-
-variable "jdbc_password" {
-  description = "JDBC password stored in Key Vault for Bronze ingestion."
-  type        = string
-  sensitive   = true
 }
 
 variable "tags" {

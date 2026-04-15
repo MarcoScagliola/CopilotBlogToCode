@@ -31,16 +31,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate required inputs and secrets
-        env:
-          DATABRICKS_ACCOUNT_ID: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
-          DATABRICKS_METASTORE_ID: ${{ secrets.DATABRICKS_METASTORE_ID }}
-          JDBC_HOST: ${{ secrets.JDBC_HOST }}
-          JDBC_DATABASE: ${{ secrets.JDBC_DATABASE }}
-          JDBC_USER: ${{ secrets.JDBC_USER }}
-          JDBC_PASSWORD: ${{ secrets.JDBC_PASSWORD }}
         run: |
           missing=()
-          for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET DATABRICKS_ACCOUNT_ID DATABRICKS_METASTORE_ID JDBC_HOST JDBC_DATABASE JDBC_USER JDBC_PASSWORD; do
+          for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
             [ -n "${!var}" ] || missing+=("$var")
           done
           if [ ${#missing[@]} -gt 0 ]; then
@@ -60,12 +53,6 @@ jobs:
         env:
           TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          TF_VAR_databricks_account_id: ${{ secrets.DATABRICKS_ACCOUNT_ID }}
-          TF_VAR_metastore_id: ${{ secrets.DATABRICKS_METASTORE_ID }}
-          TF_VAR_jdbc_host: ${{ secrets.JDBC_HOST }}
-          TF_VAR_jdbc_database: ${{ secrets.JDBC_DATABASE }}
-          TF_VAR_jdbc_user: ${{ secrets.JDBC_USER }}
-          TF_VAR_jdbc_password: ${{ secrets.JDBC_PASSWORD }}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
       - name: Export Terraform outputs

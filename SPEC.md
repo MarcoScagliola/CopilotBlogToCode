@@ -28,8 +28,6 @@ The source article describes a security-first Azure Databricks medallion archite
 
 ## Assumptions In This Repo Implementation
 - The workspace is provisioned without VNet injection or private endpoints unless the user extends the Terraform.
-- Unity Catalog metastore already exists and is supplied as `DATABRICKS_METASTORE_ID`.
-- Databricks account already exists and is supplied as `DATABRICKS_ACCOUNT_ID`.
 - JDBC source connectivity is represented with SQL Server style options and can be adapted in the Bronze job if the source system differs.
 - The AKV-backed secret scope name defaults to the Key Vault name unless overridden.
 - Cluster policies are a follow-on hardening step and are not provisioned in this baseline.
@@ -37,6 +35,7 @@ The source article describes a security-first Azure Databricks medallion archite
 ## What Is Missing Or Deferred
 - Private networking, customer-managed keys, and outbound lockdown.
 - Cluster policies and workspace admin hardening.
-- Databricks secret-scope creation itself; the Terraform outputs a convention-aligned scope name, but the scope must still be created against the Key Vault.
+- Explicit metastore selection and assignment are not managed in this baseline; the implementation assumes the workspace is already Unity Catalog-enabled by the account defaults or platform policy.
+- Runtime JDBC secret values and Databricks secret-scope creation; Terraform provisions the Key Vault and outputs the scope name convention, but the values and scope binding must still be added after infra deployment.
 - Notification routing, production schedules, and workspace-level admin group assignments.
 - Downstream BI/semantic layer assets beyond the Gold managed tables.

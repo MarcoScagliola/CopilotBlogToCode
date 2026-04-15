@@ -2,6 +2,8 @@
 
 - `TODO_AZURE_TENANT_ID`: store in GitHub Environment `BLG2CODEDEV` as `AZURE_TENANT_ID`.
 - `TODO_AZURE_SUBSCRIPTION_ID`: store in GitHub Environment `BLG2CODEDEV` as `AZURE_SUBSCRIPTION_ID`.
+- Confirm the target Databricks account posture auto-enables Unity Catalog for new workspaces, or add explicit metastore assignment logic if your environment requires it.
+- Populate the generated Azure Key Vault with `jdbc-host`, `jdbc-database`, `jdbc-user`, and `jdbc-password`.
 - Create the Databricks AKV-backed secret scope named `kv-blg-dev-uks` or set `secret_scope_name` to the preferred value.
 - Confirm whether the workspace must use VNet injection, private endpoints, and restricted public access.
 - Confirm production schedules and failure notification recipients for Bronze, Silver, Gold, and the orchestrator.

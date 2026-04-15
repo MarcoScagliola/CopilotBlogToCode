@@ -71,11 +71,4 @@ locals {
       storage_credential = "sc-${local.workload_slug}-${config.short}-${local.environment_slug}"
     }
   }
-
-  jdbc_secret_values = {
-    jdbc-host     = var.jdbc_host
-    jdbc-database = var.jdbc_database
-    jdbc-user     = var.jdbc_user
-    jdbc-password = var.jdbc_password
-  }
 }

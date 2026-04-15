@@ -85,15 +85,6 @@ resource "azurerm_key_vault" "this" {
   tags                          = local.tags
 }
 
-resource "azurerm_key_vault_secret" "jdbc" {
-  for_each = local.jdbc_secret_values
-
-  name         = each.key
-  value        = each.value
-  key_vault_id = azurerm_key_vault.this.id
-  content_type = "Secure Medallion runtime secret"
-}
-
 resource "azuread_application" "layer" {
   for_each = local.layer_configs
 
@@ -112,13 +103,6 @@ resource "azurerm_role_assignment" "key_vault_secret_user" {
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azuread_service_principal.layer[each.key].object_id
-}
-
-resource "databricks_metastore_assignment" "workspace" {
-  provider = databricks.workspace
-
-  workspace_id = azurerm_databricks_workspace.this.workspace_id
-  metastore_id = var.metastore_id
 }
 
 resource "databricks_service_principal" "layer" {
@@ -143,7 +127,7 @@ resource "databricks_storage_credential" "layer" {
     access_connector_id = azurerm_databricks_access_connector.layer[each.key].id
   }
 
-  depends_on = [databricks_metastore_assignment.workspace, azurerm_role_assignment.layer_storage_contributor]
+  depends_on = [azurerm_role_assignment.layer_storage_contributor]
 }
 
 resource "databricks_external_location" "layer" {
