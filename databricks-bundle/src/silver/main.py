@@ -1,13 +1,9 @@
-from __future__ import annotations
-
 import argparse
-import logging
-
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp, lit
+from pyspark.sql import functions as F
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     parser = argparse.ArgumentParser(description="Silver refinement job")
     parser.add_argument("--input-catalog", required=True)
     parser.add_argument("--input-schema", required=True)
@@ -18,24 +14,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+def main():
     args = parse_args()
-    spark = SparkSession.builder.appName("secure-medallion-silver").getOrCreate()
 
-    input_table = f"{args.input_catalog}.{args.input_schema}.{args.input_table}"
-    output_table = f"{args.output_catalog}.{args.output_schema}.{args.output_table}"
+    spark = SparkSession.builder.getOrCreate()
 
-    logging.info("Refining Bronze managed table %s", input_table)
-    refined = (
-        spark.table(input_table)
-        .dropDuplicates()
-        .withColumn("medallion_layer", lit("silver"))
-        .withColumn("refined_at", current_timestamp())
+    source_table = f"{args.input_catalog}.{args.input_schema}.{args.input_table}"
+    target_table = f"{args.output_catalog}.{args.output_schema}.{args.output_table}"
+
+    df = spark.read.table(source_table)
+
+    df = (
+        df.dropDuplicates()
+        .filter(F.col("_ingested_at").isNotNull())
+        .withColumn("_refined_at", F.current_timestamp())
     )
 
-    logging.info("Writing Silver managed table %s", output_table)
-    refined.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(output_table)
+    df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(target_table)
 
 
 if __name__ == "__main__":

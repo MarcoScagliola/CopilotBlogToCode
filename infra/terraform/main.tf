@@ -37,7 +37,7 @@ resource "azurerm_storage_container" "layer" {
   for_each = local.layer_configs
 
   name                  = local.storage_container_name
-  storage_account_name  = azurerm_storage_account.layer[each.key].name
+  storage_account_id    = azurerm_storage_account.layer[each.key].id
   container_access_type = "private"
 }
 

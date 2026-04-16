@@ -27,7 +27,7 @@ Ask the user for the following values before proceeding. If they were already pr
 | `workload` | Short identifier for the workload, derived from the blog/project name | `blg`, `myapp`, `etl` |
 | `environment` | Target deployment environment | `dev`, `prd` |
 | `azure_region` | Azure region for deployment | `uksouth`, `eastus2` |
-| `github_environment` | GitHub Environment name that holds the tenant and subscription secrets | `MYAPP-DEV`, `BLG2CODEDEV` |
+| `github_environment` | GitHub Environment name that holds `tenant`, `subscription`, `client id`, and `client secret` secrets | `MYAPP-DEV`, `BLG2CODEDEV` |
 | `tenant_secret_name` | GitHub secret name that stores Azure tenant ID | `AZURE_TENANT_ID`, `MY_TENANT_ID` |
 | `subscription_secret_name` | GitHub secret name that stores Azure subscription ID | `AZURE_SUBSCRIPTION_ID`, `MY_SUBSCRIPTION_ID` |
 | `client_id_secret_name` | GitHub secret name that stores Azure service principal client ID | `AZURE_CLIENT_ID`, `MY_CLIENT_ID` |

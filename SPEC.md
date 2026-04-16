@@ -1,41 +1,70 @@
-# Secure Medallion Architecture Specification
+# SPEC — Secure Medallion Architecture on Azure Databricks
 
 ## Source
-- URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-- Title: Secure Medallion Architecture Pattern on Azure Databricks (Part I)
+[Secure Medallion Architecture Pattern on Azure Databricks (Part I)](https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268)
 
-## Short Summary
-The source article describes a security-first Azure Databricks medallion architecture where Bronze, Silver, and Gold are isolated by storage, compute, and identity. Each layer runs as its own Lakeflow Job under a dedicated Microsoft Entra service principal, with Unity Catalog providing the governance boundary and Azure Key Vault supplying runtime secrets.
+## Architecture Summary
 
-## Inferred Architecture
-- One Azure resource group per workload/environment/region.
-- One premium Azure Databricks workspace per environment.
-- Three ADLS Gen2 storage accounts, one per layer.
-- Three Databricks access connectors, one per layer, to back Unity Catalog storage credentials.
-- Three Microsoft Entra applications and service principals, one per layer, registered for Databricks job execution.
-- One Azure Key Vault per environment, holding runtime JDBC secrets.
-- One Unity Catalog metastore assignment for the workspace.
-- Three Unity Catalog storage credentials, external locations, catalogs, and schemas.
-- One Databricks Asset Bundle containing Bronze, Silver, Gold, and orchestrator jobs.
+The pattern enforces least-privilege isolation across a Bronze → Silver → Gold medallion pipeline by assigning each layer its own Microsoft Entra ID service principal, dedicated compute cluster, and independent ADLS Gen2 storage account. No single identity or cluster spans multiple layers. An orchestrator Lakeflow Job sequences the three layer jobs without directly accessing data.
 
-## Explicit Guidance From The Article
-- Separate Bronze, Silver, and Gold by identity, storage, and compute.
-- Use least privilege so no single principal can write across all layers.
-- Use Azure Key Vault and AKV-backed Databricks secret scopes for runtime secrets.
-- Prefer managed tables under Unity Catalog.
-- Use one orchestrator job to sequence the three layer jobs.
-- Use Photon primarily for Silver and treat Bronze and Gold more conservatively.
+## Azure Resources (Terraform)
 
-## Assumptions In This Repo Implementation
-- The workspace is provisioned without VNet injection or private endpoints unless the user extends the Terraform.
-- JDBC source connectivity is represented with SQL Server style options and can be adapted in the Bronze job if the source system differs.
-- The AKV-backed secret scope name defaults to the Key Vault name unless overridden.
-- Cluster policies are a follow-on hardening step and are not provisioned in this baseline.
+| Resource | Count | Notes |
+|---|---|---|
+| Resource Group | 1 | All resources co-located |
+| Azure Databricks Workspace | 1 | Premium SKU, Unity Catalog |
+| ADLS Gen2 Storage Accounts | 3 | One per layer, HNS enabled, shared-key disabled |
+| Storage Containers | 3 | One per layer, private |
+| Databricks Access Connectors | 3 | System-assigned managed identity per layer |
+| Azure Key Vault | 1 | RBAC-authorised, purge-protection enabled |
+| Entra App Registrations | 3 | One per layer (bronze, silver, gold) |
+| Entra Service Principals | 3 | One per layer, registered in Databricks workspace |
 
-## What Is Missing Or Deferred
-- Private networking, customer-managed keys, and outbound lockdown.
-- Cluster policies and workspace admin hardening.
-- Explicit metastore selection and assignment are not managed in this baseline; the implementation assumes the workspace is already Unity Catalog-enabled by the account defaults or platform policy.
-- Runtime JDBC secret values and Databricks secret-scope creation; Terraform provisions the Key Vault and outputs the scope name convention, but the values and scope binding must still be added after infra deployment.
-- Notification routing, production schedules, and workspace-level admin group assignments.
-- Downstream BI/semantic layer assets beyond the Gold managed tables.
+## RBAC Assignments (Terraform)
+
+| Principal | Role | Scope |
+|---|---|---|
+| Bronze Access Connector MI | Storage Blob Data Contributor | Bronze storage account |
+| Silver Access Connector MI | Storage Blob Data Contributor | Silver storage account |
+| Silver Access Connector MI | Storage Blob Data Reader | Bronze storage account |
+| Gold Access Connector MI | Storage Blob Data Contributor | Gold storage account |
+| Gold Access Connector MI | Storage Blob Data Reader | Silver storage account |
+| Bronze SP | Key Vault Secrets User | Key Vault |
+| Silver SP | Key Vault Secrets User | Key Vault |
+| Gold SP | Key Vault Secrets User | Key Vault |
+
+## Unity Catalog Objects (Terraform via Databricks provider)
+
+| Object | Count | Notes |
+|---|---|---|
+| Storage Credentials | 3 | Backed by Access Connector MI per layer |
+| External Locations | 3 | Points to `abfss://<container>@<storage>.dfs.core.windows.net/` |
+| Catalogs | 3 | One per layer with `storage_root` pointing to external location |
+| Schemas | 3 | One per catalog |
+
+## Databricks Jobs (DAB)
+
+| Job | Run As | Cluster | Purpose |
+|---|---|---|---|
+| `job-blg-brz-<env>` | Bronze SP | Dedicated 1–2 nodes, STANDARD engine | JDBC ingestion → Bronze Delta table |
+| `job-blg-slv-<env>` | Silver SP | Dedicated 1–3 nodes, PHOTON engine | Dedup + cleanse → Silver Delta table |
+| `job-blg-gld-<env>` | Gold SP | Dedicated 1–2 nodes, STANDARD engine | Daily aggregation → Gold Delta table |
+| `job-blg-orch-<env>` | No run_as (orchestrator) | Serverless | Sequences bronze → silver → gold |
+
+## Secrets
+
+All source credentials are stored in Azure Key Vault and read at runtime via an AKV-backed Databricks secret scope. Secret keys:
+- `jdbc-host`
+- `jdbc-database`
+- `jdbc-user`
+- `jdbc-password`
+
+## Naming Convention
+
+All names derived in `locals.tf` from `workload`, `environment`, `azure_region`. No names accepted as Terraform input variables.
+
+## Deployment Flow
+
+1. **Validate** — `validate-terraform.yml`: `terraform init -backend=false && terraform validate`
+2. **Infra** — `deploy-infrastructure.yml`: `terraform apply` → uploads `terraform-outputs.json` artifact
+3. **Bundle** — `deploy-dab.yml`: downloads artifact, deploys DAB using SP auth via workspace resource ID

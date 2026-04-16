@@ -1,12 +1,37 @@
-# TODO
+# TODO — Unresolved Values
 
-- `TODO_AZURE_TENANT_ID`: store in GitHub Environment `BLG2CODEDEV` as `AZURE_TENANT_ID`.
-- `TODO_AZURE_SUBSCRIPTION_ID`: store in GitHub Environment `BLG2CODEDEV` as `AZURE_SUBSCRIPTION_ID`.
-- Confirm the target Databricks account posture auto-enables Unity Catalog for new workspaces, or add explicit metastore assignment logic if your environment requires it.
-- Populate the generated Azure Key Vault with `jdbc-host`, `jdbc-database`, `jdbc-user`, and `jdbc-password`.
-- Create the Databricks AKV-backed secret scope named `kv-blg-dev-uks` or set `secret_scope_name` to the preferred value.
-- Confirm whether the workspace must use VNet injection, private endpoints, and restricted public access.
-- Confirm production schedules and failure notification recipients for Bronze, Silver, Gold, and the orchestrator.
-- Confirm whether Databricks cluster policies must be enforced in this repo baseline.
-- Validate the exact JDBC driver and source query for the Bronze ingestion notebook against the target source system.
-- Review Unity Catalog grants after first deploy to ensure each layer principal has only the intended catalog and external-location permissions.
+## Required before first deployment
+
+| Item | Description | Where to set |
+|---|---|---|
+| `AZURE_TENANT_ID` | Azure tenant ID for the deployment subscription | GitHub Environment `BLG2CODEDEV` |
+| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | GitHub Environment `BLG2CODEDEV` |
+| `AZURE_CLIENT_ID` | Bootstrap service principal client ID | GitHub Environment `BLG2CODEDEV` |
+| `AZURE_CLIENT_SECRET` | Bootstrap service principal client secret | GitHub Environment `BLG2CODEDEV` |
+
+## Required after Terraform apply (before bundle deploy)
+
+| Item | Description | Where to set |
+|---|---|---|
+| `jdbc-host` | Source database hostname | Azure Key Vault |
+| `jdbc-database` | Source database name | Azure Key Vault |
+| `jdbc-user` | Source database username | Azure Key Vault |
+| `jdbc-password` | Source database password | Azure Key Vault |
+| Databricks secret scope | AKV-backed scope named by Terraform output `secret_scope_name` | Databricks workspace admin |
+
+## Optional overrides
+
+| Item | Default | Where to override |
+|---|---|---|
+| `alert_email` | (empty — notifications disabled) | DAB variable or target override |
+| `orchestrator_cron` | `0 0 * * * ?` (hourly) | DAB variable or target override |
+| `secret_scope_name` | Derived from Key Vault name | Terraform variable |
+| `databricks_sku` | `premium` | Terraform variable |
+| `azure_region` | `uksouth` | Terraform variable |
+
+## Assumptions
+
+- Unity Catalog metastore is already associated with the Databricks account for the target region.
+- The bootstrap service principal has `Contributor` and `User Access Administrator` on the subscription.
+- The Databricks workspace must be Unity Catalog-enabled; validation should be confirmed after first `terraform apply`.
+- Source system is SQL Server (JDBC driver `com.microsoft.sqlserver.jdbc.SQLServerDriver`); update `src/bronze/main.py` if a different source is used.
