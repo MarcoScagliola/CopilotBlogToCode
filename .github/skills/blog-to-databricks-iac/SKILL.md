@@ -51,6 +51,10 @@ If the user does not provide:
 Notes:
 - Keep secret naming configurable. Do not assume organization-specific secret names.
 - Existing-layer principal secrets are only required when `layer_sp_mode=existing`.
+- Single-principal mapping (common in restricted tenants):
+	- Use the same principal behind `{client_id_secret_name}` for both deployment and layer execution.
+	- `{existing_layer_sp_client_id_secret_name}` can point to the same value as `{client_id_secret_name}`.
+	- `{sp_object_id_secret_name}` and `{existing_layer_sp_object_id_secret_name}` should both use the object ID of that same principal.
 
 ### 1. Fetch article
 ```bash

@@ -29,9 +29,9 @@ It deploys a security-first Medallion design where Bronze, Silver, and Gold run 
 - jdbc-password
 
 ## Workflows
-- Validate Terraform: `.github/workflows/validate-terraform.yml`
-- Deploy Infrastructure: `.github/workflows/deploy-infrastructure.yml`
-- Deploy DAB: `.github/workflows/deploy-dab.yml`
+- Validate Terraform: .github/workflows/validate-terraform.yml
+- Deploy Infrastructure: .github/workflows/deploy-infrastructure.yml
+- Deploy DAB: .github/workflows/deploy-dab.yml
 
 ## Deployment Flow
 1. Run Validate Terraform.
@@ -40,5 +40,5 @@ It deploys a security-first Medallion design where Bronze, Silver, and Gold run 
 4. Run Deploy DAB.
 
 ## References
-- [SPEC.md](SPEC.md)
-- [TODO.md](TODO.md)
+- SPEC.md
+- TODO.md

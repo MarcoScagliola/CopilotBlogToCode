@@ -14,19 +14,19 @@ locals {
   region = lookup(local.region_abbrev, var.azure_region, var.azure_region)
   prefix = "${var.workload}-${var.environment}-${local.region}"
 
-  rg_name      = "rg-${local.prefix}"
-  kv_name      = "kv-${local.prefix}"
-  workspace    = "dbw-${local.prefix}"
-  metastore    = "uc-${local.prefix}"
+  rg_name   = "rg-${local.prefix}"
+  kv_name   = "kv-${local.prefix}"
+  workspace = "dbw-${local.prefix}"
+  metastore = "uc-${local.prefix}"
 
   layers = ["bronze", "silver", "gold"]
 
   layer_configs = {
     for l in local.layers : l => {
-      storage_account_name   = lower(replace("sa${var.workload}${substr(l, 0, 3)}${var.environment}${local.region}", "-", ""))
-      access_connector_name  = "ac-${local.prefix}-${l}"
-      catalog_name           = "${l}_${var.workload}_${var.environment}"
-      schema_name            = "default"
+      storage_account_name  = lower(replace("sa${var.workload}${substr(l, 0, 3)}${var.environment}${local.region}", "-", ""))
+      access_connector_name = "ac-${local.prefix}-${l}"
+      catalog_name          = "${l}_${var.workload}_${var.environment}"
+      schema_name           = "default"
     }
   }
 

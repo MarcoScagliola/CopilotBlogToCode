@@ -1,4 +1,4 @@
-# Execution Plan – Blog to Databricks IaC (2026-04-17)
+# Execution Plan - Blog to Databricks IaC (2026-04-17)
 
 ## Source
 https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
