@@ -107,43 +107,16 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
-### 2. Validate deployment model
-Load from `./references/azure/cloud-deployment.md` and ensure conformance.
+### 2. Apply Terraform code generation best practices
+Before generating or validating Terraform code, load and apply the principles from `.github/skills/terraform/SKILL.md`.
 
-### 3. Apply core variables policy
-Load from `./references/azure/core-variables.md` and enforce the mandatory baseline inputs `TODO_AZURE_TENANT_ID` and `TODO_AZURE_SUBSCRIPTION_ID` as unresolved values unless securely provided.
+### 3. Validate output
+- **DAB**: syntactically valid, uses placeholders for unknowns
+- **TODO**: only unresolved values
+- **Separation**: no Terraform resources in DAB, no jobs/notebooks in Terraform
+- **Code**: production-ready, no fictional values, assumptions explicit
 
-### 4. Apply region policy
-Load from `./references/azure/region-policy.md` and apply to region inputs.
-
-### 5. Apply naming conventions
-Load from `./references/azure/naming-conventions.md`. All resource names must be derived in `locals.tf` from `workload`, `environment`, and `azure_region`. Do not accept resource names as Terraform input variables.
-
-### 5.1 Apply Azure compatibility guardrails
-When generating Terraform for Azure resources, preserve the following compatibility rules unless the user explicitly requests a stricter posture and accepts the deployment risk.
-
-#### Provider compatibility
-- Prefer deployment-safe defaults that are known to work with the current AzureRM provider behavior during create and update operations.
-- Avoid generating strict security settings that can break provisioning if the provider still depends on older control-plane or data-plane behaviors.
-- When a stricter security setting is desirable, make it configurable or describe it as a post-deployment hardening step instead of forcing it as the default generated value.
-
-#### Current resource properties
-- Prefer the current, non-deprecated Terraform property names for Azure resources.
-- Avoid emitting deprecated arguments when a supported replacement exists.
-
-#### Tenant compatibility
-- Do not assume every tenant allows Microsoft Entra application or service principal creation.
-- When identity creation may be restricted, prefer a generation pattern that can reuse an existing identity or make identity provisioning optional.
-- Document any additional inputs, secrets, or object identifiers required for that compatibility path.
-
-### 6. Validate output
-Terraform: syntactically valid, internally consistent
-DAB: syntactically valid, uses placeholders for unknowns
-TODO: only unresolved values
-Separation: no Terraform resources in DAB, no jobs/notebooks in Terraform
-Code: production-ready, no fictional values, assumptions explicit
-
-### 7. Generate README
+### 4. Generate README
 
 Create or update `README.md` at the repository root. It must include:
 
