@@ -51,10 +51,13 @@ on:
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
-  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} }}}}
-  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} }}}}
-  ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} }}}}
-  ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} }}}}
+  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} || vars.{tenant_secret} }}}}
+  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} || vars.{subscription_secret} }}}}
+  ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} || vars.{client_id_secret} }}}}
+  ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} || vars.{client_secret_secret} }}}}
+  ARM_SP_OBJECT_ID: ${{{{ secrets.{sp_object_id_secret} || vars.{sp_object_id_secret} }}}}
+  ARM_EXISTING_LAYER_SP_CLIENT_ID: ${{{{ secrets.{existing_layer_sp_client_id_secret} || vars.{existing_layer_sp_client_id_secret} }}}}
+  ARM_EXISTING_LAYER_SP_OBJECT_ID: ${{{{ secrets.{existing_layer_sp_object_id_secret} || vars.{existing_layer_sp_object_id_secret} }}}}
 
 jobs:
   deploy_infrastructure:
@@ -71,11 +74,11 @@ jobs:
           for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
             [ -n "${{!var}}" ] || missing+=("$var")
           done
-          [ -n "${{{{ secrets.{sp_object_id_secret} }}}}" ] || missing+=("{sp_object_id_secret}")
+          [ -n "${{ARM_SP_OBJECT_ID}}" ] || missing+=("ARM_SP_OBJECT_ID")
 
           if [ "${{{{ github.event.inputs.layer_sp_mode }}}}" = "existing" ]; then
-            [ -n "${{{{ secrets.{existing_layer_sp_client_id_secret} }}}}" ] || missing+=("{existing_layer_sp_client_id_secret}")
-            [ -n "${{{{ secrets.{existing_layer_sp_object_id_secret} }}}}" ] || missing+=("{existing_layer_sp_object_id_secret}")
+            [ -n "${{ARM_EXISTING_LAYER_SP_CLIENT_ID}}" ] || missing+=("ARM_EXISTING_LAYER_SP_CLIENT_ID")
+            [ -n "${{ARM_EXISTING_LAYER_SP_OBJECT_ID}}" ] || missing+=("ARM_EXISTING_LAYER_SP_OBJECT_ID")
           fi
 
           if [ ${{#missing[@]}} -gt 0 ]; then
@@ -93,17 +96,17 @@ jobs:
 
       - name: Terraform Apply
         env:
-          TF_VAR_azure_tenant_id: ${{{{ secrets.{tenant_secret} }}}}
-          TF_VAR_azure_subscription_id: ${{{{ secrets.{subscription_secret} }}}}
-          TF_VAR_azure_client_id: ${{{{ secrets.{client_id_secret} }}}}
-          TF_VAR_azure_client_secret: ${{{{ secrets.{client_secret_secret} }}}}
-          TF_VAR_azure_sp_object_id: ${{{{ secrets.{sp_object_id_secret} }}}}
+          TF_VAR_azure_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
+          TF_VAR_azure_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
+          TF_VAR_azure_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
+          TF_VAR_azure_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
+          TF_VAR_azure_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
           TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
           TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
           TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
           TF_VAR_layer_service_principal_mode: ${{{{ github.event.inputs.layer_sp_mode }}}}
-          TF_VAR_existing_layer_sp_client_id: ${{{{ secrets.{existing_layer_sp_client_id_secret} }}}}
-          TF_VAR_existing_layer_sp_object_id: ${{{{ secrets.{existing_layer_sp_object_id_secret} }}}}
+          TF_VAR_existing_layer_sp_client_id: ${{{{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}}}
+          TF_VAR_existing_layer_sp_object_id: ${{{{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}}}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
       - name: Export Terraform outputs

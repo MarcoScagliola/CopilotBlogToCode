@@ -103,6 +103,13 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workf
 # 	--existing-layer-sp-object-id-secret "{existing_layer_sp_object_id_secret_name}"
 ```
 
+Workflow credential-resolution policy (must be enforced by generated workflow):
+- Resolve ARM auth values from **GitHub Secrets or GitHub Environment Variables** with secrets preferred.
+	- Pattern: `secrets.<NAME> || vars.<NAME>` for tenant, subscription, client id, client secret, and object IDs.
+- Validate required ARM values before Terraform runs and fail fast with a clear missing-variable list.
+- Drive Terraform identity variables from resolved ARM env values (for example `TF_VAR_azure_client_id` from `ARM_CLIENT_ID`) rather than duplicating credential sources.
+- When `layer_sp_mode=existing`, validate existing-layer principal identifiers; otherwise do not require them.
+
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`.
 It also uploads a `deploy-context` artifact that records the intended DAB target, environment, and source commit SHA for downstream deployment.
 
@@ -121,7 +128,7 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_dab_w
 
 This workflow downloads the `terraform-outputs` and `deploy-context` artifacts from the infrastructure workflow run, checks out the matching commit SHA, and then deploys the Databricks Asset Bundle. **No Databricks PAT is required.** The Databricks CLI authenticates using the same Azure Service Principal (`ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) already used by Terraform, combined with the workspace resource ID from the `databricks_workspace_resource_id` Terraform output.
 
-**Required GitHub secrets** (all known before deployment):
+**Required GitHub secrets/variables** (all known before deployment):
 - From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`
 - Conditional for `layer_sp_mode=existing`: `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}`
 

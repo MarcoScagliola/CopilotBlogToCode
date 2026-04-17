@@ -1,13 +1,13 @@
 # TODO
 
-## Required GitHub Environment Secrets (BLG2CODEDEV)
+## Required GitHub Environment Secrets or Variables (BLG2CODEDEV)
 - AZURE_TENANT_ID
 - AZURE_SUBSCRIPTION_ID
 - AZURE_CLIENT_ID
 - AZURE_CLIENT_SECRET
 - AZURE_SP_OBJECT_ID
 
-## Conditional Secrets (only if layer_sp_mode=existing)
+## Conditional Secrets or Variables (only if layer_sp_mode=existing)
 - EXISTING_LAYER_SP_CLIENT_ID
 - EXISTING_LAYER_SP_OBJECT_ID
 

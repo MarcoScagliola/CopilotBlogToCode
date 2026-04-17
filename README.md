@@ -7,10 +7,10 @@ It deploys a security-first Medallion design where Bronze, Silver, and Gold run 
 
 ## Prerequisites
 - Azure service principal with required RBAC permissions
-- GitHub Environment configured with Azure secrets
+- GitHub Environment configured with Azure secrets or variables
 - Terraform and Databricks CLI available in CI/CD
 
-## Required GitHub Secrets
+## Required GitHub Environment Values
 ### Always Required
 - AZURE_TENANT_ID
 - AZURE_SUBSCRIPTION_ID
