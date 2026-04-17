@@ -1,0 +1,84 @@
+name: Deploy Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: DAB target to pair with this infrastructure deployment
+        required: true
+        default: dev
+        type: choice
+        options: [dev, prd]
+      environment:
+        description: Environment value to pass to the downstream DAB deployment
+        required: true
+        default: dev
+
+# ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
+env:
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+jobs:
+  deploy_infrastructure:
+    runs-on: ubuntu-latest
+    environment: BLG2CODEDEV
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required inputs and secrets
+        run: |
+          missing=()
+          for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
+            [ -n "${!var}" ] || missing+=("$var")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required values: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false  # Required for clean terraform output -raw
+
+      - name: Terraform Init
+        run: terraform -chdir=infra/terraform init
+
+      - name: Terraform Apply
+        env:
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform -chdir=infra/terraform apply -auto-approve
+
+      - name: Export Terraform outputs
+        run: |
+          terraform -chdir=infra/terraform output -json > infra/terraform/terraform-outputs.json
+
+      - name: Export deployment context
+        run: |
+          cat > infra/terraform/deploy-context.json <<'EOF'
+          {
+            "target": "${{ github.event.inputs.target }}",
+            "environment": "${{ github.event.inputs.environment }}",
+            "git_sha": "${{ github.sha }}"
+          }
+          EOF
+
+      - name: Upload Terraform outputs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-outputs
+          path: infra/terraform/terraform-outputs.json
+          retention-days: 7
+
+      - name: Upload deployment context artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-context
+          path: infra/terraform/deploy-context.json
+          retention-days: 7
