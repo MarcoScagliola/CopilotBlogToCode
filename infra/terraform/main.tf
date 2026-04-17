@@ -86,31 +86,31 @@ resource "azurerm_key_vault" "this" {
 }
 
 resource "azuread_application" "layer" {
-  for_each = local.layer_configs
+  for_each = local.use_existing_layer_sp ? {} : local.layer_configs
 
   display_name = local.layer_names[each.key].application
 }
 
 resource "azuread_service_principal" "layer" {
-  for_each = local.layer_configs
+  for_each = local.use_existing_layer_sp ? {} : local.layer_configs
 
   client_id = azuread_application.layer[each.key].client_id
 }
 
 resource "azurerm_role_assignment" "key_vault_secret_user" {
-  for_each = local.layer_configs
+  for_each = local.key_vault_secret_user_principals
 
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = azuread_service_principal.layer[each.key].object_id
+  principal_id         = each.value
 }
 
 resource "databricks_service_principal" "layer" {
   provider = databricks.workspace
-  for_each = local.layer_configs
+  for_each = local.databricks_service_principals_to_create
 
-  application_id = azuread_application.layer[each.key].client_id
-  display_name   = local.layer_names[each.key].application
+  application_id = each.value
+  display_name   = local.use_existing_layer_sp ? "app-${local.workload_slug}-shared-${local.environment_slug}" : local.layer_names[each.key].application
   active         = true
 
   depends_on = [azurerm_databricks_workspace.this]

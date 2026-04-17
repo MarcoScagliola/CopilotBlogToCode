@@ -23,6 +23,7 @@ The generated baseline provisions one Azure Databricks workspace, one Key Vault,
 | GitHub Environment `BLG2CODEDEV` | `AZURE_SUBSCRIPTION_ID` | Azure subscription for Terraform |
 | GitHub Environment `BLG2CODEDEV` | `AZURE_CLIENT_ID` | Service principal client ID used by GitHub Actions |
 | GitHub Environment `BLG2CODEDEV` | `AZURE_CLIENT_SECRET` | Service principal client secret used by GitHub Actions |
+| GitHub Environment `BLG2CODEDEV` | `AZURE_SP_OBJECT_ID` | Service principal object ID used when `layer_sp_mode=existing` |
 
 ### Architecture-specific runtime secrets
 
@@ -41,6 +42,8 @@ The generated baseline provisions one Azure Databricks workspace, one Key Vault,
 4. After Terraform applies, confirm the workspace is Unity Catalog-enabled in your Databricks account posture.
 5. Populate the generated Azure Key Vault with `jdbc-host`, `jdbc-database`, `jdbc-user`, and `jdbc-password`, then create the Databricks secret scope named by the Terraform output `secret_scope_name` and back it with that Key Vault.
 6. Review workspace access, Unity Catalog behavior, grants, and cluster policies before promoting beyond development.
+
+If your tenant blocks app registration creation (common in personal or locked-down tenants), run infrastructure deployment with workflow input `layer_sp_mode=existing`. In this mode Terraform reuses your bootstrap service principal for Bronze/Silver/Gold run-as identities and skips creating `azuread_application` resources.
 
 ## Workflow Usage
 

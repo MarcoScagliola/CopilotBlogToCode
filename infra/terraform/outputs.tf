@@ -19,15 +19,15 @@ output "secret_scope_name" {
 }
 
 output "bronze_sp_application_id" {
-  value = azuread_application.layer["bronze"].client_id
+  value = local.layer_application_ids["bronze"]
 }
 
 output "silver_sp_application_id" {
-  value = azuread_application.layer["silver"].client_id
+  value = local.layer_application_ids["silver"]
 }
 
 output "gold_sp_application_id" {
-  value = azuread_application.layer["gold"].client_id
+  value = local.layer_application_ids["gold"]
 }
 
 output "bronze_catalog_name" {

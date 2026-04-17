@@ -8,6 +8,7 @@
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID | GitHub Environment `BLG2CODEDEV` |
 | `AZURE_CLIENT_ID` | Bootstrap service principal client ID | GitHub Environment `BLG2CODEDEV` |
 | `AZURE_CLIENT_SECRET` | Bootstrap service principal client secret | GitHub Environment `BLG2CODEDEV` |
+| `AZURE_SP_OBJECT_ID` | Bootstrap service principal object ID (required when `layer_sp_mode=existing`) | GitHub Environment `BLG2CODEDEV` |
 
 ## Required after Terraform apply (before bundle deploy)
 
