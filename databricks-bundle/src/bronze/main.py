@@ -21,7 +21,7 @@ def main():
     args = parse_args()
 
     spark = SparkSession.builder.getOrCreate()
-    dbutils = spark._jvm.com.databricks.service.DBUtils(spark._jsc.sc())  # noqa: SIM112
+    dbutils = spark._jvm.com.databricks.service.DBUtils(spark._jsc.sc())
 
     jdbc_host = dbutils.secrets.get(scope=args.secret_scope, key=args.jdbc_host_key)
     jdbc_database = dbutils.secrets.get(scope=args.secret_scope, key=args.jdbc_database_key)
@@ -40,10 +40,8 @@ def main():
         .load()
     )
 
-    df = df.withColumn("_ingested_at", F.current_timestamp())
-
     target_table = f"{args.catalog}.{args.schema}.{args.table}"
-    df.write.format("delta").mode("append").saveAsTable(target_table)
+    df.withColumn("_ingested_at", F.current_timestamp()).write.format("delta").mode("append").saveAsTable(target_table)
 
 
 if __name__ == "__main__":

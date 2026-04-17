@@ -18,14 +18,12 @@ def main():
     args = parse_args()
 
     spark = SparkSession.builder.getOrCreate()
-
     source_table = f"{args.input_catalog}.{args.input_schema}.{args.input_table}"
     target_table = f"{args.output_catalog}.{args.output_schema}.{args.output_table}"
 
-    df = spark.read.table(source_table)
-
     df = (
-        df.dropDuplicates()
+        spark.read.table(source_table)
+        .dropDuplicates()
         .filter(F.col("_ingested_at").isNotNull())
         .withColumn("_refined_at", F.current_timestamp())
     )

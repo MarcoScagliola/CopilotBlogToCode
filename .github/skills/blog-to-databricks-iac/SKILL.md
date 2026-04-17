@@ -119,6 +119,23 @@ Load from `./references/azure/region-policy.md` and apply to region inputs.
 ### 5. Apply naming conventions
 Load from `./references/azure/naming-conventions.md`. All resource names must be derived in `locals.tf` from `workload`, `environment`, and `azure_region`. Do not accept resource names as Terraform input variables.
 
+### 5.1 Apply Azure compatibility guardrails
+When generating Terraform for Azure resources, preserve the following compatibility rules unless the user explicitly requests a stricter posture and accepts the deployment risk.
+
+#### Provider compatibility
+- Prefer deployment-safe defaults that are known to work with the current AzureRM provider behavior during create and update operations.
+- Avoid generating strict security settings that can break provisioning if the provider still depends on older control-plane or data-plane behaviors.
+- When a stricter security setting is desirable, make it configurable or describe it as a post-deployment hardening step instead of forcing it as the default generated value.
+
+#### Current resource properties
+- Prefer the current, non-deprecated Terraform property names for Azure resources.
+- Avoid emitting deprecated arguments when a supported replacement exists.
+
+#### Tenant compatibility
+- Do not assume every tenant allows Microsoft Entra application or service principal creation.
+- When identity creation may be restricted, prefer a generation pattern that can reuse an existing identity or make identity provisioning optional.
+- Document any additional inputs, secrets, or object identifiers required for that compatibility path.
+
 ### 6. Validate output
 Terraform: syntactically valid, internally consistent
 DAB: syntactically valid, uses placeholders for unknowns

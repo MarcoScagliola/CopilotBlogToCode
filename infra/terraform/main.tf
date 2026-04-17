@@ -27,7 +27,7 @@ resource "azurerm_storage_account" "layer" {
   account_kind                    = "StorageV2"
   is_hns_enabled                  = true
   min_tls_version                 = "TLS1_2"
-  shared_access_key_enabled       = false
+  shared_access_key_enabled       = var.storage_shared_key_enabled
   allow_nested_items_to_be_public = false
   public_network_access_enabled   = true
   tags                            = merge(local.tags, { layer = each.key })
@@ -73,16 +73,16 @@ resource "azurerm_role_assignment" "layer_upstream_reader" {
 }
 
 resource "azurerm_key_vault" "this" {
-  name                          = local.key_vault_name
-  location                      = azurerm_resource_group.this.location
-  resource_group_name           = azurerm_resource_group.this.name
-  tenant_id                     = var.azure_tenant_id
-  sku_name                      = "standard"
-  enable_rbac_authorization     = true
-  purge_protection_enabled      = true
+  name                       = local.key_vault_name
+  location                   = azurerm_resource_group.this.location
+  resource_group_name        = azurerm_resource_group.this.name
+  tenant_id                  = var.azure_tenant_id
+  sku_name                   = "standard"
+  rbac_authorization_enabled = true
+  purge_protection_enabled   = true
   public_network_access_enabled = true
-  soft_delete_retention_days    = 7
-  tags                          = local.tags
+  soft_delete_retention_days = 7
+  tags                       = local.tags
 }
 
 resource "azuread_application" "layer" {

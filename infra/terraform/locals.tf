@@ -77,21 +77,21 @@ locals {
   layer_application_ids = local.use_existing_layer_sp ? {
     for layer, _ in local.layer_configs :
     layer => var.existing_layer_sp_client_id
-    } : {
+  } : {
     for layer, app in azuread_application.layer :
     layer => app.client_id
   }
 
   key_vault_secret_user_principals = local.use_existing_layer_sp ? {
     shared = var.existing_layer_sp_object_id
-    } : {
+  } : {
     for layer, sp in azuread_service_principal.layer :
     layer => sp.object_id
   }
 
   databricks_service_principals_to_create = local.use_existing_layer_sp ? {
     shared = var.existing_layer_sp_client_id
-    } : {
+  } : {
     for layer, app_id in local.layer_application_ids :
     layer => app_id
   }

@@ -18,14 +18,12 @@ def main():
     args = parse_args()
 
     spark = SparkSession.builder.getOrCreate()
-
     source_table = f"{args.input_catalog}.{args.input_schema}.{args.input_table}"
     target_table = f"{args.output_catalog}.{args.output_schema}.{args.output_table}"
 
-    df = spark.read.table(source_table)
-
     df = (
-        df.groupBy(F.to_date("_refined_at").alias("event_date"))
+        spark.read.table(source_table)
+        .groupBy(F.to_date("_refined_at").alias("event_date"))
         .agg(
             F.count("*").alias("record_count"),
             F.max("_refined_at").alias("last_refined_at"),
