@@ -11,6 +11,12 @@ def build_workflow_yaml(
     subscription_secret: str,
     client_id_secret: str,
     client_secret_secret: str,
+    sp_object_id_secret: str,
+    existing_layer_sp_client_id_secret: str,
+    existing_layer_sp_object_id_secret: str,
+    default_workload: str,
+    default_environment: str,
+    default_region: str,
 ) -> str:
     return f"""\
 name: {workflow_name}
@@ -24,10 +30,24 @@ on:
         default: dev
         type: choice
         options: [dev, prd]
+      workload:
+        description: Workload short name used in Terraform naming
+        required: true
+        default: {default_workload}
       environment:
         description: Environment value to pass to the downstream DAB deployment
         required: true
-        default: dev
+        default: {default_environment}
+      azure_region:
+        description: Azure region for Terraform deployment
+        required: true
+        default: {default_region}
+      layer_sp_mode:
+        description: Layer service principal mode (create new or reuse existing)
+        required: true
+        default: create
+        type: choice
+        options: [create, existing]
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
@@ -51,6 +71,13 @@ jobs:
           for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
             [ -n "${{!var}}" ] || missing+=("$var")
           done
+          [ -n "${{{{ secrets.{sp_object_id_secret} }}}}" ] || missing+=("{sp_object_id_secret}")
+
+          if [ "${{{{ github.event.inputs.layer_sp_mode }}}}" = "existing" ]; then
+            [ -n "${{{{ secrets.{existing_layer_sp_client_id_secret} }}}}" ] || missing+=("{existing_layer_sp_client_id_secret}")
+            [ -n "${{{{ secrets.{existing_layer_sp_object_id_secret} }}}}" ] || missing+=("{existing_layer_sp_object_id_secret}")
+          fi
+
           if [ ${{#missing[@]}} -gt 0 ]; then
             echo "Missing required values: ${{missing[*]}}"
             exit 1
@@ -68,6 +95,15 @@ jobs:
         env:
           TF_VAR_azure_tenant_id: ${{{{ secrets.{tenant_secret} }}}}
           TF_VAR_azure_subscription_id: ${{{{ secrets.{subscription_secret} }}}}
+          TF_VAR_azure_client_id: ${{{{ secrets.{client_id_secret} }}}}
+          TF_VAR_azure_client_secret: ${{{{ secrets.{client_secret_secret} }}}}
+          TF_VAR_azure_sp_object_id: ${{{{ secrets.{sp_object_id_secret} }}}}
+          TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
+          TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
+          TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
+          TF_VAR_layer_service_principal_mode: ${{{{ github.event.inputs.layer_sp_mode }}}}
+          TF_VAR_existing_layer_sp_client_id: ${{{{ secrets.{existing_layer_sp_client_id_secret} }}}}
+          TF_VAR_existing_layer_sp_object_id: ${{{{ secrets.{existing_layer_sp_object_id_secret} }}}}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
       - name: Export Terraform outputs
@@ -106,11 +142,17 @@ def main() -> int:
     )
     parser.add_argument("--output", default=".github/workflows/deploy-infrastructure.yml")
     parser.add_argument("--workflow-name", default="Deploy Infrastructure")
-    parser.add_argument("--github-environment", default="BLG2CODEDEV")
+    parser.add_argument("--github-environment", default="MYAPP-DEV")
     parser.add_argument("--tenant-secret", default="AZURE_TENANT_ID")
     parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")
     parser.add_argument("--client-id-secret", default="AZURE_CLIENT_ID")
     parser.add_argument("--client-secret-secret", default="AZURE_CLIENT_SECRET")
+    parser.add_argument("--sp-object-id-secret", default="AZURE_SP_OBJECT_ID")
+    parser.add_argument("--existing-layer-sp-client-id-secret", default="EXISTING_LAYER_SP_CLIENT_ID")
+    parser.add_argument("--existing-layer-sp-object-id-secret", default="EXISTING_LAYER_SP_OBJECT_ID")
+    parser.add_argument("--default-workload", default="myapp")
+    parser.add_argument("--default-environment", default="dev")
+    parser.add_argument("--default-region", default="eastus2")
 
     args = parser.parse_args()
     output = Path(args.output)
@@ -123,6 +165,12 @@ def main() -> int:
         subscription_secret=args.subscription_secret,
         client_id_secret=args.client_id_secret,
         client_secret_secret=args.client_secret_secret,
+        sp_object_id_secret=args.sp_object_id_secret,
+        existing_layer_sp_client_id_secret=args.existing_layer_sp_client_id_secret,
+        existing_layer_sp_object_id_secret=args.existing_layer_sp_object_id_secret,
+        default_workload=args.default_workload,
+        default_environment=args.default_environment,
+        default_region=args.default_region,
     )
     output.write_text(content, encoding="utf-8")
     print(f"Generated workflow: {output}")

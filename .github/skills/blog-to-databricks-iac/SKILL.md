@@ -32,8 +32,11 @@ Ask the user for the following values before proceeding. If they were already pr
 | `subscription_secret_name` | GitHub secret name that stores Azure subscription ID | `AZURE_SUBSCRIPTION_ID`, `MY_SUBSCRIPTION_ID` |
 | `client_id_secret_name` | GitHub secret name that stores Azure service principal client ID | `AZURE_CLIENT_ID`, `MY_CLIENT_ID` |
 | `client_secret_secret_name` | GitHub secret name that stores Azure service principal client secret | `AZURE_CLIENT_SECRET`, `MY_CLIENT_SECRET` |
+| `sp_object_id_secret_name` | GitHub secret name that stores deployment principal object ID (for RBAC assignments) | `AZURE_SP_OBJECT_ID`, `MY_SP_OBJECT_ID` |
+| `existing_layer_sp_client_id_secret_name` | Optional GitHub secret name for existing layer principal client ID (used when mode = `existing`) | `EXISTING_LAYER_SP_CLIENT_ID`, `LAYER_RUNNER_CLIENT_ID` |
+| `existing_layer_sp_object_id_secret_name` | Optional GitHub secret name for existing layer principal object ID (used when mode = `existing`) | `EXISTING_LAYER_SP_OBJECT_ID`, `LAYER_RUNNER_OBJECT_ID` |
 
-Store these as the active run context. Reference them as `{workload}`, `{environment}`, `{azure_region}`, `{github_environment}`, `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}` throughout all subsequent steps.
+Store these as the active run context. Reference them as `{workload}`, `{environment}`, `{azure_region}`, `{github_environment}`, `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`, `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}` throughout all subsequent steps.
 
 If the user does not provide:
 - `github_environment`: derive a default as `{WORKLOAD_UPPER}-{ENVIRONMENT_UPPER}` (e.g. workload `blg` + environment `dev` -> `BLG-DEV`)
@@ -41,6 +44,13 @@ If the user does not provide:
 - `subscription_secret_name`: default to `AZURE_SUBSCRIPTION_ID`
 - `client_id_secret_name`: default to `AZURE_CLIENT_ID`
 - `client_secret_secret_name`: default to `AZURE_CLIENT_SECRET`
+- `sp_object_id_secret_name`: default to `AZURE_SP_OBJECT_ID`
+- `existing_layer_sp_client_id_secret_name`: default to `EXISTING_LAYER_SP_CLIENT_ID`
+- `existing_layer_sp_object_id_secret_name`: default to `EXISTING_LAYER_SP_OBJECT_ID`
+
+Notes:
+- Keep secret naming configurable. Do not assume organization-specific secret names.
+- Existing-layer principal secrets are only required when `layer_sp_mode=existing`.
 
 ### 1. Fetch article
 ```bash
@@ -78,7 +88,15 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workf
 	--tenant-secret "{tenant_secret_name}" \
 	--subscription-secret "{subscription_secret_name}" \
 	--client-id-secret "{client_id_secret_name}" \
-	--client-secret-secret "{client_secret_secret_name}"
+	--client-secret-secret "{client_secret_secret_name}" \
+	--sp-object-id-secret "{sp_object_id_secret_name}" \
+	--default-workload "{workload}" \
+	--default-environment "{environment}" \
+	--default-region "{azure_region}"
+
+# Optional flags (only needed when identity reuse mode is supported in workflow validation):
+# 	--existing-layer-sp-client-id-secret "{existing_layer_sp_client_id_secret_name}" \
+# 	--existing-layer-sp-object-id-secret "{existing_layer_sp_object_id_secret_name}"
 ```
 
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`.
@@ -100,7 +118,8 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_dab_w
 This workflow downloads the `terraform-outputs` and `deploy-context` artifacts from the infrastructure workflow run, checks out the matching commit SHA, and then deploys the Databricks Asset Bundle. **No Databricks PAT is required.** The Databricks CLI authenticates using the same Azure Service Principal (`ARM_CLIENT_ID` / `ARM_CLIENT_SECRET` / `ARM_TENANT_ID`) already used by Terraform, combined with the workspace resource ID from the `databricks_workspace_resource_id` Terraform output.
 
 **Required GitHub secrets** (all known before deployment):
-- From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`
+- From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`
+- Conditional for `layer_sp_mode=existing`: `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}`
 
 **Architecture-specific runtime secrets** (vary by blog — add to TODO.md if the architecture requires them):
 - Source database credentials should be populated in Azure Key Vault after infrastructure deployment, not injected into the infrastructure workflow.

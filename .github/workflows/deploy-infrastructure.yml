@@ -9,10 +9,24 @@ on:
         default: dev
         type: choice
         options: [dev, prd]
+      workload:
+        description: Workload short name used in Terraform naming
+        required: true
+        default: blg
       environment:
         description: Environment value to pass to the downstream DAB deployment
         required: true
         default: dev
+      azure_region:
+        description: Azure region for Terraform deployment
+        required: true
+        default: uksouth
+      layer_sp_mode:
+        description: Layer service principal mode (create new or reuse existing)
+        required: true
+        default: create
+        type: choice
+        options: [create, existing]
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
@@ -36,6 +50,13 @@ jobs:
           for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
             [ -n "${!var}" ] || missing+=("$var")
           done
+          [ -n "${{ secrets.AZURE_SP_OBJECT_ID }}" ] || missing+=("AZURE_SP_OBJECT_ID")
+
+          if [ "${{ github.event.inputs.layer_sp_mode }}" = "existing" ]; then
+            [ -n "${{ secrets.EXISTING_LAYER_SP_CLIENT_ID }}" ] || missing+=("EXISTING_LAYER_SP_CLIENT_ID")
+            [ -n "${{ secrets.EXISTING_LAYER_SP_OBJECT_ID }}" ] || missing+=("EXISTING_LAYER_SP_OBJECT_ID")
+          fi
+
           if [ ${#missing[@]} -gt 0 ]; then
             echo "Missing required values: ${missing[*]}"
             exit 1
@@ -53,6 +74,15 @@ jobs:
         env:
           TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
           TF_VAR_azure_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_azure_client_id: ${{ secrets.AZURE_CLIENT_ID }}
+          TF_VAR_azure_client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          TF_VAR_azure_sp_object_id: ${{ secrets.AZURE_SP_OBJECT_ID }}
+          TF_VAR_workload: ${{ github.event.inputs.workload }}
+          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_azure_region: ${{ github.event.inputs.azure_region }}
+          TF_VAR_layer_service_principal_mode: ${{ github.event.inputs.layer_sp_mode }}
+          TF_VAR_existing_layer_sp_client_id: ${{ secrets.EXISTING_LAYER_SP_CLIENT_ID }}
+          TF_VAR_existing_layer_sp_object_id: ${{ secrets.EXISTING_LAYER_SP_OBJECT_ID }}
         run: terraform -chdir=infra/terraform apply -auto-approve
 
       - name: Export Terraform outputs

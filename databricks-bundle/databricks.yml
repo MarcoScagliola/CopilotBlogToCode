@@ -2,65 +2,45 @@ bundle:
   name: secure-medallion-${var.workload}-${var.environment}
 
 variables:
-  # ── Workspace ──────────────────────────────────────────────────────────────
+  workload:
+    default: blg
+  environment:
+    default: dev
+
   workspace_host:
-    description: "Databricks workspace URL (from Terraform output databricks_workspace_url)."
+    description: Databricks workspace URL from Terraform output.
     default: ""
 
   workspace_resource_id:
-    description: "Full Azure resource ID of the workspace (from Terraform output databricks_workspace_resource_id)."
+    description: Databricks workspace Azure resource ID from Terraform output.
     default: ""
 
-  # ── Layer service principal client IDs ────────────────────────────────────
   bronze_sp_client_id:
-    description: "Client ID of the Bronze layer service principal."
     default: ""
-
   silver_sp_client_id:
-    description: "Client ID of the Silver layer service principal."
     default: ""
-
   gold_sp_client_id:
-    description: "Client ID of the Gold layer service principal."
     default: ""
 
-  # ── Catalog / schema names ────────────────────────────────────────────────
   bronze_catalog:
-    description: "Unity Catalog catalog name for the Bronze layer."
     default: ""
-
   silver_catalog:
-    description: "Unity Catalog catalog name for the Silver layer."
     default: ""
-
   gold_catalog:
-    description: "Unity Catalog catalog name for the Gold layer."
     default: ""
 
   bronze_schema:
-    description: "Schema name within the Bronze catalog."
-    default: "default"
-
+    default: default
   silver_schema:
-    description: "Schema name within the Silver catalog."
-    default: "default"
-
+    default: default
   gold_schema:
-    description: "Schema name within the Gold catalog."
-    default: "default"
+    default: default
 
-  # ── Secret scope ──────────────────────────────────────────────────────────
   secret_scope:
-    description: "AKV-backed Databricks secret scope name (from Terraform output secret_scope_name)."
+    description: AKV-backed Databricks secret scope.
     default: ""
 
-  # ── Orchestrator schedule ─────────────────────────────────────────────────
-  orchestrator_schedule:
-    description: "Quartz cron expression for the medallion orchestrator job."
-    default: "0 0 2 * * ?"   # 02:00 daily
-
   alert_email:
-    description: "Email address for job failure notifications."
     default: ""
 
 workspace:
@@ -74,12 +54,5 @@ targets:
   dev:
     mode: development
     default: true
-    variables:
-      workspace_host: ${var.workspace_host}
-      workspace_resource_id: ${var.workspace_resource_id}
-
   prd:
     mode: production
-    variables:
-      workspace_host: ${var.workspace_host}
-      workspace_resource_id: ${var.workspace_resource_id}

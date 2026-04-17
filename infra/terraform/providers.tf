@@ -13,8 +13,6 @@ provider "azuread" {
   tenant_id = var.azure_tenant_id
 }
 
-# Databricks provider scoped to the provisioned workspace.
-# host and azure_workspace_resource_id are set after the workspace resource is created.
 provider "databricks" {
   host                        = azurerm_databricks_workspace.this.workspace_url
   azure_workspace_resource_id = azurerm_databricks_workspace.this.id
