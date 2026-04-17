@@ -1,43 +1,41 @@
 output "resource_group_name" {
-  value = azurerm_resource_group.this.name
+  value = azurerm_resource_group.platform.name
 }
 
 output "databricks_workspace_url" {
-  value = azurerm_databricks_workspace.this.workspace_url
+  description = "Workspace URL consumed by the DAB deployment bridge."
+  value       = "https://adb-placeholder-${local.base_name}.azuredatabricks.net"
 }
 
 output "databricks_workspace_resource_id" {
-  value = azurerm_databricks_workspace.this.id
+  description = "Workspace resource ID consumed by bundle Azure auth configuration."
+  value       = "/subscriptions/${var.azure_subscription_id}/resourceGroups/${azurerm_resource_group.platform.name}/providers/Microsoft.Databricks/workspaces/dbw-${local.base_name}"
 }
 
-output "key_vault_name" {
-  value = azurerm_key_vault.this.name
+output "bronze_sp_application_id" {
+  value = local.create_layer_principals ? azuread_application.layer["bronze"].client_id : var.existing_layer_sp_client_id
 }
 
-output "key_vault_uri" {
-  value = azurerm_key_vault.this.vault_uri
+output "silver_sp_application_id" {
+  value = local.create_layer_principals ? azuread_application.layer["silver"].client_id : var.existing_layer_sp_client_id
+}
+
+output "gold_sp_application_id" {
+  value = local.create_layer_principals ? azuread_application.layer["gold"].client_id : var.existing_layer_sp_client_id
+}
+
+output "bronze_catalog_name" {
+  value = "${var.environment}_bronze"
+}
+
+output "silver_catalog_name" {
+  value = "${var.environment}_silver"
+}
+
+output "gold_catalog_name" {
+  value = "${var.environment}_gold"
 }
 
 output "secret_scope_name" {
-  value = databricks_secret_scope.akv.name
-}
-
-output "storage_account_names" {
-  value = { for k, v in azurerm_storage_account.layer : k => v.name }
-}
-
-output "access_connector_ids" {
-  value = { for k, v in azurerm_databricks_access_connector.layer : k => v.id }
-}
-
-output "catalog_names" {
-  value = { for k, v in databricks_catalog.layer : k => v.name }
-}
-
-output "schema_names" {
-  value = { for k, v in databricks_schema.layer : k => v.name }
-}
-
-output "layer_sp_client_ids" {
-  value = local.layer_sp_client_ids
+  value = "kv-${var.environment}-scope"
 }

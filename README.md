@@ -1,44 +1,60 @@
-# Secure Medallion Architecture on Azure Databricks
+# Secure Medallion On Databricks (Blog Implementation)
 
-This repository implements the architecture from:
+This workspace implements a reproducible baseline of the architecture described in:
 https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
-It deploys a security-first Medallion design where Bronze, Silver, and Gold run as isolated jobs with dedicated identities and tightly scoped access.
+The baseline enforces Bronze/Silver/Gold separation with dedicated jobs and identity-scoped access paths, then deploys infrastructure and Databricks assets through split CI workflows.
 
 ## Prerequisites
-- Azure service principal with required RBAC permissions
-- GitHub Environment configured with Azure secrets or variables
-- Terraform and Databricks CLI available in CI/CD
 
-## Required GitHub Environment Values
-### Always Required
-- AZURE_TENANT_ID
-- AZURE_SUBSCRIPTION_ID
-- AZURE_CLIENT_ID
-- AZURE_CLIENT_SECRET
-- AZURE_SP_OBJECT_ID
+- Azure service principal with permissions to create resource groups, storage, Key Vault resources, role assignments, and Entra app/service principal objects.
+- GitHub Environment configured for deployment credentials.
+- Terraform and Databricks CLI available in CI runner context.
 
-### Conditional (layer_sp_mode=existing)
-- EXISTING_LAYER_SP_CLIENT_ID
-- EXISTING_LAYER_SP_OBJECT_ID
+## Required GitHub secrets or variables
 
-### Runtime (in Azure Key Vault)
-- jdbc-host
-- jdbc-database
-- jdbc-user
-- jdbc-password
+### Always required
+
+| Name | Purpose |
+|---|---|
+| AZURE_TENANT_ID | ARM tenant id |
+| AZURE_SUBSCRIPTION_ID | ARM subscription id |
+| AZURE_CLIENT_ID | Deployment service principal client id |
+| AZURE_CLIENT_SECRET | Deployment service principal secret |
+| AZURE_SP_OBJECT_ID | Deployment service principal object id for RBAC |
+
+### Architecture-specific / conditional
+
+| Name | When needed | Purpose |
+|---|---|---|
+| EXISTING_LAYER_SP_CLIENT_ID | `layer_sp_mode=existing` | Layer execution principal client id |
+| EXISTING_LAYER_SP_OBJECT_ID | `layer_sp_mode=existing` | Layer execution principal object id |
+
+If conditional values are omitted in existing mode, workflow fallback uses deployment principal values.
+
+## One-time setup steps
+
+1. Register the deployment service principal and capture client id, secret, and object id.
+2. Assign required Azure RBAC roles in the target subscription or resource group.
+3. Configure GitHub Environment `BLG2CODEDEV` with required values (as secrets or vars).
+4. Ensure repository Actions permissions allow artifact upload/download.
 
 ## Workflows
-- Validate Terraform: .github/workflows/validate-terraform.yml
-- Deploy Infrastructure: .github/workflows/deploy-infrastructure.yml
-- Deploy DAB: .github/workflows/deploy-dab.yml
 
-## Deployment Flow
-1. Run Validate Terraform.
-2. Run Deploy Infrastructure with desired inputs.
-3. Populate JDBC secrets in Key Vault.
-4. Run Deploy DAB.
+1. `Validate Terraform`
+	- Trigger manually from Actions UI.
+	- Runs Terraform init (no backend) and validate.
+
+2. `Deploy Infrastructure`
+	- Trigger manually and select inputs (target/workload/environment/region/layer mode).
+	- Runs Terraform apply.
+	- Publishes `terraform-outputs` and `deploy-context` artifacts.
+
+3. `Deploy DAB`
+	- Trigger manually with `infra_run_id` or let it run after successful infrastructure workflow.
+	- Downloads artifacts, checks out matching commit SHA, and deploys the Databricks bundle.
 
 ## References
-- SPEC.md
-- TODO.md
+
+- SPEC: `SPEC.md`
+- TODO: `TODO.md`

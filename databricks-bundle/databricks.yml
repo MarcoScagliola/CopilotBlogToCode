@@ -1,58 +1,45 @@
 bundle:
-  name: secure-medallion-${var.workload}-${var.environment}
+  name: secure-medallion
 
 variables:
-  workload:
-    default: blg
   environment:
+    description: Environment short name
     default: dev
-
   workspace_host:
-    description: Databricks workspace URL from Terraform output.
-    default: ""
-
+    description: Databricks workspace URL
   workspace_resource_id:
-    description: Databricks workspace Azure resource ID from Terraform output.
-    default: ""
-
+    description: Databricks workspace Azure resource ID
   bronze_sp_client_id:
-    default: ""
+    description: Bronze layer service principal client ID
   silver_sp_client_id:
-    default: ""
+    description: Silver layer service principal client ID
   gold_sp_client_id:
-    default: ""
-
+    description: Gold layer service principal client ID
   bronze_catalog:
-    default: ""
+    description: Bronze catalog name
   silver_catalog:
-    default: ""
+    description: Silver catalog name
   gold_catalog:
-    default: ""
-
-  bronze_schema:
-    default: default
-  silver_schema:
-    default: default
-  gold_schema:
-    default: default
-
+    description: Gold catalog name
   secret_scope:
-    description: AKV-backed Databricks secret scope.
-    default: ""
-
-  alert_email:
-    default: ""
-
-workspace:
-  host: ${var.workspace_host}
-  azure_workspace_resource_id: ${var.workspace_resource_id}
+    description: Secret scope name
 
 include:
-  - resources/*.yml
+  - resources/jobs.yml
 
 targets:
   dev:
     mode: development
-    default: true
+    workspace:
+      host: ${var.workspace_host}
+      azure_workspace_resource_id: ${var.workspace_resource_id}
+    variables:
+      environment: dev
+
   prd:
     mode: production
+    workspace:
+      host: ${var.workspace_host}
+      azure_workspace_resource_id: ${var.workspace_resource_id}
+    variables:
+      environment: prd

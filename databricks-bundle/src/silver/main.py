@@ -1,7 +1,6 @@
 import argparse
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import current_timestamp
 
 
 def parse_args() -> argparse.Namespace:
@@ -16,14 +15,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
-
-    source = f"`{args.bronze_catalog}`.`{args.bronze_schema}`.`source_raw`"
-    target = f"`{args.silver_catalog}`.`{args.silver_schema}`.`source_refined`"
-
-    df = spark.read.table(source)
-    refined = df.dropDuplicates().dropna(subset=["id"]).withColumn("_refined_at", current_timestamp())
-
-    refined.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(target)
+    bronze_table = f"{args.bronze_catalog}.{args.bronze_schema}.raw_events"
+    silver_table = f"{args.silver_catalog}.{args.silver_schema}.events"
+    bronze_df = spark.table(bronze_table)
+    refined_df = bronze_df.dropDuplicates(["raw_id"])
+    refined_df.write.mode("overwrite").saveAsTable(silver_table)
 
 
 if __name__ == "__main__":

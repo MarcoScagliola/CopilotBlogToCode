@@ -1,107 +1,70 @@
 resources:
   jobs:
-    bronze_layer:
-      name: medallion-bronze-${var.workload}-${var.environment}
-      job_clusters:
-        - job_cluster_key: bronze_cluster
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: Standard_DS3_v2
-            autoscale:
-              min_workers: 1
-              max_workers: 2
-            runtime_engine: STANDARD
+    bronze_job:
+      name: ${bundle.name}-${var.environment}-bronze
       tasks:
-        - task_key: ingest
-          job_cluster_key: bronze_cluster
+        - task_key: bronze_main
           spark_python_task:
             python_file: ../src/bronze/main.py
             parameters:
               - --catalog
               - ${var.bronze_catalog}
               - --schema
-              - ${var.bronze_schema}
-              - --secret-scope
-              - ${var.secret_scope}
-      run_as:
-        service_principal_name: ${var.bronze_sp_client_id}
+              - ingestion
+      tags:
+        layer: bronze
 
-    silver_layer:
-      name: medallion-silver-${var.workload}-${var.environment}
-      job_clusters:
-        - job_cluster_key: silver_cluster
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: Standard_DS3_v2
-            autoscale:
-              min_workers: 1
-              max_workers: 3
-            runtime_engine: PHOTON
+    silver_job:
+      name: ${bundle.name}-${var.environment}-silver
       tasks:
-        - task_key: refine
-          job_cluster_key: silver_cluster
+        - task_key: silver_main
           spark_python_task:
             python_file: ../src/silver/main.py
             parameters:
               - --bronze-catalog
               - ${var.bronze_catalog}
               - --bronze-schema
-              - ${var.bronze_schema}
+              - ingestion
               - --silver-catalog
               - ${var.silver_catalog}
               - --silver-schema
-              - ${var.silver_schema}
-      run_as:
-        service_principal_name: ${var.silver_sp_client_id}
+              - refined
+      tags:
+        layer: silver
 
-    gold_layer:
-      name: medallion-gold-${var.workload}-${var.environment}
-      job_clusters:
-        - job_cluster_key: gold_cluster
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: Standard_DS3_v2
-            autoscale:
-              min_workers: 1
-              max_workers: 2
-            runtime_engine: STANDARD
+    gold_job:
+      name: ${bundle.name}-${var.environment}-gold
       tasks:
-        - task_key: curate
-          job_cluster_key: gold_cluster
+        - task_key: gold_main
           spark_python_task:
             python_file: ../src/gold/main.py
             parameters:
               - --silver-catalog
               - ${var.silver_catalog}
               - --silver-schema
-              - ${var.silver_schema}
+              - refined
               - --gold-catalog
               - ${var.gold_catalog}
               - --gold-schema
-              - ${var.gold_schema}
-      run_as:
-        service_principal_name: ${var.gold_sp_client_id}
+              - curated
+      tags:
+        layer: gold
 
-    medallion_orchestrator:
-      name: medallion-orchestrator-${var.workload}-${var.environment}
-      schedule:
-        quartz_cron_expression: 0 0 2 * * ?
-        timezone_id: UTC
-        pause_status: UNPAUSED
+    orchestrator_job:
+      name: ${bundle.name}-${var.environment}-orchestrator
       tasks:
-        - task_key: run_bronze
+        - task_key: bronze
           run_job_task:
-            job_id: ${resources.jobs.bronze_layer.id}
-        - task_key: run_silver
+            job_id: ${resources.jobs.bronze_job.id}
+        - task_key: silver
           depends_on:
-            - task_key: run_bronze
+            - task_key: bronze
           run_job_task:
-            job_id: ${resources.jobs.silver_layer.id}
-        - task_key: run_gold
+            job_id: ${resources.jobs.silver_job.id}
+        - task_key: gold
           depends_on:
-            - task_key: run_silver
+            - task_key: silver
           run_job_task:
-            job_id: ${resources.jobs.gold_layer.id}
-      email_notifications:
-        on_failure:
-          - ${var.alert_email}
+            job_id: ${resources.jobs.gold_job.id}
+      tags:
+        layer: orchestration

@@ -56,8 +56,8 @@ env:
   ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} || vars.{client_id_secret} }}}}
   ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} || vars.{client_secret_secret} }}}}
   ARM_SP_OBJECT_ID: ${{{{ secrets.{sp_object_id_secret} || vars.{sp_object_id_secret} }}}}
-  ARM_EXISTING_LAYER_SP_CLIENT_ID: ${{{{ secrets.{existing_layer_sp_client_id_secret} || vars.{existing_layer_sp_client_id_secret} }}}}
-  ARM_EXISTING_LAYER_SP_OBJECT_ID: ${{{{ secrets.{existing_layer_sp_object_id_secret} || vars.{existing_layer_sp_object_id_secret} }}}}
+  ARM_EXISTING_LAYER_SP_CLIENT_ID: ${{{{ secrets.{existing_layer_sp_client_id_secret} || vars.{existing_layer_sp_client_id_secret} || secrets.{client_id_secret} || vars.{client_id_secret} }}}}
+  ARM_EXISTING_LAYER_SP_OBJECT_ID: ${{{{ secrets.{existing_layer_sp_object_id_secret} || vars.{existing_layer_sp_object_id_secret} || secrets.{sp_object_id_secret} || vars.{sp_object_id_secret} }}}}
 
 jobs:
   deploy_infrastructure:

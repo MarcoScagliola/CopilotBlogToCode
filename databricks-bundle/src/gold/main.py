@@ -1,7 +1,7 @@
 import argparse
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, current_timestamp, max as spark_max
+from pyspark.sql import functions as F
 
 
 def parse_args() -> argparse.Namespace:
@@ -16,18 +16,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
-
-    source = f"`{args.silver_catalog}`.`{args.silver_schema}`.`source_refined`"
-    target = f"`{args.gold_catalog}`.`{args.gold_schema}`.`source_daily_summary`"
-
-    df = spark.read.table(source)
-    summary = (
-        df.groupBy(col("event_date"))
-        .agg(count("*").alias("record_count"), spark_max("_refined_at").alias("last_refined_at"))
-        .withColumn("_curated_at", current_timestamp())
-    )
-
-    summary.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(target)
+    silver_table = f"{args.silver_catalog}.{args.silver_schema}.events"
+    gold_table = f"{args.gold_catalog}.{args.gold_schema}.event_summary"
+    silver_df = spark.table(silver_table)
+    gold_df = silver_df.groupBy().agg(F.count("raw_id").alias("event_count"))
+    gold_df.write.mode("overwrite").saveAsTable(gold_table)
 
 
 if __name__ == "__main__":

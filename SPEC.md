@@ -1,34 +1,41 @@
 # SPEC
 
-## Source
-Secure Medallion Architecture Pattern on Azure Databricks (Part I):
-https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+## Goal
+Implement a secure Medallion architecture baseline inspired by the referenced blog post:
+- Layered data pipeline: Bronze, Silver, Gold
+- Separate job per layer plus orchestrator
+- Dedicated storage paths per layer
+- Identity isolation with least privilege (create or reuse mode)
+- CI/CD split between infrastructure and DAB deployment
 
-## Architecture Summary
-This implementation enforces least privilege by splitting the Medallion pipeline into independent Bronze, Silver, and Gold jobs. Each layer has dedicated identity, storage access path, and Unity Catalog boundaries to minimize blast radius.
+## Scope
+This repository includes:
+- Terraform infrastructure in infra/terraform
+- Databricks Asset Bundle in databricks-bundle
+- GitHub Actions workflows in .github/workflows
 
-## Infrastructure Scope
-- 1 resource group
-- 1 Azure Databricks Premium workspace
-- 3 ADLS Gen2 storage accounts (bronze/silver/gold)
-- 3 Databricks Access Connectors (one per layer)
-- 1 Azure Key Vault
-- 1 Unity Catalog metastore assignment
-- 3 storage credentials + 3 external locations + 3 catalogs + 3 schemas
-- Optional per-layer Entra applications/service principals, or reuse of existing identity
+## Terraform design
+- Creates resource group, key vault, and one ADLS Gen2 account per medallion layer
+- Supports identity mode:
+  - create: create dedicated Entra applications/service principals per layer
+  - existing: reuse provided principal client/object IDs
+- Assigns Storage Blob Data Owner on each layer storage account to the layer principal
+- Emits outputs required by deploy_dab.py bridge script
 
-## Security and Compatibility Decisions
-- `layer_service_principal_mode` supports `create` and `existing`.
-- `storage_shared_key_enabled` defaults to `true` for provider compatibility during provisioning.
-- `rbac_authorization_enabled` is used for Key Vault.
-- Secrets are fetched at runtime via AKV-backed Databricks secret scope.
+## DAB design
+- Bundle targets: dev and prd
+- Jobs:
+  - bronze_job
+  - silver_job
+  - gold_job
+  - orchestrator_job (run_job_task chain)
 
-## Data Flow
-- Bronze: JDBC ingestion into `source_raw`
-- Silver: deduplicate/refine into `source_refined`
-- Gold: aggregate into `source_daily_summary`
+## CI/CD design
+- validate-terraform.yml: init/validate checks
+- deploy-infrastructure.yml: terraform apply + output artifacts
+- deploy-dab.yml: consumes infra artifacts and deploys bundle
 
-## CI/CD Workflows
-- `validate-terraform.yml` validates Terraform syntax.
-- `deploy-infrastructure.yml` applies Terraform and publishes outputs.
-- `deploy-dab.yml` deploys the Databricks bundle using infra outputs.
+## Non-goals
+- Full production hardening (network isolation, private endpoints, CMK)
+- Complete Unity Catalog object provisioning
+- Environment-specific catalog/table bootstrap automation

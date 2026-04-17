@@ -8,6 +8,12 @@ description: Generate Terraform + Databricks DAB code from a blog URL.
 ## Overview
 Converts a technical article into deployment-ready infrastructure code: Terraform for Azure resources and Databricks Declarative Automation Bundles for jobs/clusters. Produces SPEC.md, TODO.md, code, and README with assumptions.
 
+## Detailed Operational Reference
+For complete implementation history, validated remediations, and troubleshooting patterns, use:
+- `.github/skills/blog-to-databricks-iac/references/implementation-learnings.md`
+
+Keep this SKILL concise and procedural. Keep detailed learnings in the references folder.
+
 ## Output
 1. `SPEC.md` – architecture summary
 2. `TODO.md` – unresolved values
@@ -160,3 +166,19 @@ Create or update `README.md` at the repository root. It must include:
 6. **Links** to `SPEC.md` and `TODO.md`
 
 Do NOT include credential values, connection strings, or subscription IDs in `README.md`.
+
+### 5. Mandatory correctness validation before completion
+Run all checks below before declaring generation complete:
+
+1. Python compile checks on generator scripts, DAB deploy bridge script, and medallion Python scripts.
+2. Terraform checks:
+	- `terraform -chdir=infra/terraform init -backend=false`
+	- `terraform -chdir=infra/terraform validate`
+3. YAML parse checks for workflows and DAB YAML files.
+4. Generator runtime checks by executing workflow generators and confirming file regeneration succeeds.
+
+Mandatory guardrails:
+- Generated workflows must resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
+- In `layer_sp_mode=existing`, generated workflow logic must support fallback to deployment principal values.
+- Terraform outputs must include both `databricks_workspace_url` and `databricks_workspace_resource_id` for the DAB bridge.
+- DAB layer scripts must not hardcode environment-specific table paths; pass catalog/schema via task parameters.

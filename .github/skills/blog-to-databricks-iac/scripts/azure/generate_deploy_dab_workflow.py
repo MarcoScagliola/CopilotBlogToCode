@@ -36,10 +36,10 @@ on:
 
 # ARM_* env vars are used by Databricks CLI for Azure service-principal auth.
 env:
-  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} }}}}
-  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} }}}}
-  ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} }}}}
-  ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} }}}}
+  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} || vars.{tenant_secret} }}}}
+  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} || vars.{subscription_secret} }}}}
+  ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} || vars.{client_id_secret} }}}}
+  ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} || vars.{client_secret_secret} }}}}
 
 jobs:
   deploy_dab:

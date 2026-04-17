@@ -24,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 # Maps DAB variable name -> Terraform output keys (new names first, then backward-compatible aliases)
 DAB_TO_TF_KEYS: dict[str, list[str]] = {
     "workspace_host": ["databricks_workspace_url"],
+    "workspace_resource_id": ["databricks_workspace_resource_id"],
     "bronze_sp_client_id": ["bronze_sp_application_id", "bronze_sp_client_id"],
     "silver_sp_client_id": ["silver_sp_application_id", "silver_sp_client_id"],
     "gold_sp_client_id": ["gold_sp_application_id", "gold_sp_client_id"],
