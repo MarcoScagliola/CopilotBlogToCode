@@ -7,7 +7,7 @@
   - Either: Request `Application.ReadWrite.All` in Entra for the deployment principal.
   - Or: **Use `layer_sp_mode=existing` and pre-create the layer principals**, then provide their client IDs and object IDs in GitHub secrets.
 - [ ] Populate GitHub Environment `{github_environment}` with all required secrets (see README).
-- [ ] Verify `AZURE_SP_OBJECT_ID` and (if used) `EXISTING_LAYER_SP_OBJECT_ID` are **Enterprise Applications object IDs**, not App Registration object IDs.
+- [ ] Verify `{sp_object_id_secret_name}` and (if used) `{existing_layer_sp_object_id_secret_name}` are **Enterprise Applications object IDs**, not App Registration object IDs.
 
 ## Post-Infrastructure Deployment
 

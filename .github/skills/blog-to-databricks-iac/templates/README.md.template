@@ -1,6 +1,7 @@
 # Secure Medallion Architecture on Azure Databricks
 
-This repository implements the secure medallion architecture pattern from the [Microsoft Tech Community blog post](https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268). Each medallion layer (Bronze, Silver, Gold) runs as a dedicated Databricks Lakeflow job with its own service principal, isolated ADLS Gen2 storage, and least-privilege RBAC assignments. An orchestrator job chains the three layer jobs in sequence.
+This repository implements a Azure Databricks architecture pattern derived from the selected on-line source article. 
+
 
 Infrastructure is provisioned with Terraform. Databricks jobs are deployed with a Databricks Asset Bundle. CI/CD is split across three GitHub Actions workflows.
 
