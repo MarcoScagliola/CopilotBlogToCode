@@ -149,7 +149,8 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Architecture-specific runtime secrets** (vary by blog — add to TODO.md if the architecture requires them):
 - Source database credentials should be populated in Azure Key Vault after infrastructure deployment, not injected into the infrastructure workflow.
-- If service principals are required by the architecture, call this out in `TODO.md` with creation and object-ID retrieval steps. Do not require their values as workflow dispatch inputs.
+- If additional service principals are required by the architecture and are not covered by the base configuration/secrets, you must explicitly document them in `TODO.md` with step-by-step implementation instructions (how to create, which permissions/roles to assign, and how to retrieve/store client ID and object ID).
+- Do not require these additional service principal values as workflow dispatch inputs; document them as setup tasks in `TODO.md`.
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
@@ -185,6 +186,9 @@ Run all checks below before declaring generation complete:
 	- `terraform -chdir=infra/terraform validate`
 3. YAML parse checks for workflows and DAB YAML files.
 4. Generator runtime checks by executing workflow generators and confirming file regeneration succeeds.
+5. Functional test run: execute an end-to-end functional test and report the result.
+	- Minimum acceptance: run the medallion flow (orchestrator job) and verify Bronze/Silver/Gold target tables are created/updated.
+	- If execution is blocked by environment prerequisites, document exactly what is missing and add clear run instructions in `TODO.md`.
 
 Mandatory guardrails:
 - Generated workflows must resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
