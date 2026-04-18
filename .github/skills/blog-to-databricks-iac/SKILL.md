@@ -7,6 +7,7 @@ description: Generate Terraform + Databricks DAB code from a blog URL.
 
 ## Overview
 Converts a technical article into deployment-ready infrastructure code: Terraform for Azure resources and Databricks Declarative Automation Bundles for jobs/clusters. Produces SPEC.md, TODO.md, code, and README with assumptions.
+Deploy only the minimal required resources in terrraform to the use case described in the article. 
 
 ## Detailed Operational Reference
 For complete implementation history, validated remediations, and troubleshooting patterns, use:
@@ -105,10 +106,6 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workf
 	--default-workload "{workload}" \
 	--default-environment "{environment}" \
 	--default-region "{azure_region}"
-
-# Optional flags (only needed when identity reuse mode is supported in workflow validation):
-# 	--existing-layer-sp-client-id-secret "{existing_layer_sp_client_id_secret_name}" \
-# 	--existing-layer-sp-object-id-secret "{existing_layer_sp_object_id_secret_name}"
 ```
 
 Workflow credential-resolution policy (must be enforced by generated workflow):

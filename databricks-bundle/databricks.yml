@@ -1,45 +1,61 @@
 bundle:
-  name: secure-medallion
-
-variables:
-  environment:
-    description: Environment short name
-    default: dev
-  workspace_host:
-    description: Databricks workspace URL
-  workspace_resource_id:
-    description: Databricks workspace Azure resource ID
-  bronze_sp_client_id:
-    description: Bronze layer service principal client ID
-  silver_sp_client_id:
-    description: Silver layer service principal client ID
-  gold_sp_client_id:
-    description: Gold layer service principal client ID
-  bronze_catalog:
-    description: Bronze catalog name
-  silver_catalog:
-    description: Silver catalog name
-  gold_catalog:
-    description: Gold catalog name
-  secret_scope:
-    description: Secret scope name
-
-include:
-  - resources/jobs.yml
+  name: secure-medallion-dab
+  target: default
 
 targets:
   dev:
-    mode: development
-    workspace:
-      host: ${var.workspace_host}
-      azure_workspace_resource_id: ${var.workspace_resource_id}
     variables:
       environment: dev
+      catalog_name: dev_catalog
+      secret_scope: kv-dev-scope
 
   prd:
-    mode: production
-    workspace:
-      host: ${var.workspace_host}
-      azure_workspace_resource_id: ${var.workspace_resource_id}
     variables:
       environment: prd
+      catalog_name: prd_catalog
+      secret_scope: kv-prd-scope
+
+variables:
+  workspace_host:
+    description: Databricks workspace URL from Terraform output
+    default: ""
+
+  workspace_resource_id:
+    description: Databricks workspace Azure resource ID for DAB CLI authentication
+    default: ""
+
+  bronze_principal_client_id:
+    description: Bronze layer service principal client ID
+    default: ""
+
+  silver_principal_client_id:
+    description: Silver layer service principal client ID
+    default: ""
+
+  gold_principal_client_id:
+    description: Gold layer service principal client ID
+    default: ""
+
+  bronze_storage_account:
+    description: Bronze storage account name
+    default: ""
+
+  silver_storage_account:
+    description: Silver storage account name
+    default: ""
+
+  gold_storage_account:
+    description: Gold storage account name
+    default: ""
+
+  environment:
+    description: Environment name (dev, prd)
+    default: dev
+
+  catalog_name:
+    description: Unity Catalog name for this environment
+    default: dev_catalog
+
+  secret_scope:
+    description: Key Vault-backed secret scope name
+    default: kv-dev-scope

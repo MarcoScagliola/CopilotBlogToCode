@@ -57,8 +57,10 @@ resource "azurerm_storage_account" "layer" {
   is_hns_enabled           = true
   min_tls_version          = "TLS1_2"
 
-  # Disable shared key access; all data-plane access uses AAD/RBAC.
-  shared_access_key_enabled = false
+  # Enable shared key access for provider polling during provisioning (AzureRM provider
+  # still polls blob service with key auth to verify readiness). Disable post-deployment
+  # if stricter zero-trust is required.
+  shared_access_key_enabled = true
 }
 
 resource "azurerm_storage_container" "layer" {

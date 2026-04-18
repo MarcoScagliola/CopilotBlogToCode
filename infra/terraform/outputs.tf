@@ -1,41 +1,57 @@
-output "resource_group_name" {
-  value = azurerm_resource_group.platform.name
-}
-
 output "databricks_workspace_url" {
-  description = "Workspace URL consumed by the DAB deployment bridge."
+  description = "Databricks workspace URL for DAB deployment."
   value       = azurerm_databricks_workspace.main.workspace_url
 }
 
 output "databricks_workspace_resource_id" {
-  description = "Workspace resource ID consumed by bundle Azure auth configuration."
+  description = "Databricks workspace Azure resource ID (required by DAB CLI for authentication)."
   value       = azurerm_databricks_workspace.main.id
 }
 
-output "bronze_sp_application_id" {
-  value = local.create_layer_principals ? azuread_application.layer["bronze"].client_id : var.existing_layer_sp_client_id
+output "databricks_workspace_id" {
+  description = "Databricks workspace ID."
+  value       = azurerm_databricks_workspace.main.workspace_id
 }
 
-output "silver_sp_application_id" {
-  value = local.create_layer_principals ? azuread_application.layer["silver"].client_id : var.existing_layer_sp_client_id
+output "layer_principal_client_ids" {
+  description = "Layer principal client IDs (for configuring Databricks job parameters)."
+  value = local.create_layer_principals ? {
+    bronze = azuread_application.layer["bronze"].client_id
+    silver = azuread_application.layer["silver"].client_id
+    gold   = azuread_application.layer["gold"].client_id
+  } : null
 }
 
-output "gold_sp_application_id" {
-  value = local.create_layer_principals ? azuread_application.layer["gold"].client_id : var.existing_layer_sp_client_id
+output "layer_principal_object_ids" {
+  description = "Layer principal object IDs (for RBAC validation and auditing)."
+  value = local.create_layer_principals ? {
+    bronze = azuread_service_principal.layer["bronze"].object_id
+    silver = azuread_service_principal.layer["silver"].object_id
+    gold   = azuread_service_principal.layer["gold"].object_id
+  } : null
+  sensitive = true
 }
 
-output "bronze_catalog_name" {
-  value = "${var.environment}_bronze"
+output "layer_storage_account_names" {
+  description = "Storage account names per layer."
+  value       = local.layer_storage_account_names
 }
 
-output "silver_catalog_name" {
-  value = "${var.environment}_silver"
+output "layer_storage_account_ids" {
+  description = "Storage account resource IDs per layer."
+  value = {
+    bronze = azurerm_storage_account.layer["bronze"].id
+    silver = azurerm_storage_account.layer["silver"].id
+    gold   = azurerm_storage_account.layer["gold"].id
+  }
 }
 
-output "gold_catalog_name" {
-  value = "${var.environment}_gold"
+output "key_vault_id" {
+  description = "Key Vault resource ID."
+  value       = azurerm_key_vault.platform.id
 }
 
-output "secret_scope_name" {
-  value = "kv-${var.environment}-scope"
+output "key_vault_name" {
+  description = "Key Vault name."
+  value       = azurerm_key_vault.platform.name
 }

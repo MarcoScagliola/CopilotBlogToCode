@@ -3,33 +3,43 @@
 ## Required Before First Deployment
 
 - [ ] Confirm deployment principal has `Contributor` on the target subscription or resource group.
-- [ ] Confirm deployment principal can create Entra app registrations and service principals (needed for `layer_sp_mode=create`). If not, pre-create principals and use `layer_sp_mode=existing`.
+- [ ] **Confirm deployment principal can create Entra app registrations** (if using `layer_sp_mode=create`). If you see `Authorization_RequestDenied` during apply:
+  - Either: Request `Application.ReadWrite.All` in Entra for the deployment principal.
+  - Or: **Use `layer_sp_mode=existing` and pre-create the layer principals**, then provide their client IDs and object IDs in GitHub secrets.
 - [ ] Populate GitHub Environment `BLG2CODEDEV` with all required secrets (see README).
 - [ ] Verify `AZURE_SP_OBJECT_ID` and (if used) `EXISTING_LAYER_SP_OBJECT_ID` are **Enterprise Applications object IDs**, not App Registration object IDs.
 
-## Data and Catalog Setup (Post-Infrastructure)
+## Post-Infrastructure Deployment
 
 - [ ] Create Unity Catalog catalogs: `dev_bronze`, `dev_silver`, `dev_gold`.
-- [ ] Create schemas: `ingestion` in bronze, `refined` in silver, `curated` in gold.
-- [ ] Grant layer service principals the appropriate Unity Catalog privileges per catalog.
+- [ ] Create schemas:
+  - `dev_bronze.ingestion` (for raw events)
+  - `dev_silver.refined` (for deduplicated events)
+  - `dev_gold.curated` (for aggregated summaries)
+- [ ] Grant layer service principal IDs the appropriate Unity Catalog privileges per catalog.
 - [ ] Create a Key Vault-backed secret scope named `kv-dev-scope` in the Databricks workspace.
-- [ ] Replace sample bronze ingestion logic with actual source extraction.
+- [ ] Replace sample Bronze ingestion logic (`databricks-bundle/src/bronze/main.py`) with actual data source extraction.
 
-## Security Follow-up
+## Security & Operations Follow-up
 
-- [ ] Enable Key Vault diagnostic logs and review access regularly.
+- [ ] Enable Azure Key Vault diagnostic logs and review access regularly.
 - [ ] Add secret rotation/expiration policies in Key Vault.
 - [ ] Add Databricks cluster policies per layer to limit compute blast radius.
 - [ ] Enable Databricks system tables for job monitoring and cost visibility per layer.
+- [ ] Disable `shared_access_key_enabled` on storage accounts post-deployment (if stricter zero-trust is required).
 
 ## State Management
 
 - Terraform state is currently local/ephemeral (per GitHub Actions runner).
-- Before production use: configure a remote backend (Azure Storage) in `backend.tf`.
-- If rerunning apply from scratch: delete the resource group first or run `terraform destroy`.
+- **Before production use:** Configure a remote backend in `backend.tf` (Azure Storage Blob Storage recommended).
+- **For iterative development:** Use `state_strategy=recreate_rg` during Deploy Infrastructure to handle ephemeral state reruns.
 
-## Testing and Validation
+## Testing & Validation
 
-- [ ] Run end-to-end deployment in `dev` and trigger `orchestrator_job`.
-- [ ] Add smoke tests that assert tables exist in bronze/silver/gold after a run.
-- [ ] Add `terraform fmt -check` to CI.
+- [ ] Run end-to-end deployment in `dev` and trigger the `orchestrator_job`.
+- [ ] Verify all three tables exist post-run:
+  - `dev_bronze.ingestion.raw_events`
+  - `dev_silver.refined.events`
+  - `dev_gold.curated.event_summary`
+- [ ] Add smoke tests that assert table counts and schema integrity after a run.
+- [ ] Add `terraform fmt -check` to CI for code style validation.

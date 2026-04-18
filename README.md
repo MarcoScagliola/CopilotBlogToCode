@@ -7,7 +7,7 @@ Infrastructure is provisioned with Terraform. Databricks jobs are deployed with 
 ## Prerequisites
 
 - Azure subscription with Contributor access for the deployment principal.
-- Permissions in Microsoft Entra ID to create App Registrations and Service Principals (when using `layer_sp_mode=create`).
+- Permissions in Microsoft Entra ID to create App Registrations and Service Principals (when using `layer_sp_mode=create`), or pre-created principals for `layer_sp_mode=existing`.
 - GitHub Environment `BLG2CODEDEV` configured with the secrets/variables below.
 - Terraform CLI >= 1.6 and Python 3.11+ for local validation.
 
@@ -21,7 +21,7 @@ Infrastructure is provisioned with Terraform. Databricks jobs are deployed with 
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
 | `AZURE_CLIENT_ID` | Deployment service principal client ID |
 | `AZURE_CLIENT_SECRET` | Deployment service principal secret |
-| `AZURE_SP_OBJECT_ID` | Deployment service principal **object ID** (Enterprise Applications → Object ID) |
+| `AZURE_SP_OBJECT_ID` | Deployment service principal **object ID** (Enterprise Applications → Object ID, not App Registration) |
 
 ### Conditional — required when `layer_sp_mode=existing`
 
@@ -30,17 +30,17 @@ Infrastructure is provisioned with Terraform. Databricks jobs are deployed with 
 | `EXISTING_LAYER_SP_CLIENT_ID` | Existing layer principal client ID |
 | `EXISTING_LAYER_SP_OBJECT_ID` | Existing layer principal **object ID** (Enterprise Applications → Object ID) |
 
-> **Important:** `*_SP_OBJECT_ID` values must be the **Service Principal object ID** from Microsoft Entra ID → Enterprise applications. Do **not** use the App Registration object ID or the client secret.
+> **Important:** `*_SP_OBJECT_ID` values must be the **Service Principal object ID** from Microsoft Entra ID → Enterprise applications, not the App Registration object ID.
 
 ## One-Time Setup
 
 1. Create or identify the deployment service principal in Entra ID.
 2. Assign Azure RBAC:
-   - `Contributor` on the target resource group or subscription.
-   - `Directory.ReadWrite.All` or equivalent if creating new layer principals.
+   - `Contributor` on the target resource group or subscription.  
+   - For `layer_sp_mode=create`: Request `Application.ReadWrite.All` in Entra ID (or pre-create principals and use `layer_sp_mode=existing`).
 3. Retrieve the object ID: Azure Portal → Entra ID → Enterprise applications → your app → **Object ID**.
 4. Populate GitHub Environment `BLG2CODEDEV` with all required secrets above.
-5. Choose identity mode for layer principals (`create` or `existing`) and set the workflow dispatch input accordingly.
+5. Choose identity mode for layer principals (`create` or `existing`) and set the dispatch input accordingly.
 
 ## Workflows
 
@@ -52,11 +52,11 @@ Infrastructure is provisioned with Terraform. Databricks jobs are deployed with 
 ### Deploy Infrastructure
 - File: [.github/workflows/deploy-infrastructure.yml](.github/workflows/deploy-infrastructure.yml)
 - Trigger: `workflow_dispatch`
-- Runs `terraform apply`, uploads `terraform-outputs` and `deploy-context` artifacts for DAB handoff.
 - Dispatch inputs: `target`, `workload`, `environment`, `azure_region`, `layer_sp_mode`, `state_strategy`.
 - `state_strategy` options:
-   - `fail` (default): stop if resources already exist and no state is available.
-   - `recreate_rg`: delete `rg-<workload>-<environment>-platform` before apply for repeatable ephemeral runs.
+  - `fail` (default): stop if resources already exist and no state is available.
+  - `recreate_rg`: delete `rg-<workload>-<environment>-platform` before apply for repeatable ephemeral runs.
+- Runs `terraform apply`, uploads `terraform-outputs` and `deploy-context` artifacts for DAB handoff.
 
 ### Deploy DAB
 - File: [.github/workflows/deploy-dab.yml](.github/workflows/deploy-dab.yml)
