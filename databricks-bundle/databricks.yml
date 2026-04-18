@@ -1,0 +1,73 @@
+bundle:
+  name: secure-medallion-dab
+
+targets:
+  dev:
+    default: true
+    variables:
+      environment: dev
+      secret_scope: kv-dev-scope
+      bronze_catalog: dev_bronze
+      silver_catalog: dev_silver
+      gold_catalog: dev_gold
+
+  prd:
+    variables:
+      environment: prd
+      secret_scope: kv-prd-scope
+      bronze_catalog: prd_bronze
+      silver_catalog: prd_silver
+      gold_catalog: prd_gold
+
+variables:
+  workspace_host:
+    description: Databricks workspace URL from Terraform output
+    default: ""
+
+  workspace_resource_id:
+    description: Databricks workspace Azure resource ID for DAB authentication
+    default: ""
+
+  bronze_principal_client_id:
+    description: Bronze layer service principal client ID
+    default: ""
+
+  silver_principal_client_id:
+    description: Silver layer service principal client ID
+    default: ""
+
+  gold_principal_client_id:
+    description: Gold layer service principal client ID
+    default: ""
+
+  bronze_storage_account:
+    description: Bronze storage account name
+    default: ""
+
+  silver_storage_account:
+    description: Silver storage account name
+    default: ""
+
+  gold_storage_account:
+    description: Gold storage account name
+    default: ""
+
+  environment:
+    description: Environment name
+    default: dev
+
+  secret_scope:
+    description: Key Vault-backed secret scope name
+    default: kv-dev-scope
+
+  bronze_catalog:
+    description: Bronze Unity Catalog name
+    default: dev_bronze
+
+  silver_catalog:
+    description: Silver Unity Catalog name
+    default: dev_silver
+
+  gold_catalog:
+    description: Gold Unity Catalog name
+    default: dev_gold
