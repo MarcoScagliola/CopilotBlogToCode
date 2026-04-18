@@ -117,6 +117,9 @@ Workflow credential-resolution policy (must be enforced by generated workflow):
 - Validate required ARM values before Terraform runs and fail fast with a clear missing-variable list.
 - Drive Terraform identity variables from resolved ARM env values (for example `TF_VAR_azure_client_id` from `ARM_CLIENT_ID`) rather than duplicating credential sources.
 - When `layer_sp_mode=existing`, validate existing-layer principal identifiers; otherwise do not require them.
+- Include a workflow input `state_strategy` with options `fail` and `recreate_rg` to handle ephemeral-state reruns predictably.
+- When `state_strategy=recreate_rg`, delete `rg-<workload>-<environment>-platform` before `terraform apply`.
+- When `state_strategy=fail`, stop with a clear message that remote backend + import is required for non-destructive adoption.
 
 Repeatability and restricted-tenant guardrails (mandatory):
 - In `layer_sp_mode=existing`, treat `existing_layer_sp_object_id` as a trusted input and pass it directly to RBAC resources.

@@ -27,6 +27,12 @@ on:
         default: create
         type: choice
         options: [create, existing]
+      state_strategy:
+        description: How to handle pre-existing Azure resources when state is ephemeral
+        required: true
+        default: fail
+        type: choice
+        options: [fail, recreate_rg]
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
@@ -77,6 +83,28 @@ jobs:
             echo 'Forbidden pattern detected: data "azuread_service_principal" "existing_layer"'
             echo "Use existing_layer_sp_object_id input directly for RBAC principal_id in existing mode."
             exit 1
+          fi
+
+      - name: Azure CLI login for state preflight
+        run: |
+          az login --service-principal --username "$ARM_CLIENT_ID" --password "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" 1>/dev/null
+          az account set --subscription "$ARM_SUBSCRIPTION_ID"
+
+      - name: Handle existing resource group when state is ephemeral
+        run: |
+          rg_name="rg-${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}-platform"
+          exists=$(az group exists --name "$rg_name")
+
+          if [ "$exists" = "true" ]; then
+            if [ "${{ github.event.inputs.state_strategy }}" = "recreate_rg" ]; then
+              echo "Resource group '$rg_name' exists. Deleting because state_strategy=recreate_rg."
+              az group delete --name "$rg_name" --yes --no-wait
+              az group wait --name "$rg_name" --deleted
+            else
+              echo "Resource group '$rg_name' already exists but this run has no persisted Terraform state."
+              echo "Choose state_strategy=recreate_rg for ephemeral reruns, or configure a remote backend + import."
+              exit 1
+            fi
           fi
 
       - name: Terraform Init

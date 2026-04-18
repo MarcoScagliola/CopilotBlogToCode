@@ -53,7 +53,10 @@ Infrastructure is provisioned with Terraform. Databricks jobs are deployed with 
 - File: [.github/workflows/deploy-infrastructure.yml](.github/workflows/deploy-infrastructure.yml)
 - Trigger: `workflow_dispatch`
 - Runs `terraform apply`, uploads `terraform-outputs` and `deploy-context` artifacts for DAB handoff.
-- Dispatch inputs: `target`, `workload`, `environment`, `azure_region`, `layer_sp_mode`.
+- Dispatch inputs: `target`, `workload`, `environment`, `azure_region`, `layer_sp_mode`, `state_strategy`.
+- `state_strategy` options:
+   - `fail` (default): stop if resources already exist and no state is available.
+   - `recreate_rg`: delete `rg-<workload>-<environment>-platform` before apply for repeatable ephemeral runs.
 
 ### Deploy DAB
 - File: [.github/workflows/deploy-dab.yml](.github/workflows/deploy-dab.yml)
