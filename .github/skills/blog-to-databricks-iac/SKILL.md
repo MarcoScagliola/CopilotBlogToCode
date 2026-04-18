@@ -57,6 +57,8 @@ If the user does not provide:
 Notes:
 - Keep secret naming configurable. Do not assume organization-specific secret names.
 - Existing-layer principal secrets are only required when `layer_sp_mode=existing`.
+- Object ID secrets must be **Service Principal (Enterprise Application) object IDs**. Do not use App Registration object IDs.
+- `*_CLIENT_SECRET` stores the credential secret value; `*_SP_OBJECT_ID` stores the principal object ID used for RBAC.
 - Single-principal mapping (common in restricted tenants):
 	- Use the same principal behind `{client_id_secret_name}` for both deployment and layer execution.
 	- `{existing_layer_sp_client_id_secret_name}` can point to the same value as `{client_id_secret_name}`.
@@ -137,6 +139,7 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 **Required GitHub secrets/variables** (all known before deployment):
 - From GitHub Environment `{github_environment}`: `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`
 - Conditional for `layer_sp_mode=existing`: `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}`
+- For both object ID secrets, use the object ID from **Microsoft Entra ID -> Enterprise applications** for the target principal.
 
 **Architecture-specific runtime secrets** (vary by blog — add to TODO.md if the architecture requires them):
 - Source database credentials should be populated in Azure Key Vault after infrastructure deployment, not injected into the infrastructure workflow.
