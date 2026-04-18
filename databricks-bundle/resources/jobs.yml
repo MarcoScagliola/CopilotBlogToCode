@@ -1,0 +1,70 @@
+resources:
+  jobs:
+    bronze_job:
+      name: ${bundle.name}-${var.environment}-bronze
+      tasks:
+        - task_key: bronze_main
+          spark_python_task:
+            python_file: ../src/bronze/main.py
+            parameters:
+              - --catalog
+              - ${var.bronze_catalog}
+              - --schema
+              - ingestion
+      tags:
+        layer: bronze
+
+    silver_job:
+      name: ${bundle.name}-${var.environment}-silver
+      tasks:
+        - task_key: silver_main
+          spark_python_task:
+            python_file: ../src/silver/main.py
+            parameters:
+              - --bronze-catalog
+              - ${var.bronze_catalog}
+              - --bronze-schema
+              - ingestion
+              - --silver-catalog
+              - ${var.silver_catalog}
+              - --silver-schema
+              - refined
+      tags:
+        layer: silver
+
+    gold_job:
+      name: ${bundle.name}-${var.environment}-gold
+      tasks:
+        - task_key: gold_main
+          spark_python_task:
+            python_file: ../src/gold/main.py
+            parameters:
+              - --silver-catalog
+              - ${var.silver_catalog}
+              - --silver-schema
+              - refined
+              - --gold-catalog
+              - ${var.gold_catalog}
+              - --gold-schema
+              - curated
+      tags:
+        layer: gold
+
+    orchestrator_job:
+      name: ${bundle.name}-${var.environment}-orchestrator
+      tasks:
+        - task_key: bronze
+          run_job_task:
+            job_id: ${resources.jobs.bronze_job.id}
+        - task_key: silver
+          depends_on:
+            - task_key: bronze
+          run_job_task:
+            job_id: ${resources.jobs.silver_job.id}
+        - task_key: gold
+          depends_on:
+            - task_key: silver
+          run_job_task:
+            job_id: ${resources.jobs.gold_job.id}
+      tags:
+        layer: orchestration
