@@ -2,13 +2,6 @@
 # policy is always tied to the actual running identity, not a static variable.
 data "azurerm_client_config" "current" {}
 
-# Validate and resolve the existing layer service principal when reuse mode is active.
-data "azuread_service_principal" "existing_layer" {
-  count = local.create_layer_principals ? 0 : 1
-
-  object_id = var.existing_layer_sp_object_id
-}
-
 resource "azurerm_resource_group" "platform" {
   name     = "rg-${local.base_name}-platform"
   location = var.azure_region
@@ -97,7 +90,7 @@ resource "azurerm_role_assignment" "layer_blob_owner" {
   # occurs when Azure RBAC receives an Application object ID instead of a
   # Service Principal object ID.
   principal_type   = "ServicePrincipal"
-  principal_id     = local.create_layer_principals ? azuread_service_principal.layer[each.key].object_id : data.azuread_service_principal.existing_layer[0].object_id
+  principal_id     = local.create_layer_principals ? azuread_service_principal.layer[each.key].object_id : var.existing_layer_sp_object_id
 
   skip_service_principal_aad_check = true
 }

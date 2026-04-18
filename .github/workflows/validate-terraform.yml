@@ -24,6 +24,15 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Enforce existing-principal compatibility guardrails
+        run: |
+          # Prevent regressions that require Microsoft Graph directory-read permissions in restricted tenants.
+          if grep -q 'data "azuread_service_principal" "existing_layer"' infra/terraform/main.tf; then
+            echo 'Forbidden pattern detected: data "azuread_service_principal" "existing_layer"'
+            echo "Use existing_layer_sp_object_id input directly for RBAC principal_id in existing mode."
+            exit 1
+          fi
+
       - name: Terraform Init (no backend)
         run: terraform -chdir=infra/terraform init -backend=false
 

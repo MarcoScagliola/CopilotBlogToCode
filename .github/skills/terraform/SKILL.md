@@ -154,6 +154,7 @@ Address these common Terraform deployment error categories in generated code:
 - Implement conditional identity provisioning via `for_each` (create new identity) or variable inputs (reuse existing identity)
 - In variables.tf, provide a mode variable (e.g., `identity_mode = "create" | "existing"`) and document both paths
 - When reusing existing identities, require explicit object ID or client ID inputs in variables.tf
+- When reusing existing identities, avoid mandatory Microsoft Graph reads during apply (for example data-source lookups that require directory read permissions); prefer direct use of provided service principal object IDs for RBAC assignments
 - Add notes in README.md about restricted-tenant workarounds
 
 ### Provider Behavior Mismatches (Data Plane Auth, Polling)

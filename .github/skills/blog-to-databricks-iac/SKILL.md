@@ -118,6 +118,12 @@ Workflow credential-resolution policy (must be enforced by generated workflow):
 - Drive Terraform identity variables from resolved ARM env values (for example `TF_VAR_azure_client_id` from `ARM_CLIENT_ID`) rather than duplicating credential sources.
 - When `layer_sp_mode=existing`, validate existing-layer principal identifiers; otherwise do not require them.
 
+Repeatability and restricted-tenant guardrails (mandatory):
+- In `layer_sp_mode=existing`, treat `existing_layer_sp_object_id` as a trusted input and pass it directly to RBAC resources.
+- Do **not** add Terraform data-source validation that reads Microsoft Graph for existing principals (for example `data "azuread_service_principal" "existing_layer"`).
+- Keep generated infrastructure compatible with tenants where deployment identities do not have Graph directory read permissions.
+- If principal validation is desired, perform it as an optional preflight step outside Terraform apply, not as a required dependency for provisioning.
+
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`.
 It also uploads a `deploy-context` artifact that records the intended DAB target, environment, and source commit SHA for downstream deployment.
 
@@ -183,5 +189,6 @@ Run all checks below before declaring generation complete:
 Mandatory guardrails:
 - Generated workflows must resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
 - In `layer_sp_mode=existing`, generated workflow logic must support fallback to deployment principal values.
+- In `layer_sp_mode=existing`, Terraform must avoid Graph-dependent principal lookups and use provided service principal object IDs directly.
 - Terraform outputs must include both `databricks_workspace_url` and `databricks_workspace_resource_id` for the DAB bridge.
 - DAB layer scripts must not hardcode environment-specific table paths; pass catalog/schema via task parameters.
