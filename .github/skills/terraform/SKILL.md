@@ -60,6 +60,7 @@ Input variables structure the interface between code and consumers:
 - **Provide sensible defaults** for optional values.
 - **Mark sensitive variables** (passwords, tokens, keys) with `sensitive = true`.
 - **Include validation rules** on enums (e.g., `service_principal_mode` must be "create" or "existing").
+- **Use `trimspace()` (not `trim()`) when checking non-empty strings in validation blocks.** `trim(str, cutset)` requires two arguments and is not equivalent to whitespace stripping; `trimspace(str)` is the correct function.
 - **Document assumptions** about variable origins (e.g., "tenant_id must come from GitHub Secrets, not hardcoded").
 
 ### 7. Conditional Resource Creation
