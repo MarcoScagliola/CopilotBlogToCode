@@ -161,6 +161,32 @@ Before generating or validating Terraform code, load and apply the principles fr
 - **Separation**: no Terraform resources in DAB, no jobs/notebooks in Terraform
 - **Code**: production-ready, no fictional values, assumptions explicit
 
+### 3.1 Generate README from template
+
+Load the template: `.github/skills/blog-to-databricks-iac/templates/README.md.template`
+
+Substitute all placeholders with run context values:
+- `{github_environment}` → `{github_environment}` (e.g., `BLG2CODEDEV`)
+- `{tenant_secret_name}` → `{tenant_secret_name}` (e.g., `AZURE_TENANT_ID`)
+- `{subscription_secret_name}` → `{subscription_secret_name}`
+- `{client_id_secret_name}` → `{client_id_secret_name}`
+- `{client_secret_secret_name}` → `{client_secret_secret_name}`
+- `{sp_object_id_secret_name}` → `{sp_object_id_secret_name}`
+- `{existing_layer_sp_client_id_secret_name}` → `{existing_layer_sp_client_id_secret_name}`
+- `{existing_layer_sp_object_id_secret_name}` → `{existing_layer_sp_object_id_secret_name}`
+
+Write result to `README.md` at repository root.
+
+### 3.2 Generate TODO from template
+
+Load the template: `.github/skills/blog-to-databricks-iac/templates/TODO.md.template`
+
+Substitute all placeholders with run context values:
+- `{github_environment}` → `{github_environment}`
+- `{environment}` → `{environment}` (e.g., `dev`)
+
+Write result to `TODO.md` at repository root.
+
 ### 4. Generate README
 
 Create or update `README.md` at the repository root. It must include:
@@ -175,6 +201,10 @@ Create or update `README.md` at the repository root. It must include:
 6. **Links** to `SPEC.md` and `TODO.md`
 
 Do NOT include credential values, connection strings, or subscription IDs in `README.md`.
+
+### 4.1 Validation note
+
+If using templates from step 3.1 and 3.2, steps 4 (README validation) and TODO validation are automatic—templates are pre-validated and only require placeholder substitution.
 
 ### 5. Mandatory correctness validation before completion
 Run all checks below before declaring generation complete:
