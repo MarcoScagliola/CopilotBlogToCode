@@ -7,7 +7,7 @@ description: Generate Terraform + Databricks DAB code from a blog URL.
 
 ## Overview
 Converts a technical article into deployment-ready infrastructure code: Terraform for Azure resources and Databricks Declarative Automation Bundles for jobs/clusters. Produces SPEC.md, TODO.md, code, and README with assumptions.
-Deploy only the minimal required resources in terrraform to the use case described in the article. 
+Deploy only the minimal required resources in Terraform for the use case described in the article.
 
 ## Detailed Operational Reference
 For complete implementation history, validated remediations, and troubleshooting patterns, use:
@@ -149,6 +149,7 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Architecture-specific runtime secrets** (vary by blog — add to TODO.md if the architecture requires them):
 - Source database credentials should be populated in Azure Key Vault after infrastructure deployment, not injected into the infrastructure workflow.
+- If service principals are required by the architecture, call this out in `TODO.md` with creation and object-ID retrieval steps. Do not require their values as workflow dispatch inputs.
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
@@ -161,50 +162,19 @@ Before generating or validating Terraform code, load and apply the principles fr
 - **Separation**: no Terraform resources in DAB, no jobs/notebooks in Terraform
 - **Code**: production-ready, no fictional values, assumptions explicit
 
-### 3.1 Generate README from template
+### 4. Generate README and TODO from templates
 
-Load the template: `.github/skills/blog-to-databricks-iac/templates/README.md.template`
+Use the templates in `.github/skills/blog-to-databricks-iac/templates/`:
+- `README.md.template` -> `README.md`
+- `TODO.md.template` -> `TODO.md`
 
-Substitute all placeholders with run context values:
-- `{github_environment}` → `{github_environment}` (e.g., `BLG2CODEDEV`)
-- `{tenant_secret_name}` → `{tenant_secret_name}` (e.g., `AZURE_TENANT_ID`)
-- `{subscription_secret_name}` → `{subscription_secret_name}`
-- `{client_id_secret_name}` → `{client_id_secret_name}`
-- `{client_secret_secret_name}` → `{client_secret_secret_name}`
-- `{sp_object_id_secret_name}` → `{sp_object_id_secret_name}`
-- `{existing_layer_sp_client_id_secret_name}` → `{existing_layer_sp_client_id_secret_name}`
-- `{existing_layer_sp_object_id_secret_name}` → `{existing_layer_sp_object_id_secret_name}`
+Replace placeholders with run context values (from step 0), then write final files to repository root.
 
-Write result to `README.md` at repository root.
-
-### 3.2 Generate TODO from template
-
-Load the template: `.github/skills/blog-to-databricks-iac/templates/TODO.md.template`
-
-Substitute all placeholders with run context values:
-- `{github_environment}` → `{github_environment}`
-- `{environment}` → `{environment}` (e.g., `dev`)
-
-Write result to `TODO.md` at repository root.
-
-### 4. Generate README
-
-Create or update `README.md` at the repository root. It must include:
-
-1. **Architecture overview** — 2-3 sentences summarising the pattern from the blog
-2. **Prerequisites** — Azure Service Principal with required permissions and GitHub Environment setup
-3. **Required GitHub secrets table** — split into two groups:
-	- Always required (SP credentials)
-   - Architecture-specific (e.g. JDBC credentials — only list what the generated code actually uses)
-4. **One-time setup steps** — register SP, assign RBAC roles, configure GitHub Environment
-5. **How to trigger each workflow** — validate-terraform, deploy-infrastructure, and deploy-dab
-6. **Links** to `SPEC.md` and `TODO.md`
-
-Do NOT include credential values, connection strings, or subscription IDs in `README.md`.
-
-### 4.1 Validation note
-
-If using templates from step 3.1 and 3.2, steps 4 (README validation) and TODO validation are automatic—templates are pre-validated and only require placeholder substitution.
+Rules:
+- Do not leave unresolved placeholders in output files.
+- Keep `TODO.md` focused on unresolved values and post-deployment actions.
+- Do not include credentials, connection strings, or subscription IDs in `README.md`.
+- Keep template details in templates/references, not in this SKILL file.
 
 ### 5. Mandatory correctness validation before completion
 Run all checks below before declaring generation complete:
