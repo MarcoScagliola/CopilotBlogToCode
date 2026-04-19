@@ -21,17 +21,28 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 
-# Maps DAB variable name -> Terraform output keys (new names first, then backward-compatible aliases)
-DAB_TO_TF_KEYS: dict[str, list[str]] = {
+# Required flat outputs (DAB variable -> candidate Terraform keys)
+REQUIRED_FLAT_KEYS: dict[str, list[str]] = {
     "workspace_host": ["databricks_workspace_url"],
     "workspace_resource_id": ["databricks_workspace_resource_id"],
-    "bronze_sp_client_id": ["bronze_sp_application_id", "bronze_sp_client_id"],
-    "silver_sp_client_id": ["silver_sp_application_id", "silver_sp_client_id"],
-    "gold_sp_client_id": ["gold_sp_application_id", "gold_sp_client_id"],
+}
+
+# Optional flat outputs (DAB variable -> candidate Terraform keys)
+OPTIONAL_FLAT_KEYS: dict[str, list[str]] = {
     "bronze_catalog": ["bronze_catalog_name", "uc_catalog_bronze"],
     "silver_catalog": ["silver_catalog_name", "uc_catalog_silver"],
     "gold_catalog": ["gold_catalog_name", "uc_catalog_gold"],
     "secret_scope": ["secret_scope_name"],
+}
+
+# Optional map outputs (DAB variable -> (map output key, item key))
+OPTIONAL_MAP_KEYS: dict[str, tuple[str, str]] = {
+    "bronze_principal_client_id": ("layer_principal_client_ids", "bronze"),
+    "silver_principal_client_id": ("layer_principal_client_ids", "silver"),
+    "gold_principal_client_id": ("layer_principal_client_ids", "gold"),
+    "bronze_storage_account": ("layer_storage_account_names", "bronze"),
+    "silver_storage_account": ("layer_storage_account_names", "silver"),
+    "gold_storage_account": ("layer_storage_account_names", "gold"),
 }
 
 
@@ -101,16 +112,30 @@ def get_tf_outputs_from_file(outputs_json_file: Path) -> dict[str, str]:
     return _normalize_tf_output_json(raw)
 
 
-def build_dab_vars(tf_outputs: dict[str, str], environment: str) -> dict[str, str]:
+def _first_present_key(tf_outputs: dict[str, object], candidate_keys: list[str]) -> str | None:
+    return next((k for k in candidate_keys if k in tf_outputs and tf_outputs[k] is not None), None)
+
+
+def build_dab_vars(tf_outputs: dict[str, object], environment: str) -> dict[str, str]:
     dab_vars: dict[str, str] = {"environment": environment}
     missing: list[str] = []
 
-    for dab_key, candidate_tf_keys in DAB_TO_TF_KEYS.items():
-        selected_key = next((k for k in candidate_tf_keys if k in tf_outputs), None)
+    for dab_key, candidate_tf_keys in REQUIRED_FLAT_KEYS.items():
+        selected_key = _first_present_key(tf_outputs, candidate_tf_keys)
         if not selected_key:
             missing.append(f"{dab_key} (expected one of: {', '.join(candidate_tf_keys)})")
             continue
         dab_vars[dab_key] = str(tf_outputs[selected_key])
+
+    for dab_key, candidate_tf_keys in OPTIONAL_FLAT_KEYS.items():
+        selected_key = _first_present_key(tf_outputs, candidate_tf_keys)
+        if selected_key:
+            dab_vars[dab_key] = str(tf_outputs[selected_key])
+
+    for dab_key, (map_output_key, item_key) in OPTIONAL_MAP_KEYS.items():
+        map_value = tf_outputs.get(map_output_key)
+        if isinstance(map_value, dict) and item_key in map_value and map_value[item_key] is not None:
+            dab_vars[dab_key] = str(map_value[item_key])
 
     if missing:
         _fail(
