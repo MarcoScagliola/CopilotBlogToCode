@@ -196,3 +196,6 @@ Mandatory guardrails:
 - In `layer_sp_mode=existing`, Terraform must avoid Graph-dependent principal lookups and use provided service principal object IDs directly.
 - Terraform outputs must include both `databricks_workspace_url` and `databricks_workspace_resource_id` for the DAB bridge.
 - DAB layer scripts must not hardcode environment-specific table paths; pass catalog/schema via task parameters.
+- `databricks-bundle/databricks.yml` must include `resources/*.yml` so bundle resources are deployed (no no-op success).
+- In `databricks-bundle/resources/jobs.yml`, `spark_python_task.python_file` paths must be relative to the resources file location (for example `../src/<layer>/main.py`).
+- Every Spark task in DAB jobs must define compute via one of: `job_cluster_key`, `existing_cluster_id`, `new_cluster`, or `environment_key`.

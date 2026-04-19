@@ -2,8 +2,15 @@ resources:
   jobs:
     bronze_job:
       name: bronze-layer-${var.environment}
+      job_clusters:
+        - job_cluster_key: medallion_cluster
+          new_cluster:
+            spark_version: 13.3.x-scala2.12
+            node_type_id: Standard_DS3_v2
+            num_workers: 1
       tasks:
         - task_key: ingest
+          job_cluster_key: medallion_cluster
           spark_python_task:
             python_file: ../src/bronze/main.py
             parameters:
@@ -12,8 +19,15 @@ resources:
 
     silver_job:
       name: silver-layer-${var.environment}
+      job_clusters:
+        - job_cluster_key: medallion_cluster
+          new_cluster:
+            spark_version: 13.3.x-scala2.12
+            node_type_id: Standard_DS3_v2
+            num_workers: 1
       tasks:
         - task_key: refine
+          job_cluster_key: medallion_cluster
           spark_python_task:
             python_file: ../src/silver/main.py
             parameters:
@@ -24,8 +38,15 @@ resources:
 
     gold_job:
       name: gold-layer-${var.environment}
+      job_clusters:
+        - job_cluster_key: medallion_cluster
+          new_cluster:
+            spark_version: 13.3.x-scala2.12
+            node_type_id: Standard_DS3_v2
+            num_workers: 1
       tasks:
         - task_key: curate
+          job_cluster_key: medallion_cluster
           spark_python_task:
             python_file: ../src/gold/main.py
             parameters:
