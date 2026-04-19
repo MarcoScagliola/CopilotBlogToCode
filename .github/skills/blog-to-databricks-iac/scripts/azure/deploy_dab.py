@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -158,6 +159,26 @@ def build_command(bundle_dir: Path, target: str, dab_vars: dict[str, str]) -> li
     return cmd
 
 
+def _normalize_workspace_host(raw_host: str) -> str:
+    host = raw_host.strip()
+    if not host:
+        return host
+    if not host.startswith("http://") and not host.startswith("https://"):
+        host = f"https://{host}"
+    return host.rstrip("/")
+
+
+def build_databricks_env(base_env: dict[str, str], dab_vars: dict[str, str]) -> dict[str, str]:
+    env = dict(base_env)
+    workspace_host = _normalize_workspace_host(dab_vars["workspace_host"])
+    workspace_resource_id = dab_vars["workspace_resource_id"]
+
+    # Databricks unified auth for Azure service principal + workspace target.
+    env["DATABRICKS_HOST"] = workspace_host
+    env["DATABRICKS_AZURE_RESOURCE_ID"] = workspace_resource_id
+    return env
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Bridge Terraform outputs to databricks bundle deploy.",
@@ -236,8 +257,9 @@ def main() -> None:
         return
 
     print("\nRunning deploy...")
+    run_env = build_databricks_env(dict(os.environ), dab_vars)
     try:
-        subprocess.run(cmd, cwd=bundle_dir, check=True)
+        subprocess.run(cmd, cwd=bundle_dir, env=run_env, check=True)
     except subprocess.CalledProcessError as e:
         print(f"\nERROR: databricks bundle deploy failed (exit code {e.returncode})", file=sys.stderr)
         sys.exit(e.returncode)
