@@ -112,9 +112,16 @@ jobs:
             env_name="$context_environment"
           fi
 
+          if [ "${{{{ github.event_name }}}}" = "workflow_dispatch" ]; then
+            # For manual reruns, use the current workflow commit to avoid stale bridge script behavior.
+            git_ref="${{{{ github.sha }}}}"
+          else
+            git_ref="$context_git_sha"
+          fi
+
           echo "target=$target" >> "$GITHUB_OUTPUT"
           echo "environment=$env_name" >> "$GITHUB_OUTPUT"
-          echo "git_ref=$context_git_sha" >> "$GITHUB_OUTPUT"
+          echo "git_ref=$git_ref" >> "$GITHUB_OUTPUT"
 
       - name: Checkout matching infrastructure commit
         uses: actions/checkout@v4
