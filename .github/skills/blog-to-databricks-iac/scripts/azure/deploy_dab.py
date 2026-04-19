@@ -153,7 +153,7 @@ def build_command(bundle_dir: Path, target: str, dab_vars: dict[str, str]) -> li
 
     cmd = [db_bin, "bundle", "deploy", "--target", target]
     for k, v in dab_vars.items():
-        cmd += ["-v", f"{k}={v}"]
+        cmd += ["--var", f"{k}={v}"]
 
     return cmd
 
