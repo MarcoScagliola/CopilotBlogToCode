@@ -5,7 +5,7 @@ resources:
       tasks:
         - task_key: ingest
           spark_python_task:
-            python_file: src/bronze/main.py
+            python_file: ../src/bronze/main.py
             parameters:
               - --catalog=${var.bronze_catalog}
               - --schema=ingestion
@@ -15,7 +15,7 @@ resources:
       tasks:
         - task_key: refine
           spark_python_task:
-            python_file: src/silver/main.py
+            python_file: ../src/silver/main.py
             parameters:
               - --source-catalog=${var.bronze_catalog}
               - --source-schema=ingestion
@@ -27,7 +27,7 @@ resources:
       tasks:
         - task_key: curate
           spark_python_task:
-            python_file: src/gold/main.py
+            python_file: ../src/gold/main.py
             parameters:
               - --source-catalog=${var.silver_catalog}
               - --source-schema=refined
