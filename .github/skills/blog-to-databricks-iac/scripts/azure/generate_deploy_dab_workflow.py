@@ -34,6 +34,10 @@ on:
     workflows: ["Deploy Infrastructure"]
     types: [completed]
 
+permissions:
+  actions: read
+  contents: read
+
 # ARM_* env vars are used by Databricks CLI for Azure service-principal auth.
 env:
   ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} || vars.{tenant_secret} }}}}
