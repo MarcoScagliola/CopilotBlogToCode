@@ -69,7 +69,7 @@ Notes:
 ```bash
 python .github/skills/blog-to-databricks-iac/scripts/fetch_blog.py "<URL>"
 ```
-If fetch fails, stop and return the fetch error output.
+If fetch fails, stop and return the fetch error output. In addition to the content analyse also all images and code snippets in the article to extract any relevant information for the implementation.
 
 ### 1.1 Save execution plan prompt
 Before generating code, create and save the execution plan in `.github/prompts/` as:
