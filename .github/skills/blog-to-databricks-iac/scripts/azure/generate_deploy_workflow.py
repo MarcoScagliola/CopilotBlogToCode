@@ -171,23 +171,19 @@ jobs:
             exit 0
           fi
 
+          # Auto mode: prefer recovery-first to avoid the common rerun failure where a soft-deleted vault exists.
+          # If no recoverable vault exists, Terraform apply fallback logic flips this to false.
+          recover=true
+          deleted_count=unknown
           set +e
-          deleted_count=$(az keyvault list-deleted --query "[?name=='$kv_name'] | length(@)" -o tsv 2>/dev/null)
+          detected_count=$(az keyvault list-deleted --query "[?name=='$kv_name'] | length(@)" -o tsv 2>/dev/null)
           rc=$?
           set -e
 
-          if [ $rc -ne 0 ] || [ -z "$deleted_count" ]; then
-            echo "Could not query deleted vaults (auto mode). Falling back to fresh create mode."
-            echo "If apply fails with soft-delete errors, rerun with key_vault_recovery_mode=recover."
-            deleted_count=0
-          fi
-
-          if [ "$deleted_count" -gt 0 ]; then
-            recover=true
-            echo "Soft-deleted Key Vault '$kv_name' detected. Enabling recovery mode."
+          if [ $rc -eq 0 ] && [ -n "$detected_count" ]; then
+            deleted_count="$detected_count"
           else
-            recover=false
-            echo "No soft-deleted Key Vault '$kv_name' detected. Using fresh-create mode."
+            echo "Could not query deleted vaults in auto mode; continuing with recovery-first strategy."
           fi
 
           echo "TF_VAR_key_vault_recover_soft_deleted=$recover" >> "$GITHUB_ENV"
