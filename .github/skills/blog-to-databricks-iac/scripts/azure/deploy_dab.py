@@ -118,7 +118,7 @@ def _first_present_key(tf_outputs: dict[str, object], candidate_keys: list[str])
 
 
 def build_dab_vars(tf_outputs: dict[str, object], environment: str) -> dict[str, str]:
-    dab_vars: dict[str, str] = {"environment": environment}
+    dab_vars: dict[str, str] = {}
     missing: list[str] = []
 
     for dab_key, candidate_tf_keys in REQUIRED_FLAT_KEYS.items():
@@ -127,6 +127,9 @@ def build_dab_vars(tf_outputs: dict[str, object], environment: str) -> dict[str,
             missing.append(f"{dab_key} (expected one of: {', '.join(candidate_tf_keys)})")
             continue
         dab_vars[dab_key] = str(tf_outputs[selected_key])
+
+    if "workspace_host" in dab_vars:
+        dab_vars["workspace_host"] = _normalize_workspace_host(dab_vars["workspace_host"])
 
     for dab_key, candidate_tf_keys in OPTIONAL_FLAT_KEYS.items():
         selected_key = _first_present_key(tf_outputs, candidate_tf_keys)

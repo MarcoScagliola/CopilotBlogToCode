@@ -65,7 +65,9 @@ Issue:
 Fix:
 - `outputs.tf` must export `databricks_workspace_resource_id`.
 - `deploy_dab.py` must map `workspace_resource_id` from Terraform outputs.
-- `databricks.yml` must declare `workspace_resource_id` and apply it under each target workspace block.
+- `databricks.yml` must declare `workspace_resource_id` as a variable for the deploy bridge contract.
+- Keep bundle workspace blocks limited to supported schema fields; use deploy-time environment variables for Azure auth context when required.
+- Keep deploy bridge variable injection minimal: pass only variables that are part of the Terraform-to-bundle contract, and avoid forcing optional variables unless the bundle explicitly needs them.
 
 ### 4. Medallion Scripts Must Not Hardcode Environment Tables
 Issue:
