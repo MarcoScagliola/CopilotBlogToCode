@@ -202,8 +202,9 @@ jobs:
           TF_VAR_layer_sp_mode: ${{{{ github.event.inputs.layer_sp_mode }}}}
           TF_VAR_existing_layer_sp_client_id: ${{{{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}}}
           TF_VAR_existing_layer_sp_object_id: ${{{{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}}}
-          TF_VAR_key_vault_recover_soft_deleted: ${{{{ env.TF_VAR_key_vault_recover_soft_deleted }}}}
         run: |
+          # Read from GITHUB_ENV (set by Detect step); do NOT set this in the env: block above
+          # because ${{{{ env.VAR }}}} resolves before Detect step writes to GITHUB_ENV, producing ""
           current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-true}}"
           echo "TerraformApply initial_recover=$current_recover"
 
