@@ -204,8 +204,11 @@ jobs:
           TF_VAR_existing_layer_sp_object_id: ${{{{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}}}
           TF_VAR_key_vault_recover_soft_deleted: ${{{{ env.TF_VAR_key_vault_recover_soft_deleted }}}}
         run: |
+          current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-true}}"
+          echo "TerraformApply initial_recover=$current_recover"
+
           set +e
-          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 2>&1 | tee /tmp/tf-apply.log
+          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover" 2>&1 | tee /tmp/tf-apply.log
           rc=${{PIPESTATUS[0]}}
           set -e
 
@@ -218,7 +221,7 @@ jobs:
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
             else
               if [ "${{{{ github.event.inputs.key_vault_recovery_mode }}}}" = "auto" ]; then
-                if [ "${{TF_VAR_key_vault_recover_soft_deleted:-false}}" = "true" ]; then
+                if [ "$current_recover" = "true" ]; then
                   echo "Auto mode fallback: flipping key_vault_recover_soft_deleted to false for retry."
                   terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
                 else
@@ -227,7 +230,7 @@ jobs:
                 fi
               else
                 echo "Initial terraform apply failed (exit $rc). Retrying once for transient provider/API consistency issues..."
-                terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
+                terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
               fi
             fi
           fi
