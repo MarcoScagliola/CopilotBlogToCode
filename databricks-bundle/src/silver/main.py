@@ -19,8 +19,6 @@ def main() -> None:
     source_table = f"{args.source_catalog}.{args.source_schema}.raw_events"
     target_table = f"{args.target_catalog}.{args.target_schema}.events"
 
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.target_catalog}.{args.target_schema}")
-
     refined = (
         spark.table(source_table)
         .withColumn("event_date", F.to_date(F.col("event_time")))

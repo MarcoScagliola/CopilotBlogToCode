@@ -19,8 +19,6 @@ def main() -> None:
     source_table = f"{args.source_catalog}.{args.source_schema}.events"
     target_table = f"{args.target_catalog}.{args.target_schema}.event_summary"
 
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.target_catalog}.{args.target_schema}")
-
     summary = (
         spark.table(source_table)
         .groupBy("event_date")

@@ -1,5 +1,41 @@
 resources:
   jobs:
+    setup_job:
+      name: medallion-setup-${bundle.target}
+      max_concurrent_runs: 1
+      tags:
+        layer: setup
+        environment: ${bundle.target}
+      job_clusters:
+        - job_cluster_key: setup_cluster
+          new_cluster:
+            spark_version: 13.3.x-scala2.12
+            node_type_id: Standard_DS3_v2
+            num_workers: 1
+            autotermination_minutes: 20
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+            custom_tags:
+              layer: setup
+      tasks:
+        - task_key: setup_task
+          job_cluster_key: setup_cluster
+          spark_python_task:
+            python_file: ../src/setup/main.py
+            parameters:
+              - --bronze-catalog
+              - ${var.bronze_catalog}
+              - --silver-catalog
+              - ${var.silver_catalog}
+              - --gold-catalog
+              - ${var.gold_catalog}
+              - --bronze-schema
+              - ${var.bronze_schema}
+              - --silver-schema
+              - ${var.silver_schema}
+              - --gold-schema
+              - ${var.gold_schema}
+
     bronze_job:
       name: bronze-layer-${bundle.target}
       max_concurrent_runs: 1
@@ -101,7 +137,12 @@ resources:
         layer: orchestrator
         environment: ${bundle.target}
       tasks:
+        - task_key: run_setup
+          run_job_task:
+            job_id: ${resources.jobs.setup_job.id}
         - task_key: run_bronze
+          depends_on:
+            - task_key: run_setup
           run_job_task:
             job_id: ${resources.jobs.bronze_job.id}
         - task_key: run_silver

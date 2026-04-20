@@ -26,7 +26,6 @@ def main() -> None:
         .withColumn("payload", F.concat(F.lit("event-"), F.col("id")))
     )
 
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.catalog}.{args.schema}")
     df.write.format("delta").mode("append").saveAsTable(table_name)
 
 

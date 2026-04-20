@@ -25,17 +25,17 @@ output "layer_principal_client_ids" {
 
 output "bronze_catalog_name" {
   description = "Unity Catalog name used by Bronze jobs."
-  value       = databricks_catalog.layer["bronze"].name
+  value       = local.layer_catalog_names.bronze
 }
 
 output "silver_catalog_name" {
   description = "Unity Catalog name used by Silver jobs."
-  value       = databricks_catalog.layer["silver"].name
+  value       = local.layer_catalog_names.silver
 }
 
 output "gold_catalog_name" {
   description = "Unity Catalog name used by Gold jobs."
-  value       = databricks_catalog.layer["gold"].name
+  value       = local.layer_catalog_names.gold
 }
 
 output "secret_scope_name" {
