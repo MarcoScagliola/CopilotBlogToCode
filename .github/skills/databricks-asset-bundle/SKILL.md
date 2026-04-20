@@ -27,6 +27,7 @@ The Asset Bundle owns runtime assets deployed into Databricks, for example:
 - runtime Python entrypoints
 - job notifications and schedules
 - job-level parameter passing
+- Unity Catalog objects that are purely runtime such as catalogs, schemas, and tables when those are not provisioned as infrastructure
 
 The Asset Bundle should not define infrastructure that belongs in Terraform or other IaC layers, for example:
 - cloud resource groups or projects
