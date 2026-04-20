@@ -127,3 +127,15 @@ resource "azurerm_role_assignment" "deployment_keyvault_secrets_officer" {
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.azure_sp_object_id
 }
+
+# Unity Catalog catalogs — one per medallion layer.
+# Requires the workspace to exist and the deployment principal to have
+# CREATE CATALOG privilege in the account-level metastore.
+resource "databricks_catalog" "layer" {
+  for_each = local.layer_catalog_names
+
+  name    = each.value
+  comment = "${each.key} layer catalog for ${var.workload} ${var.environment}"
+
+  depends_on = [azurerm_databricks_workspace.this]
+}

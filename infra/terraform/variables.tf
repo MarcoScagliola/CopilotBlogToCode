@@ -75,3 +75,10 @@ variable "key_vault_recover_soft_deleted" {
   type        = bool
   default     = false
 }
+
+variable "azure_client_secret" {
+  description = "Deployment service principal client secret (used by Databricks provider for catalog provisioning)."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
