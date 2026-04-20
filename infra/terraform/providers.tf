@@ -1,5 +1,9 @@
 provider "azurerm" {
-  features {}
+  features {
+    key_vault {
+      recover_soft_deleted_key_vaults = false
+    }
+  }
 
   subscription_id = var.azure_subscription_id
   tenant_id       = var.azure_tenant_id

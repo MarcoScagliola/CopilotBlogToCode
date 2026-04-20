@@ -120,10 +120,19 @@ jobs:
           TF_VAR_workload: ${{ github.event.inputs.workload }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
           TF_VAR_azure_region: ${{ github.event.inputs.azure_region }}
-          TF_VAR_layer_service_principal_mode: ${{ github.event.inputs.layer_sp_mode }}
+          TF_VAR_layer_sp_mode: ${{ github.event.inputs.layer_sp_mode }}
           TF_VAR_existing_layer_sp_client_id: ${{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}
           TF_VAR_existing_layer_sp_object_id: ${{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}
-        run: terraform -chdir=infra/terraform apply -auto-approve
+        run: |
+          set +e
+          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
+          rc=$?
+          set -e
+
+          if [ $rc -ne 0 ]; then
+            echo "Initial terraform apply failed (exit $rc). Retrying once for transient provider/API consistency issues..."
+            terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
+          fi
 
       - name: Export Terraform outputs
         run: |

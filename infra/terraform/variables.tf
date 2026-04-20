@@ -63,3 +63,9 @@ variable "existing_layer_sp_object_id" {
   type        = string
   default     = ""
 }
+
+variable "enable_access_connectors" {
+  description = "Whether to create Databricks access connectors and connector RBAC assignments."
+  type        = bool
+  default     = true
+}

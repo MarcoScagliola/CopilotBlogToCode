@@ -37,14 +37,21 @@ resource "azurerm_databricks_workspace" "this" {
 }
 
 resource "azurerm_databricks_access_connector" "layer" {
-  for_each = local.layers
+  for_each = var.enable_access_connectors ? local.layers : {}
 
   name                = "dbac-${var.workload}-${local.layers[each.key]}-${var.environment}-${local.region_abbr}"
   resource_group_name = azurerm_resource_group.platform.name
   location            = azurerm_resource_group.platform.location
 
+  depends_on = [azurerm_databricks_workspace.this]
+
   identity {
     type = "SystemAssigned"
+  }
+
+  timeouts {
+    create = "30m"
+    read   = "5m"
   }
 }
 
@@ -71,6 +78,11 @@ resource "azuread_service_principal" "layer" {
   client_id = azuread_application.layer[each.key].client_id
 }
 
+resource "time_sleep" "after_storage_accounts" {
+  depends_on      = [azurerm_storage_account.layer]
+  create_duration = "45s"
+}
+
 locals {
   layer_principal_client_ids = local.create_layer_principals ? {
     for layer, _ in local.layers : layer => azuread_application.layer[layer].client_id
@@ -91,14 +103,23 @@ resource "azurerm_role_assignment" "layer_storage_contributor" {
   scope                = azurerm_storage_account.layer[each.key].id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = local.layer_principal_object_ids[each.key]
+  principal_type       = "ServicePrincipal"
+
+  # Graph/AAD propagation can lag principal creation; skip strict immediate checks.
+  skip_service_principal_aad_check = true
+
+  depends_on = [time_sleep.after_storage_accounts]
 }
 
 resource "azurerm_role_assignment" "connector_storage_contributor" {
-  for_each = local.layers
+  for_each = var.enable_access_connectors ? local.layers : {}
 
   scope                = azurerm_storage_account.layer[each.key].id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_databricks_access_connector.layer[each.key].identity[0].principal_id
+  principal_type       = "ServicePrincipal"
+
+  depends_on = [time_sleep.after_storage_accounts]
 }
 
 resource "azurerm_role_assignment" "deployment_keyvault_secrets_officer" {

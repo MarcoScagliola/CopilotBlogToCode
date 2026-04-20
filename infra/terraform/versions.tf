@@ -10,5 +10,9 @@ terraform {
       source  = "hashicorp/azuread"
       version = ">= 3.0.0"
     }
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.12.0"
+    }
   }
 }
