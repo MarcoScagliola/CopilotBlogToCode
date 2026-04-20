@@ -188,13 +188,21 @@ jobs:
           TF_VAR_key_vault_recover_soft_deleted: ${{ env.TF_VAR_key_vault_recover_soft_deleted }}
         run: |
           set +e
-          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
-          rc=$?
+          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 2>&1 | tee /tmp/tf-apply.log
+          rc=${PIPESTATUS[0]}
           set -e
 
           if [ $rc -ne 0 ]; then
-            echo "Initial terraform apply failed (exit $rc). Retrying once for transient provider/API consistency issues..."
-            terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
+            if grep -q "SoftDeletedVaultDoesNotExist" /tmp/tf-apply.log; then
+              echo "Detected SoftDeletedVaultDoesNotExist. Retrying with key_vault_recover_soft_deleted=false."
+              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
+            elif grep -q "automatically recovering this KeyVault has been disabled" /tmp/tf-apply.log; then
+              echo "Detected recovery-disabled Key Vault error. Retrying with key_vault_recover_soft_deleted=true."
+              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
+            else
+              echo "Initial terraform apply failed (exit $rc). Retrying once for transient provider/API consistency issues..."
+              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1
+            fi
           fi
 
       - name: Export Terraform outputs
