@@ -77,7 +77,24 @@ Fix:
 - Bronze/Silver/Gold scripts consume catalog/schema via argparse.
 - `resources/jobs.yml` passes required parameters to each task.
 
-### 5. Keep Generation Idempotent
+### 5. Key Vault Soft-Delete Recovery Must Be Enabled in Provider
+Issue:
+- After a `terraform destroy` or resource group deletion, the Key Vault enters an Azure soft-deleted state. On `terraform apply` in the same region with the same name, the AzureRM provider raises:
+  `An existing soft-deleted Key Vault exists with the Name "<name>". [...] automatically recovering this KeyVault has been disabled`
+
+Fix:
+- In `providers.tf`, the `azurerm` provider `features {}` block must include:
+  ```hcl
+  key_vault {
+    recover_soft_deleted_key_vaults = true
+  }
+  ```
+- This enables automatic recovery when a soft-deleted vault with the same name is found, making `terraform apply` idempotent across destroy-and-recreate cycles.
+
+Applies to:
+- `infra/terraform/providers.tf` (required in every generated baseline)
+
+### 6. Keep Generation Idempotent
 Issue:
 - Workspace resets are frequent; one-off manual edits are lost.
 

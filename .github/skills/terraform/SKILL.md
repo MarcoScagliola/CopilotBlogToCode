@@ -165,6 +165,12 @@ Address these common Terraform deployment error categories in generated code:
 - Provide variables for post-deployment hardening (e.g., `storage_shared_key_enabled = var.enable_shared_key` defaulting to true)
 - In README.md, document post-deployment hardening steps under "Optional Security Enhancements"
 
+### Key Vault Soft-Delete Recovery (SoftDeletedVaultDoesNotExist / Recovery Disabled)
+**Error**: After `terraform destroy` or resource group deletion, Azure retains the vault in a soft-deleted state. On the next `terraform apply`, the AzureRM provider raises `automatically recovering this KeyVault has been disabled`.
+**Prevention**:
+- Always include a `features { key_vault { recover_soft_deleted_key_vaults = true } }` block in the `azurerm` provider configuration in `providers.tf`.
+- This makes apply idempotent across destroy-and-recreate cycles by automatically recovering the soft-deleted vault rather than failing.
+
 ### State Management (Already Exists / Needs Import)
 **Error**: Resource already exists in cloud but not in Terraform state; on rerun, Terraform cannot find the resource it created.
 **Prevention**:
