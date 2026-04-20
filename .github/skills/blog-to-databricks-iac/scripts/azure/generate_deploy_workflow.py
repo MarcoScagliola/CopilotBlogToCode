@@ -141,18 +141,6 @@ jobs:
         run: |
           mode="${{{{ github.event.inputs.key_vault_recovery_mode }}}}"
 
-          if [ "$mode" = "recover" ]; then
-            echo "TF_VAR_key_vault_recover_soft_deleted=true" >> "$GITHUB_ENV"
-            echo "Using manual Key Vault recovery mode: recover"
-            exit 0
-          fi
-
-          if [ "$mode" = "fresh" ]; then
-            echo "TF_VAR_key_vault_recover_soft_deleted=false" >> "$GITHUB_ENV"
-            echo "Using manual Key Vault recovery mode: fresh"
-            exit 0
-          fi
-
           region="${{{{ github.event.inputs.azure_region }}}}"
           case "$region" in
             eastus) region_abbr="eus" ;;
@@ -168,6 +156,20 @@ jobs:
           kv_name="kv-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
           kv_name="${{kv_name//_/}}"
           kv_name="${{kv_name:0:24}}"
+
+          if [ "$mode" = "recover" ]; then
+            echo "TF_VAR_key_vault_recover_soft_deleted=true" >> "$GITHUB_ENV"
+            echo "Using manual Key Vault recovery mode: recover"
+            echo "KeyVaultDecision mode=$mode effective_recover=true kv_name=$kv_name deleted_match_count=manual"
+            exit 0
+          fi
+
+          if [ "$mode" = "fresh" ]; then
+            echo "TF_VAR_key_vault_recover_soft_deleted=false" >> "$GITHUB_ENV"
+            echo "Using manual Key Vault recovery mode: fresh"
+            echo "KeyVaultDecision mode=$mode effective_recover=false kv_name=$kv_name deleted_match_count=manual"
+            exit 0
+          fi
 
           set +e
           deleted_count=$(az keyvault list-deleted --query "[?name=='$kv_name'] | length(@)" -o tsv 2>/dev/null)
@@ -189,6 +191,7 @@ jobs:
           fi
 
           echo "TF_VAR_key_vault_recover_soft_deleted=$recover" >> "$GITHUB_ENV"
+          echo "KeyVaultDecision mode=$mode effective_recover=$recover kv_name=$kv_name deleted_match_count=$deleted_count"
 
       - name: Terraform Apply
         env:
