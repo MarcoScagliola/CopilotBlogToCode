@@ -69,3 +69,9 @@ variable "enable_access_connectors" {
   type        = bool
   default     = true
 }
+
+variable "key_vault_recover_soft_deleted" {
+  description = "Enable Key Vault soft-deleted vault recovery in provider features for this run."
+  type        = bool
+  default     = false
+}

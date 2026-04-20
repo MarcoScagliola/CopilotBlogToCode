@@ -77,22 +77,28 @@ Fix:
 - Bronze/Silver/Gold scripts consume catalog/schema via argparse.
 - `resources/jobs.yml` passes required parameters to each task.
 
-### 5. Key Vault Soft-Delete Recovery Must Be Enabled in Provider
+### 5. Key Vault Soft-Delete Recovery Must Be Dynamic Per Run
 Issue:
-- After a `terraform destroy` or resource group deletion, the Key Vault enters an Azure soft-deleted state. On `terraform apply` in the same region with the same name, the AzureRM provider raises:
-  `An existing soft-deleted Key Vault exists with the Name "<name>". [...] automatically recovering this KeyVault has been disabled`
+- A fixed provider setting is brittle across ephemeral reruns:
+   - If recovery is disabled and a soft-deleted vault exists, apply fails with recovery-disabled errors.
+   - If recovery is enabled and no soft-deleted vault exists, apply can fail with `SoftDeletedVaultDoesNotExist`.
 
 Fix:
-- In `providers.tf`, the `azurerm` provider `features {}` block must include:
+- In `providers.tf`, make recovery configurable:
   ```hcl
   key_vault {
-    recover_soft_deleted_key_vaults = true
+      recover_soft_deleted_key_vaults = var.key_vault_recover_soft_deleted
   }
   ```
-- This enables automatic recovery when a soft-deleted vault with the same name is found, making `terraform apply` idempotent across destroy-and-recreate cycles.
+- In the deploy workflow, compute the expected Key Vault name and query Azure deleted vaults (`az keyvault list-deleted`).
+- Set `TF_VAR_key_vault_recover_soft_deleted=true` only when a matching soft-deleted vault exists; otherwise set it to `false`.
+- Expose workflow input `key_vault_recovery_mode` (`auto`, `recover`, `fresh`) so reruns can be deterministic when deleted-vault discovery is blocked or ambiguous.
 
 Applies to:
-- `infra/terraform/providers.tf` (required in every generated baseline)
+- `infra/terraform/providers.tf`
+- `infra/terraform/variables.tf`
+- `.github/workflows/deploy-infrastructure.yml`
+- `.github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workflow.py`
 
 ### 6. Keep Generation Idempotent
 Issue:

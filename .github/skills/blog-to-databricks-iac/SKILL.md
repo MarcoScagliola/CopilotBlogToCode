@@ -200,4 +200,4 @@ Mandatory guardrails:
 - `databricks-bundle/databricks.yml` must include `resources/*.yml` so bundle resources are deployed (no no-op success).
 - In `databricks-bundle/resources/jobs.yml`, `spark_python_task.python_file` paths must be relative to the resources file location (for example `../src/<layer>/main.py`).
 - Every Spark task in DAB jobs must define compute via one of: `job_cluster_key`, `existing_cluster_id`, `new_cluster`, or `environment_key`.
-- AzureRM provider `features.key_vault` block must always set `recover_soft_deleted_key_vaults = true`. Without it, `terraform apply` will fail if a soft-deleted vault with the same name exists in the subscription (e.g., after a destroy-and-recreate cycle).
+- AzureRM provider `features.key_vault.recover_soft_deleted_key_vaults` must be configurable through a Terraform variable (for example `var.key_vault_recover_soft_deleted`), and the deploy workflow must set it per run using `key_vault_recovery_mode` (`auto`, `recover`, `fresh`) with auto-detection via `az keyvault list-deleted`.
