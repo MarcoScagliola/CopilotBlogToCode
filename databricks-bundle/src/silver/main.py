@@ -1,24 +1,38 @@
 import argparse
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Silver layer refinement")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Silver layer refinement job")
     parser.add_argument("--source-catalog", required=True)
     parser.add_argument("--source-schema", required=True)
     parser.add_argument("--target-catalog", required=True)
     parser.add_argument("--target-schema", required=True)
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    spark = SparkSession.builder.appName("silver-layer").getOrCreate()
+
+def main() -> None:
+    args = parse_args()
+    spark = SparkSession.builder.getOrCreate()
 
     source_table = f"{args.source_catalog}.{args.source_schema}.raw_events"
     target_table = f"{args.target_catalog}.{args.target_schema}.events"
 
-    df = spark.read.table(source_table).dropDuplicates(["raw_id"])
-    df.write.mode("overwrite").format("delta").saveAsTable(target_table)
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.target_catalog}.{args.target_schema}")
 
-    print(f"Silver write completed: {target_table}")
+    refined = (
+        spark.table(source_table)
+        .withColumn("event_date", F.to_date(F.col("event_time")))
+        .dropDuplicates(["id"])
+    )
+
+    (
+        refined.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(target_table)
+    )
 
 
 if __name__ == "__main__":

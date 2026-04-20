@@ -1,37 +1,101 @@
-# Architecture Specification - Secure Medallion on Azure Databricks
+# SPEC - Secure Medallion Architecture on Azure Databricks (Part I)
+
+## Source
+
+- https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
 ## Objective
 
-Implement a least-privilege medallion architecture (Bronze, Silver, Gold) on Azure Databricks where:
-- each layer runs as a dedicated Lakeflow job
-- each layer has isolated ADLS Gen2 storage and principal access
-- secrets are managed in Azure Key Vault
-- an orchestrator runs Bronze then Silver then Gold
+Implement a secure Medallion pattern on Azure Databricks where Bronze, Silver, and Gold are isolated by identity, storage, and compute. Use Terraform for Azure infrastructure and Databricks Asset Bundle for Lakeflow jobs.
 
-## Design Summary
+## Scope
 
-- Identity mode supports both:
-  - create: create one Entra application/service principal per layer
-  - existing: reuse a pre-created service principal
-- Storage isolation uses one account per layer (`st...bronze`, `st...silver`, `st...gold`).
-- Key Vault access policy is bound to the running Terraform identity (`azurerm_client_config.current`).
-- Terraform outputs include both `databricks_workspace_url` and `databricks_workspace_resource_id` for DAB deployment bridge compatibility.
+### Infrastructure (Terraform)
 
-## CI/CD Summary
+- Resource group: platform boundary for all resources
+- Databricks workspace: Premium SKU
+- ADLS Gen2 storage accounts: one per layer (Bronze/Silver/Gold)
+- ADLS filesystems: one per layer
+- Databricks Access Connectors: one per layer
+- Key Vault: centralized secret store with RBAC enabled
+- Layer principals:
+  - `layer_sp_mode=create`: create app registrations and service principals per layer
+  - `layer_sp_mode=existing`: reuse a pre-created service principal, no Graph lookup dependency
+- RBAC assignments:
+  - Layer principal -> Storage Blob Data Contributor on its storage account
+  - Access connector identity -> Storage Blob Data Contributor on its storage account
+  - Deployment principal -> Key Vault Secrets Officer
 
-- Validate workflow: Terraform init/validate checks.
-- Deploy infrastructure workflow: applies Terraform and exports deployment artifacts.
-- Deploy DAB workflow: consumes artifacts and deploys Databricks Asset Bundle.
+### Data plane deployment (DAB)
 
-## Naming Convention
+- Bronze job (raw ingestion)
+- Silver job (refinement and deduplication)
+- Gold job (curation and aggregation)
+- Orchestrator job chaining Bronze -> Silver -> Gold
+- Dedicated job cluster definition per layer task
+- Runtime parameters for catalog/schema/scope (no hardcoded environment paths)
 
-- Resource group: `rg-<workload>-<environment>-platform`
-- Databricks workspace: `dbw-<workload>-<environment>`
-- Layer apps: `app-<workload>-<environment>-<layer>`
-- Layer storage accounts: `st<workload><environment><layer>` (truncated to 24 chars)
+### CI/CD workflows
 
-## Post-Deployment Requirements
+- Validate Terraform workflow
+- Deploy Infrastructure workflow
+- Deploy DAB workflow
+- Artifact bridge from infra outputs to DAB variables
 
-- Create Unity Catalog catalogs and schemas per layer.
-- Grant layer principals required catalog privileges.
-- Configure Key Vault-backed secret scopes in Databricks.
+## Security Design
+
+1. Identity isolation
+   - Separate service principal context per layer when in create mode.
+   - Existing-mode fallback for restricted tenants that cannot create app registrations.
+
+2. Storage isolation
+   - Physical separation of data by storage account per layer.
+
+3. Compute isolation
+   - Dedicated job cluster definition per layer job.
+
+4. Secret handling
+   - Key Vault for secrets; Databricks secret scope expected post-provisioning.
+
+5. Least privilege
+   - Layer identities only receive layer-specific storage RBAC.
+
+## Naming Strategy
+
+Derived in `locals.tf` from:
+
+- `workload`
+- `environment`
+- `azure_region`
+
+Examples in this run context (`blg`, `dev`, `eastus2`):
+
+- Resource group: `rg-blg-dev-platform`
+- Databricks workspace: `dbw-blg-dev`
+- Layer storage accounts: `stblgbrzdev`, `stblgslvdev`, `stblgglddev`
+
+## Required Terraform Outputs
+
+The DAB bridge depends on these outputs:
+
+- `databricks_workspace_url`
+- `databricks_workspace_resource_id`
+- `layer_principal_client_ids`
+- `layer_storage_account_names`
+- `bronze_catalog_name`
+- `silver_catalog_name`
+- `gold_catalog_name`
+- `secret_scope_name`
+
+## Assumptions
+
+- GitHub environment `BLG2CODEDEV` contains all required Azure credentials.
+- Deployment principal already has sufficient Azure RBAC to create resources and assignments.
+- Unity Catalog resources (catalogs/schemas/external locations) are completed post-provisioning.
+- Databricks service principal entitlements and workspace assignments are completed where required.
+
+## Out of Scope
+
+- Production network hardening (private endpoints, VNet injection) beyond this baseline.
+- Full Unity Catalog object provisioning via Terraform.
+- Source-system connector secrets and ingestion logic specifics.

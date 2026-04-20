@@ -1,70 +1,94 @@
 # Secure Medallion Architecture on Azure Databricks
 
-This repository implements a Azure Databricks architecture pattern derived from the selected on-line source article. 
+This repository implements the architecture from:
 
+- https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
-Infrastructure is provisioned with Terraform. Databricks jobs are deployed with a Databricks Asset Bundle. CI/CD is split across three GitHub Actions workflows.
+The implementation enforces least privilege by isolating Bronze, Silver, and Gold across identity, storage, and compute. Infrastructure is provisioned with Terraform and Databricks jobs are deployed using a Databricks Asset Bundle (DAB).
+
+## What Is Implemented
+
+- Three ADLS Gen2 storage accounts (one per layer)
+- Three layer identities (create mode) or one reusable existing identity (existing mode)
+- Per-layer RBAC to storage accounts
+- Databricks workspace (Premium SKU)
+- Three Databricks Access Connectors (one per layer)
+- Azure Key Vault for runtime secret storage
+- DAB with Bronze, Silver, Gold, and orchestrator jobs
+- GitHub Actions workflows for validation, infra deploy, and DAB deploy
 
 ## Prerequisites
 
-- Azure subscription with Contributor access for the deployment principal.
-- Permissions in Microsoft Entra ID to create App Registrations and Service Principals (when using `layer_sp_mode=create`), or pre-created principals for `layer_sp_mode=existing`.
-- GitHub Environment `BLG2CODEDEV` configured with the secrets/variables below.
-- Terraform CLI >= 1.6 and Python 3.11+ for local validation.
+- Azure subscription
+- Deployment service principal with:
+  - Contributor on subscription or target resource group
+  - User Access Administrator on subscription when Terraform must create RBAC assignments
+  - Application.ReadWrite.All in Entra ID only if using `layer_sp_mode=create`
+- GitHub Environment `BLG2CODEDEV` with required secrets/variables
+- Python 3.11+
+- Terraform CLI 1.6+
 
-## Required GitHub Secrets / Variables
+## Required GitHub Secrets or Variables
 
-### Always required
+Always required:
 
-| Name | Description |
-|---|---|
-| `AZURE_TENANT_ID` | Azure tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
-| `AZURE_CLIENT_ID` | Deployment service principal client ID |
-| `AZURE_CLIENT_SECRET` | Deployment service principal secret |
-| `AZURE_SP_OBJECT_ID` | Deployment service principal **object ID** (Enterprise Applications â†’ Object ID, not App Registration) |
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `AZURE_SP_OBJECT_ID`
 
-### Conditional â€” required when `layer_sp_mode=existing`
+Conditional (`layer_sp_mode=existing`):
 
-| Name | Description |
-|---|---|
-| `EXISTING_LAYER_SP_CLIENT_ID` | Existing layer principal client ID |
-| `EXISTING_LAYER_SP_OBJECT_ID` | Existing layer principal **object ID** (Enterprise Applications â†’ Object ID) |
+- `EXISTING_LAYER_SP_CLIENT_ID`
+- `EXISTING_LAYER_SP_OBJECT_ID`
 
-> **Important:** `*_SP_OBJECT_ID` values must be the **Service Principal object ID** from Microsoft Entra ID â†’ Enterprise applications, not the App Registration object ID.
+Important:
 
-## One-Time Setup
-
-1. Create or identify the deployment service principal in Entra ID.
-2. Assign Azure RBAC:
-   - `Contributor` on the target resource group or subscription.  
-   - For `layer_sp_mode=create`: Request `Application.ReadWrite.All` in Entra ID (or pre-create principals and use `layer_sp_mode=existing`).
-3. Retrieve the object ID: Azure Portal â†’ Entra ID â†’ Enterprise applications â†’ your app â†’ **Object ID**.
-4. Populate GitHub Environment `BLG2CODEDEV` with all required secrets above.
-5. Choose identity mode for layer principals (`create` or `existing`) and set the dispatch input accordingly.
+- `AZURE_SP_OBJECT_ID` and `EXISTING_LAYER_SP_OBJECT_ID` must be Service Principal object IDs from Entra ID Enterprise Applications.
+- Do not use App Registration object IDs for RBAC assignments.
 
 ## Workflows
 
-### Validate Terraform
-- File: [.github/workflows/validate-terraform.yml](.github/workflows/validate-terraform.yml)
-- Trigger: `workflow_dispatch`
-- Runs `terraform init -backend=false` and `terraform validate`. No credentials required beyond tenant/subscription.
+1. `Validate Terraform` (`.github/workflows/validate-terraform.yml`)
+	- Runs `terraform init -backend=false` and `terraform validate`
 
-### Deploy Infrastructure
-- File: [.github/workflows/deploy-infrastructure.yml](.github/workflows/deploy-infrastructure.yml)
-- Trigger: `workflow_dispatch`
-- Dispatch inputs: `target`, `workload`, `environment`, `azure_region`, `layer_sp_mode`, `state_strategy`.
-- `state_strategy` options:
-  - `fail` (default): stop if resources already exist and no state is available.
-  - `recreate_rg`: delete `rg-<workload>-<environment>-platform` before apply for repeatable ephemeral runs.
-- Runs `terraform apply`, uploads `terraform-outputs` and `deploy-context` artifacts for DAB handoff.
+2. `Deploy Infrastructure` (`.github/workflows/deploy-infrastructure.yml`)
+	- Dispatch inputs include `target`, `workload`, `environment`, `azure_region`, `layer_sp_mode`, and `state_strategy`
+	- Publishes `terraform-outputs` and `deploy-context` artifacts
 
-### Deploy DAB
-- File: [.github/workflows/deploy-dab.yml](.github/workflows/deploy-dab.yml)
-- Trigger: `workflow_dispatch` (requires `infra_run_id`) or automatic after successful infrastructure deployment.
-- Downloads Terraform output artifacts and deploys the Databricks Asset Bundle.
+3. `Deploy DAB` (`.github/workflows/deploy-dab.yml`)
+	- Consumes `terraform-outputs` and `deploy-context`
+	- Uses Azure AD auth for Databricks CLI (no PAT required)
 
-## Documentation
+## Local Validation Commands
 
-- [SPEC.md](SPEC.md) â€” architecture decisions and output contract
-- [TODO.md](TODO.md) â€” prerequisites and unresolved items
+```bash
+python -m py_compile \
+  .github/skills/blog-to-databricks-iac/scripts/fetch_blog.py \
+  .github/skills/blog-to-databricks-iac/scripts/reset_generated.py \
+  .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py \
+  .github/skills/blog-to-databricks-iac/scripts/azure/generate_validate_workflow.py \
+  .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_workflow.py \
+  .github/skills/blog-to-databricks-iac/scripts/azure/generate_deploy_dab_workflow.py \
+  databricks-bundle/src/bronze/main.py \
+  databricks-bundle/src/silver/main.py \
+  databricks-bundle/src/gold/main.py
+
+terraform -chdir=infra/terraform init -backend=false
+terraform -chdir=infra/terraform validate
+```
+
+## Post-Deployment Tasks
+
+- Create Unity Catalog catalogs: `dev_bronze`, `dev_silver`, `dev_gold`
+- Create schemas: `ingestion`, `refined`, `curated`
+- Configure external locations and storage credentials in Unity Catalog
+- Create Key Vault-backed secret scope: `kv-dev-scope`
+- Grant Databricks privileges per layer principal
+- Run `medallion-orchestrator-dev`
+
+## Notes
+
+- This repository uses ephemeral state by default in CI; for production, add a remote backend in `infra/terraform/backend.tf`.
+- In restricted tenants where app registration creation is blocked, use `layer_sp_mode=existing`.

@@ -3,24 +3,37 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Gold layer curation")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Gold layer curation job")
     parser.add_argument("--source-catalog", required=True)
     parser.add_argument("--source-schema", required=True)
     parser.add_argument("--target-catalog", required=True)
     parser.add_argument("--target-schema", required=True)
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    spark = SparkSession.builder.appName("gold-layer").getOrCreate()
+
+def main() -> None:
+    args = parse_args()
+    spark = SparkSession.builder.getOrCreate()
 
     source_table = f"{args.source_catalog}.{args.source_schema}.events"
     target_table = f"{args.target_catalog}.{args.target_schema}.event_summary"
 
-    df = spark.read.table(source_table)
-    summary = df.groupBy("event_type").agg(F.count("raw_id").alias("event_count"))
-    summary.write.mode("overwrite").format("delta").saveAsTable(target_table)
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.target_catalog}.{args.target_schema}")
 
-    print(f"Gold write completed: {target_table}")
+    summary = (
+        spark.table(source_table)
+        .groupBy("event_date")
+        .agg(F.count("*").alias("event_count"))
+        .orderBy(F.col("event_date").desc())
+    )
+
+    (
+        summary.write.format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(target_table)
+    )
 
 
 if __name__ == "__main__":

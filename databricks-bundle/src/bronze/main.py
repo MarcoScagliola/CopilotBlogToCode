@@ -1,26 +1,37 @@
 import argparse
 from pyspark.sql import SparkSession
+from pyspark.sql import functions as F
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Bronze layer ingestion job")
+    parser.add_argument("--catalog", required=True)
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--secret-scope", required=True)
+    return parser.parse_args()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bronze layer ingestion")
-    parser.add_argument("--catalog", required=True)
-    parser.add_argument("--schema", required=True)
-    args = parser.parse_args()
+    args = parse_args()
+    spark = SparkSession.builder.getOrCreate()
 
-    spark = SparkSession.builder.appName("bronze-layer").getOrCreate()
+    table_name = f"{args.catalog}.{args.schema}.raw_events"
 
-    data = [
-        (1, "event_a", "2026-04-18"),
-        (2, "event_b", "2026-04-18"),
-        (3, "event_c", "2026-04-18"),
-    ]
-    df = spark.createDataFrame(data, ["raw_id", "event_type", "event_date"])
+    # Keep runtime secrets out of logs: retrieve only when needed and never print.
+    _ = args.secret_scope
 
-    table = f"{args.catalog}.{args.schema}.raw_events"
-    df.write.mode("overwrite").format("delta").saveAsTable(table)
+    df = (
+        spark.range(1, 101)
+        .withColumn("event_time", F.current_timestamp())
+        .withColumn("payload", F.concat(F.lit("event-"), F.col("id")))
+    )
 
-    print(f"Bronze write completed: {table}")
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.catalog}.{args.schema}")
+    (
+        df.write.format("delta")
+        .mode("append")
+        .saveAsTable(table_name)
+    )
 
 
 if __name__ == "__main__":

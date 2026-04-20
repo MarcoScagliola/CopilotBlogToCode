@@ -1,82 +1,65 @@
 variable "workload" {
-  description = "Short workload name used for resource naming."
+  description = "Short workload identifier used in resource names."
   type        = string
   default     = "blg"
 }
 
 variable "environment" {
-  description = "Environment short name."
+  description = "Deployment environment."
   type        = string
   default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "tst", "prd"], var.environment)
+    error_message = "environment must be one of: dev, tst, prd."
+  }
 }
 
 variable "azure_region" {
-  description = "Azure region for deployment."
+  description = "Azure region where resources are deployed."
   type        = string
-  default     = "uksouth"
+  default     = "eastus2"
 }
 
 variable "azure_tenant_id" {
-  description = "Azure tenant ID."
+  description = "Azure tenant ID for provider authentication."
   type        = string
 }
 
 variable "azure_subscription_id" {
-  description = "Azure subscription ID."
+  description = "Azure subscription ID for provider authentication."
   type        = string
 }
 
 variable "azure_client_id" {
-  description = "Deployment service principal client ID."
+  description = "Deployment service principal client ID (application ID)."
   type        = string
-}
-
-variable "azure_client_secret" {
-  description = "Deployment service principal secret."
-  type        = string
-  sensitive   = true
 }
 
 variable "azure_sp_object_id" {
-  description = "Deployment service principal object ID (Enterprise Application object ID, used for RBAC)."
+  description = "Deployment service principal object ID (Enterprise Applications object ID)."
   type        = string
 }
 
-variable "layer_service_principal_mode" {
-  description = "Whether to create dedicated layer principals ('create') or reuse an existing one ('existing')."
+variable "layer_sp_mode" {
+  description = "Layer principal mode: create new principals or reuse existing ones."
   type        = string
   default     = "create"
 
   validation {
-    condition     = contains(["create", "existing"], var.layer_service_principal_mode)
-    error_message = "layer_service_principal_mode must be 'create' or 'existing'."
+    condition     = contains(["create", "existing"], var.layer_sp_mode)
+    error_message = "layer_sp_mode must be either 'create' or 'existing'."
   }
 }
 
 variable "existing_layer_sp_client_id" {
-  description = "Client ID to reuse when layer_service_principal_mode is 'existing'."
+  description = "Client ID for an existing reusable layer principal (required in existing mode)."
   type        = string
   default     = ""
-
-  validation {
-    condition = (
-      var.layer_service_principal_mode != "existing" ||
-      length(trimspace(var.existing_layer_sp_client_id)) > 0
-    )
-    error_message = "existing_layer_sp_client_id must be provided when layer_service_principal_mode is 'existing'."
-  }
 }
 
 variable "existing_layer_sp_object_id" {
-  description = "Object ID to reuse when layer_service_principal_mode is 'existing'. Must be a Service Principal (Enterprise Application) object ID."
+  description = "Object ID for an existing reusable layer principal (required in existing mode)."
   type        = string
   default     = ""
-
-  validation {
-    condition = (
-      var.layer_service_principal_mode != "existing" ||
-      length(trimspace(var.existing_layer_sp_object_id)) > 0
-    )
-    error_message = "existing_layer_sp_object_id must be provided when layer_service_principal_mode is 'existing'."
-  }
 }

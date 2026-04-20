@@ -20,7 +20,7 @@ on:
       azure_region:
         description: Azure region for Terraform deployment
         required: true
-        default: uksouth
+        default: eastus2
       layer_sp_mode:
         description: Layer service principal mode (create new or reuse existing)
         required: true
