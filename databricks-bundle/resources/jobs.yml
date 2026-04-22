@@ -34,6 +34,12 @@ resources:
               - ${var.silver_schema}
               - --gold-schema
               - ${var.gold_schema}
+              - --bronze-storage-account
+              - ${var.bronze_storage_account}
+              - --silver-storage-account
+              - ${var.silver_storage_account}
+              - --gold-storage-account
+              - ${var.gold_storage_account}
 
     bronze_job:
       name: bronze-layer-${bundle.target}
