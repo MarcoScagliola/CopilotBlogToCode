@@ -203,9 +203,44 @@ jobs:
           TF_VAR_existing_layer_sp_client_id: ${{{{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}}}
           TF_VAR_existing_layer_sp_object_id: ${{{{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}}}
         run: |
-          # Read from GITHUB_ENV (set by Detect step); do NOT set this in the env: block above
-          # because ${{{{ env.VAR }}}} resolves before Detect step writes to GITHUB_ENV, producing ""
-          current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-true}}"
+          mode="${{{{ github.event.inputs.key_vault_recovery_mode }}}}"
+          current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-}}"
+
+          if [ -z "$current_recover" ]; then
+            if [ "$mode" = "recover" ]; then
+              current_recover=true
+            elif [ "$mode" = "fresh" ]; then
+              current_recover=false
+            else
+              region="${{{{ github.event.inputs.azure_region }}}}"
+              case "$region" in
+                eastus) region_abbr="eus" ;;
+                eastus2) region_abbr="eus2" ;;
+                westus2) region_abbr="wus2" ;;
+                westeurope) region_abbr="weu" ;;
+                northeurope) region_abbr="neu" ;;
+                uksouth) region_abbr="uks" ;;
+                ukwest) region_abbr="ukw" ;;
+                *) region_abbr="${{region// /}}" ;;
+              esac
+
+              kv_name="kv-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
+              kv_name="${{kv_name//_/}}"
+              kv_name="${{kv_name:0:24}}"
+
+              set +e
+              deleted_count=$(az keyvault list-deleted --query "[?name=='$kv_name'] | length(@)" -o tsv 2>/dev/null)
+              rc_deleted=$?
+              set -e
+
+              if [ $rc_deleted -eq 0 ] && [ "${{deleted_count:-0}}" -gt 0 ]; then
+                current_recover=true
+              else
+                current_recover=false
+              fi
+            fi
+          fi
+
           echo "TerraformApply initial_recover=$current_recover"
 
           set +e
