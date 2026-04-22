@@ -154,6 +154,16 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
+### 1.5 Generate DAB jobs bundle dynamically
+Create (or refresh) `databricks-bundle/resources/jobs.yml` by running:
+
+```bash
+python .github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.py \
+	--output databricks-bundle/resources/jobs.yml
+```
+
+This file is a generated artifact. Keep the source of truth in the generator script, not in manual edits to `jobs.yml`.
+
 ### 2. Apply Terraform code generation best practices
 Before generating or validating Terraform code, load and apply the principles from `.github/skills/terraform/SKILL.md`.
 
@@ -198,6 +208,7 @@ Mandatory guardrails:
 - Keep Databricks bundle configuration schema-valid: avoid unsupported fields under `targets.<env>.workspace` and prefer setting Databricks Azure auth context through environment variables in the deploy bridge.
 - DAB layer scripts must not hardcode environment-specific table paths; pass catalog/schema via task parameters.
 - `databricks-bundle/databricks.yml` must include `resources/*.yml` so bundle resources are deployed (no no-op success).
+- `databricks-bundle/resources/jobs.yml` must be generated from `.github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.py`, and the DAB deploy bridge must refresh it before `databricks bundle deploy`.
 - In `databricks-bundle/resources/jobs.yml`, `spark_python_task.python_file` paths must be relative to the resources file location (for example `../src/<layer>/main.py`).
 - Every Spark task in DAB jobs must define compute via one of: `job_cluster_key`, `existing_cluster_id`, `new_cluster`, or `environment_key`.
 - AzureRM provider `features.key_vault.recover_soft_deleted_key_vaults` must be configurable through a Terraform variable (for example `var.key_vault_recover_soft_deleted`), and the deploy workflow must set it per run using `key_vault_recovery_mode` (`auto`, `recover`, `fresh`) with auto-detection via `az keyvault list-deleted`.

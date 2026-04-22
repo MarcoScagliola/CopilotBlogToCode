@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
+JOBS_GENERATOR = REPO_ROOT / ".github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.py"
 
 # Required flat outputs (DAB variable -> candidate Terraform keys)
 REQUIRED_FLAT_KEYS: dict[str, list[str]] = {
@@ -182,6 +183,22 @@ def build_databricks_env(base_env: dict[str, str], dab_vars: dict[str, str]) -> 
     return env
 
 
+def generate_jobs_bundle(bundle_dir: Path) -> None:
+    if not JOBS_GENERATOR.is_file():
+        _fail(f"Jobs bundle generator not found: {JOBS_GENERATOR}")
+
+    try:
+        subprocess.run(
+            [sys.executable, str(JOBS_GENERATOR), "--output", str(bundle_dir / "resources/jobs.yml")],
+            cwd=REPO_ROOT,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        _fail(f"Failed to generate jobs bundle (exit code {e.returncode})")
+    except OSError as e:
+        _fail(f"Failed to launch jobs bundle generator: {e}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Bridge Terraform outputs to databricks bundle deploy.",
@@ -248,6 +265,9 @@ def main() -> None:
         raise
     except Exception as e:
         _fail(f"Unexpected error reading Terraform outputs: {e}")
+
+    print(f"Generating jobs bundle from source: {JOBS_GENERATOR}")
+    generate_jobs_bundle(bundle_dir)
 
     dab_vars = build_dab_vars(tf_outputs, args.environment)
     cmd = build_command(bundle_dir, args.target, dab_vars)
