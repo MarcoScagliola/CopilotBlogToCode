@@ -193,10 +193,10 @@ jobs:
           set -e
 
           if [ $rc -ne 0 ]; then
-            if grep -q "SoftDeletedVaultDoesNotExist" /tmp/tf-apply.log; then
+            if grep -Eqi "SoftDeletedVaultDoesNotExist|soft[- ]deleted.*does not exist" /tmp/tf-apply.log; then
               echo "Detected SoftDeletedVaultDoesNotExist. Retrying with key_vault_recover_soft_deleted=false."
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
-            elif grep -q "automatically recovering this KeyVault has been disabled" /tmp/tf-apply.log; then
+            elif grep -Eqi "recovering this KeyVault has been disabled|existing soft-deleted Key Vault exists" /tmp/tf-apply.log; then
               echo "Detected recovery-disabled Key Vault error. Retrying with key_vault_recover_soft_deleted=true."
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
             else
