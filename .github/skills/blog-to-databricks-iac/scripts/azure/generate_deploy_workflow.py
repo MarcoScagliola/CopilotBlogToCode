@@ -242,6 +242,7 @@ jobs:
           fi
 
           echo "TerraformApply initial_recover=$current_recover"
+          export TF_VAR_key_vault_recover_soft_deleted="$current_recover"
 
           set +e
           terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover" 2>&1 | tee /tmp/tf-apply.log
