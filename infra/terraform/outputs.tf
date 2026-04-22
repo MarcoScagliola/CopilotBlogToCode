@@ -18,6 +18,13 @@ output "layer_storage_account_names" {
   value       = { for layer, sa in azurerm_storage_account.layer : layer => sa.name }
 }
 
+output "layer_access_connector_ids" {
+  description = "Databricks Access Connector resource IDs by medallion layer."
+  value = var.enable_access_connectors ? {
+    for layer, connector in azurerm_databricks_access_connector.layer : layer => connector.id
+  } : {}
+}
+
 output "layer_principal_client_ids" {
   description = "Service principal client IDs by medallion layer."
   value       = local.layer_principal_client_ids

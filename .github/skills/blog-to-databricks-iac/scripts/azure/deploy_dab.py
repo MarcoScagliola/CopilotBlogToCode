@@ -45,6 +45,9 @@ OPTIONAL_MAP_KEYS: dict[str, tuple[str, str]] = {
     "bronze_storage_account": ("layer_storage_account_names", "bronze"),
     "silver_storage_account": ("layer_storage_account_names", "silver"),
     "gold_storage_account": ("layer_storage_account_names", "gold"),
+    "bronze_access_connector_id": ("layer_access_connector_ids", "bronze"),
+    "silver_access_connector_id": ("layer_access_connector_ids", "silver"),
+    "gold_access_connector_id": ("layer_access_connector_ids", "gold"),
 }
 
 

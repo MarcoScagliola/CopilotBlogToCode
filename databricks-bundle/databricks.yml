@@ -48,6 +48,15 @@ variables:
   gold_storage_account:
     description: Gold storage account name.
     default: ""
+  bronze_access_connector_id:
+    description: Azure resource ID for Bronze Databricks Access Connector.
+    default: ""
+  silver_access_connector_id:
+    description: Azure resource ID for Silver Databricks Access Connector.
+    default: ""
+  gold_access_connector_id:
+    description: Azure resource ID for Gold Databricks Access Connector.
+    default: ""
 
 targets:
   dev:

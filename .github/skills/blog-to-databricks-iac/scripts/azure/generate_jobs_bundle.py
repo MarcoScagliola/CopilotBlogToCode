@@ -47,6 +47,12 @@ def build_jobs_yaml() -> str:
               - ${var.silver_storage_account}
               - --gold-storage-account
               - ${var.gold_storage_account}
+              - --bronze-access-connector-id
+              - ${var.bronze_access_connector_id}
+              - --silver-access-connector-id
+              - ${var.silver_access_connector_id}
+              - --gold-access-connector-id
+              - ${var.gold_access_connector_id}
 
     bronze_job:
       name: bronze-layer-${bundle.target}
