@@ -191,11 +191,9 @@ jobs:
 
       - name: Terraform Apply
         env:
-          TF_VAR_azure_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
-          TF_VAR_azure_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
-          TF_VAR_azure_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
-          TF_VAR_azure_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
-          TF_VAR_azure_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
+          TF_VAR_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
+          TF_VAR_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
+          TF_VAR_deployment_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
           TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
           TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
           TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
@@ -253,14 +251,14 @@ jobs:
                 fi
                 sleep 10
               done
-              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.this 1>/dev/null 2>/dev/null; then
-                terraform -chdir=infra/terraform import azurerm_key_vault.this "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
             elif grep -Eqi "to be managed via Terraform this resource needs to be imported|already exists - to be managed via Terraform" /tmp/tf-apply.log; then
               echo "Detected existing active Key Vault not in state. Importing and retrying apply."
-              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.this 1>/dev/null 2>/dev/null; then
-                terraform -chdir=infra/terraform import azurerm_key_vault.this "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
             else
