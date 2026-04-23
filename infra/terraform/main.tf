@@ -108,6 +108,7 @@ resource "azurerm_key_vault" "main" {
   location                   = azurerm_resource_group.main.location
   tenant_id                  = var.tenant_id
   sku_name                   = "standard"
+  enable_rbac_authorization   = true
   soft_delete_retention_days = 7
   purge_protection_enabled   = true
 
@@ -117,34 +118,16 @@ resource "azurerm_key_vault" "main" {
   }
 }
 
-# ── Key Vault Access Policy: Deployment SP ────────────────────────────────────
-
-resource "azurerm_key_vault_access_policy" "deployment_sp" {
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = var.tenant_id
-  object_id    = var.deployment_sp_object_id
-
-  secret_permissions = [
-    "Get",
-    "List",
-    "Set",
-    "Delete",
-    "Purge",
-    "Recover",
-  ]
+resource "azurerm_role_assignment" "deployment_sp_kv_secrets_officer" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = var.deployment_sp_object_id
 }
 
-# ── Key Vault Access Policy: Layer SP ────────────────────────────────────────
-
-resource "azurerm_key_vault_access_policy" "layer_sp" {
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = var.tenant_id
-  object_id    = local.layer_sp_object_id
-
-  secret_permissions = [
-    "Get",
-    "List",
-  ]
+resource "azurerm_role_assignment" "layer_sp_kv_secrets_user" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = var.layer_sp_object_id
 }
 
 # ── Entra ID SPs (create mode only) ────────────────────────────────────────────
