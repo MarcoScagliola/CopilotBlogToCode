@@ -119,13 +119,13 @@ resource "azurerm_key_vault" "main" {
 }
 
 resource "azurerm_role_assignment" "deployment_sp_kv_secrets_officer" {
-  scope                = azurerm_key_vault.this.id
+  scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.deployment_sp_object_id
 }
 
 resource "azurerm_role_assignment" "layer_sp_kv_secrets_user" {
-  scope                = azurerm_key_vault.this.id
+  scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = var.layer_sp_object_id
 }
