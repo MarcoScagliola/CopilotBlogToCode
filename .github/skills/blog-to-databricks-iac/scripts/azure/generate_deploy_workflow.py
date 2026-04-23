@@ -205,6 +205,21 @@ jobs:
         run: |
           mode="${{{{ github.event.inputs.key_vault_recovery_mode }}}}"
           current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-}}"
+          region="${{{{ github.event.inputs.azure_region }}}}"
+          case "$region" in
+            eastus) region_abbr="eus" ;;
+            eastus2) region_abbr="eus2" ;;
+            westus2) region_abbr="wus2" ;;
+            westeurope) region_abbr="weu" ;;
+            northeurope) region_abbr="neu" ;;
+            uksouth) region_abbr="uks" ;;
+            ukwest) region_abbr="ukw" ;;
+            *) region_abbr="${{region// /}}" ;;
+          esac
+          rg_name="rg-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-platform"
+          kv_name="kv-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
+          kv_name="${{kv_name//_/}}"
+          kv_name="${{kv_name:0:24}}"
 
           if [ -z "$current_recover" ]; then
             if [ "$mode" = "fresh" ]; then
@@ -229,8 +244,25 @@ jobs:
               echo "Detected SoftDeletedVaultDoesNotExist. Retrying with key_vault_recover_soft_deleted=false."
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
             elif grep -Eqi "recovering this KeyVault has been disabled|existing soft-deleted Key Vault exists" /tmp/tf-apply.log; then
-              echo "Detected recovery-disabled Key Vault error. Retrying with key_vault_recover_soft_deleted=true."
+              echo "Detected recovery-disabled Key Vault error. Recovering vault and importing into Terraform state."
+              az group create --name "$rg_name" --location "$region" 1>/dev/null
+              az keyvault recover --name "$kv_name"
+              for attempt in 1 2 3 4 5 6; do
+                if az keyvault show --name "$kv_name" 1>/dev/null 2>/dev/null; then
+                  break
+                fi
+                sleep 10
+              done
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.this 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.this "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              fi
               terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
+            elif grep -Eqi "to be managed via Terraform this resource needs to be imported|already exists - to be managed via Terraform" /tmp/tf-apply.log; then
+              echo "Detected existing active Key Vault not in state. Importing and retrying apply."
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.this 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.this "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              fi
+              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
             else
               if [ "${{{{ github.event.inputs.key_vault_recovery_mode }}}}" = "auto" ]; then
                 if [ "$current_recover" = "true" ]; then
