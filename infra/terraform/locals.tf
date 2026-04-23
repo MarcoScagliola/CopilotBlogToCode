@@ -1,36 +1,71 @@
 locals {
+  # ── Layers map (abbreviation used in resource names) ───────────────────────
   layers = {
     bronze = "brz"
     silver = "slv"
     gold   = "gld"
   }
 
-  region_abbreviations = {
-    eastus      = "eus"
-    eastus2     = "eus2"
-    westus2     = "wus2"
-    westeurope  = "weu"
-    northeurope = "neu"
-    uksouth     = "uks"
-    ukwest      = "ukw"
+  # ── Azure region abbreviation ──────────────────────────────────────────────
+  region_abbr = {
+    uksouth       = "uks"
+    eastus        = "eus"
+    eastus2       = "eu2"
+    westus        = "wus"
+    westus2       = "wu2"
+    westeurope    = "weu"
+    northeurope   = "neu"
+    australiaeast = "aue"
+    southeastasia = "sea"
+    centralus     = "cus"
+    canadacentral = "cac"
   }
 
-  region_abbr = lookup(local.region_abbreviations, var.azure_region, replace(var.azure_region, " ", ""))
+  abbr = lookup(local.region_abbr, var.azure_region, substr(replace(var.azure_region, "-", ""), 0, 4))
 
-  resource_group_name     = "rg-${var.workload}-${var.environment}-platform"
-  databricks_workspace    = "dbw-${var.workload}-${var.environment}"
-  key_vault_name          = substr(replace("kv-${var.workload}-${var.environment}-${local.region_abbr}", "_", ""), 0, 24)
-  secret_scope_name       = "kv-${var.environment}-scope"
-  create_layer_principals = var.layer_sp_mode == "create"
+  # ── Resource group ─────────────────────────────────────────────────────────
+  resource_group_name = "rg-${var.workload}-${var.environment}-${local.abbr}"
 
+  # ── Databricks workspace ───────────────────────────────────────────────────
+  databricks_workspace_name = "dbw-${var.workload}-${var.environment}-${local.abbr}"
+
+  # ── Key Vault (name ≤ 24 chars, alphanumeric + hyphens) ───────────────────
+  key_vault_name = substr(
+    replace("kv-${var.workload}-${var.environment}-${local.abbr}", "_", "-"),
+    0,
+    24
+  )
+
+  # ── Per-layer resource names ───────────────────────────────────────────────
+  # Storage account names: max 24 chars, lowercase alphanumeric only
   storage_account_names = {
-    for layer, abbr in local.layers :
-    layer => substr(lower("st${var.workload}${abbr}${var.environment}"), 0, 24)
+    for layer, abbr_layer in local.layers :
+    layer => lower(substr(
+      replace("st${abbr_layer}${var.workload}${var.environment}${local.abbr}", "-", ""),
+      0,
+      24
+    ))
   }
 
-  layer_catalog_names = {
-    bronze = "${var.environment}_bronze"
-    silver = "${var.environment}_silver"
-    gold   = "${var.environment}_gold"
+  # Access connector names
+  access_connector_names = {
+    for layer, abbr_layer in local.layers :
+    layer => "ac-${abbr_layer}-${var.workload}-${var.environment}-${local.abbr}"
   }
+
+  # Unity Catalog catalog names
+  catalog_names = {
+    for layer, abbr_layer in local.layers :
+    layer => "${var.environment}_${layer}"
+  }
+
+  # Unity Catalog schema names
+  schema_names = {
+    bronze = "ingestion"
+    silver = "refined"
+    gold   = "curated"
+  }
+
+  # Secret scope name (AKV-backed)
+  secret_scope_name = "kv-${var.environment}-scope"
 }

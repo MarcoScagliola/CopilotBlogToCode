@@ -1,4 +1,76 @@
 bundle:
+  name: medallion-${var.workload}-${var.environment}
+
+variables:
+  workload:
+    description: "Short workload identifier (e.g. blg)"
+  environment:
+    description: "Deployment environment (dev / prd)"
+  workspace_host:
+    description: "Databricks workspace URL"
+  workspace_resource_id:
+    description: "Azure resource ID for the Databricks workspace (used for AKV-backed secret scope)"
+
+  # Layer catalogs
+  bronze_catalog_name:
+    description: "Unity Catalog catalog name for the bronze layer"
+  silver_catalog_name:
+    description: "Unity Catalog catalog name for the silver layer"
+  gold_catalog_name:
+    description: "Unity Catalog catalog name for the gold layer"
+
+  # Layer schemas
+  bronze_schema_name:
+    description: "Unity Catalog schema name for the bronze layer"
+    default: "ingestion"
+  silver_schema_name:
+    description: "Unity Catalog schema name for the silver layer"
+    default: "refined"
+  gold_schema_name:
+    description: "Unity Catalog schema name for the gold layer"
+    default: "curated"
+
+  # Layer storage accounts
+  bronze_storage_account_name:
+    description: "Storage account name for the bronze layer"
+  silver_storage_account_name:
+    description: "Storage account name for the silver layer"
+  gold_storage_account_name:
+    description: "Storage account name for the gold layer"
+
+  # Layer Access Connector resource IDs
+  bronze_access_connector_id:
+    description: "Azure resource ID for the bronze Access Connector"
+  silver_access_connector_id:
+    description: "Azure resource ID for the silver Access Connector"
+  gold_access_connector_id:
+    description: "Azure resource ID for the gold Access Connector"
+
+  # Secret scope
+  secret_scope_name:
+    description: "Databricks secret scope name backed by Key Vault"
+
+workspace:
+  host: ${var.workspace_host}
+
+resources:
+  jobs: ../databricks-bundle/resources/jobs.yml
+
+targets:
+  dev:
+    mode: development
+    workspace:
+      host: ${var.workspace_host}
+    variables:
+      environment: dev
+
+  prd:
+    mode: production
+    workspace:
+      host: ${var.workspace_host}
+    variables:
+      environment: prd
+bundle:
   name: secure-medallion-${bundle.target}
 
 include:

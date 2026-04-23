@@ -1,101 +1,111 @@
-# SPEC - Secure Medallion Architecture on Azure Databricks (Part I)
+# SPEC — Secure Medallion Architecture on Azure Databricks
 
-## Source
+Source: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+Fetch date: 2026-04-23
 
-- https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+---
 
-## Objective
+## Architecture
 
-Implement a secure Medallion pattern on Azure Databricks where Bronze, Silver, and Gold are isolated by identity, storage, and compute. Use Terraform for Azure infrastructure and Databricks Asset Bundle for Lakeflow jobs.
+- **Pattern:** Medallion Architecture (Bronze → Silver → Gold), security-first variant.
+- **Named components and roles:**
+  - Bronze layer: raw ingestion job; reads from source systems; writes to `bronze` catalog managed tables.
+  - Silver layer: deduplication/refinement job; reads Bronze; writes to `silver` catalog managed tables.
+  - Gold layer: aggregation/serving job; reads Silver; writes to `gold` catalog managed tables.
+  - Orchestrator job: triggers Bronze → Silver → Gold sequentially via Lakeflow run_job_task.
+  - ADLS Gen2 (one storage account per layer): physical backing for Unity Catalog managed tables.
+  - Azure Databricks Access Connector (one per layer): SAMI for Unity Catalog storage credential.
+  - Azure Key Vault: runtime secrets store; accessed via AKV-backed Databricks secret scope.
+  - Unity Catalog: governance backbone; separate catalog per layer.
+  - Entra ID service principals: one per layer for job execution; least-privilege scoped to own layer.
+- **Data flow:** Scheduled batch; orchestrator triggers Bronze → Silver → Gold in sequence.
+- **Data volume / frequency / latency:** not stated in article.
 
-## Scope
+## Azure Services
 
-### Infrastructure (Terraform)
+- **Azure Data Lake Storage Gen2** (one per layer: bronze, silver, gold)
+  - Role: physical storage for UC managed tables per layer
+  - SKU: Standard LRS (not stated; LRS inferred as default)
+- **Azure Databricks workspace**
+  - Role: hosts all Lakeflow jobs and Unity Catalog metastore
+  - Tier: Premium (required for Unity Catalog)
+- **Azure Databricks Access Connector** (one per layer)
+  - Role: system-assigned managed identity bridging workspace to ADLS for UC storage credentials
+- **Azure Key Vault** (one per environment)
+  - Role: runtime secret store; AKV-backed Databricks secret scope
+  - SKU: Standard; purge protection enabled (stated implicitly by soft-delete design)
+- **Microsoft Entra ID service principals** (one per layer)
+  - Role: job execution identity per layer; least-privilege RBAC
+- **Networking posture:** not stated in article
+- **Region:** not stated in article (set to `uksouth` per run context)
+- **Redundancy:** not stated in article (LRS applied)
 
-- Resource group: platform boundary for all resources
-- Databricks workspace: Premium SKU
-- ADLS Gen2 storage accounts: one per layer (Bronze/Silver/Gold)
-- ADLS filesystems: one per layer
-- Databricks Access Connectors: one per layer
-- Key Vault: centralized secret store with RBAC enabled
-- Layer principals:
-  - `layer_sp_mode=create`: create app registrations and service principals per layer
-  - `layer_sp_mode=existing`: reuse a pre-created service principal, no Graph lookup dependency
-- RBAC assignments:
-  - Layer principal -> Storage Blob Data Contributor on its storage account
-  - Access connector identity -> Storage Blob Data Contributor on its storage account
-  - Deployment principal -> Key Vault Secrets Officer
+## Databricks
 
-### Data plane deployment (DAB)
+- **Workspace tier:** Premium (required for Unity Catalog — inferred from article)
+- **Unity Catalog:** Yes
+  - Catalogs: `{environment}_bronze`, `{environment}_silver`, `{environment}_gold`
+  - Schemas: `ingestion` (bronze), `refined` (silver), `curated` (gold)
+  - Table convention: `catalog.schema.table`
+  - Managed tables (Unity Catalog GUID-based paths in ADLS)
+  - Storage credentials via Access Connectors per layer
+  - External locations per layer (ABFSS paths on ADLS)
+- **Compute model:** Lakeflow job clusters (one dedicated cluster per layer)
+  - `data_security_mode: USER_ISOLATION` required for Unity Catalog
+  - Inferred from article: Standard_DS3_v2, 1 worker, autotermination 20 min
+- **Jobs:**
+  - `medallion-setup-{target}` — creates UC storage credentials, external locations, catalogs, schemas
+  - `bronze-layer-{target}` — ingestion; reads source; writes `bronze_catalog.ingestion.raw_events`
+  - `silver-layer-{target}` — refinement; reads bronze; writes `silver_catalog.refined.events`
+  - `gold-layer-{target}` — aggregation; reads silver; writes `gold_catalog.curated.event_summary`
+  - `medallion-orchestrator-{target}` — no-compute orchestrator; triggers above in sequence
+- **Task source format:** Python files (spark_python_task)
+- **Runtime:** 13.3.x LTS (inferred from article; Spark 3.4 / Scala 2.12)
+- **Libraries / init scripts:** not stated in article
 
-- Bronze job (raw ingestion)
-- Silver job (refinement and deduplication)
-- Gold job (curation and aggregation)
-- Orchestrator job chaining Bronze -> Silver -> Gold
-- Dedicated job cluster definition per layer task
-- Runtime parameters for catalog/schema/scope (no hardcoded environment paths)
+## Data Model
 
-### CI/CD workflows
+- **Source systems and formats:** not stated in article (sample raw_events table used)
+- **Target tables by layer:**
+  - Bronze: `{environment}_bronze.ingestion.raw_events` — raw ingest
+  - Silver: `{environment}_silver.refined.events` — deduplicated/refined
+  - Gold: `{environment}_gold.curated.event_summary` — aggregated summary
+- **Table type:** Unity Catalog managed tables (GUID paths in ADLS; stated preference)
+- **Partitioning / clustering / Z-order:** not stated in article
+- **Schema evolution:** not stated in article
+- **Data quality rules:** not stated in article
 
-- Validate Terraform workflow
-- Deploy Infrastructure workflow
-- Deploy DAB workflow
-- Artifact bridge from infra outputs to DAB variables
+## Security and Identity
 
-## Security Design
+- **Identities:** Entra ID service principals (one per layer); Access Connectors (SAMI, one per layer)
+- **Secrets:** Azure Key Vault; AKV-backed Databricks secret scope (`kv-{environment}-scope`)
+  - Rule: secrets read only at runtime via `dbutils.secrets.get`; never logged, printed, or passed as plain job params
+- **RBAC:**
+  - Layer SP → `Storage Blob Data Contributor` on own layer storage account
+  - Access Connector SAMI → `Storage Blob Data Contributor` on own layer storage account
+  - Deployment SP → `Key Vault Secrets Officer` on Key Vault
+- **Unity Catalog grants:** not stated in article (to be configured post-deployment)
+- **Network boundaries:** not stated in article
 
-1. Identity isolation
-   - Separate service principal context per layer when in create mode.
-   - Existing-mode fallback for restricted tenants that cannot create app registrations.
+## Operational Concerns
 
-2. Storage isolation
-   - Physical separation of data by storage account per layer.
+- **Monitoring:** Databricks system tables (`system.lakeflow`, `system.billing`) — stated
+- **Jobs monitoring UI:** stated
+- **Cost controls:** auto-termination (inferred from cluster design); budgets not stated
+- **CI/CD:** Part II of article series — not included in this article
+- **Backup / retention / DR:** not stated in article
 
-3. Compute isolation
-   - Dedicated job cluster definition per layer job.
+## Out-of-Scope Markers
 
-4. Secret handling
-   - Key Vault for secrets; Databricks secret scope expected post-provisioning.
-
-5. Least privilege
-   - Layer identities only receive layer-specific storage RBAC.
-
-## Naming Strategy
-
-Derived in `locals.tf` from:
-
-- `workload`
-- `environment`
-- `azure_region`
-
-Examples in this run context (`blg`, `dev`, `eastus2`):
-
-- Resource group: `rg-blg-dev-platform`
-- Databricks workspace: `dbw-blg-dev`
-- Layer storage accounts: `stblgbrzdev`, `stblgslvdev`, `stblgglddev`
-
-## Required Terraform Outputs
-
-The DAB bridge depends on these outputs:
-
-- `databricks_workspace_url`
-- `databricks_workspace_resource_id`
-- `layer_principal_client_ids`
-- `layer_storage_account_names`
-- `bronze_catalog_name`
-- `silver_catalog_name`
-- `gold_catalog_name`
-- `secret_scope_name`
+- Part II (CI/CD code and environment promotion) explicitly deferred by article
+- Cluster reusability between Lakeflow jobs: noted as a "known challenge" for Part II
+- Detailed cluster policy definitions: referenced but not specified
 
 ## Assumptions
 
-- GitHub environment `BLG2CODEDEV` contains all required Azure credentials.
-- Deployment principal already has sufficient Azure RBAC to create resources and assignments.
-- Unity Catalog resources (catalogs/schemas/external locations) are completed post-provisioning.
-- Databricks service principal entitlements and workspace assignments are completed where required.
-
-## Out of Scope
-
-- Production network hardening (private endpoints, VNet injection) beyond this baseline.
-- Full Unity Catalog object provisioning via Terraform.
-- Source-system connector secrets and ingestion logic specifics.
+- `layer_sp_mode=existing`: single deployment principal used for all layer identities in this run
+- Terraform default variable `key_vault_recover_soft_deleted=true` for safe initial deployment
+- LRS replication applied to all storage accounts
+- Region: `uksouth` per run context
+- Spark runtime: 13.3.x LTS
+- Node type: Standard_DS3_v2, 1 worker

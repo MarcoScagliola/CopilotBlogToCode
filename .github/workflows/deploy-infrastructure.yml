@@ -20,7 +20,7 @@ on:
       azure_region:
         description: Azure region for Terraform deployment
         required: true
-        default: eastus2
+        default: uksouth
       key_vault_recovery_mode:
         description: Key Vault soft-delete handling mode
         required: true

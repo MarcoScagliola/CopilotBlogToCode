@@ -1,12 +1,12 @@
 ---
 name: blog-to-databricks-iac
-description: Use this skill when the user provides a blog/article URL describing an Azure data architecture based on Databricks and wants deployment-ready infrastructure generated from it. Produces Terraform (Azure), Databricks Asset Bundles, GitHub Actions workflows, and deployment docs. Triggers include "turn this blog into Terraform", "generate IaC from this article", "bootstrap a Databricks project from …". Do NOT use for: modifying existing IaC, pure Terraform-only requests, or Databricks work that doesn't start from a blog/article.
+description: Use this skill when the user provides a blog/article URL describing an Azure data architecture based on Databricks and wants deployment-ready infrastructure generated from it. Produces Terraform (Azure), Declarative Automation Bundles (DAB), GitHub Actions workflows, and deployment docs. Triggers include "turn this blog into Terraform", "generate IaC from this article", "bootstrap a Databricks project from …". Do NOT use for: modifying existing IaC, pure Terraform-only requests, or Databricks work that doesn't start from a blog/article.
 ---
 
 # Blog to Terraform and Databricks DAB
 
 ## Overview
-Converts a technical article into deployment-ready infrastructure code: Terraform for Azure resources and Databricks Declarative Automation Bundles for jobs/clusters. Produces SPEC.md, TODO.md, code, and README with assumptions.
+Converts a technical article into deployment-ready infrastructure code: Terraform for Azure resources and Databricks Declarative Automation Bundles (DAB) for jobs/clusters. Produces SPEC.md, TODO.md, code, and README with assumptions.
 Deploy only the minimal required resources in Terraform for the use case described in the article.
 
 ## Detailed Operational Reference
@@ -23,14 +23,11 @@ Keep this SKILL concise and procedural. Keep detailed learnings in the reference
 5. `README.md` – deployment guide
 6. Execution plan prompt under `.github/prompts/` with the execution date appended to filename
 
-## Implementation Steps
+## Inputs
+Collect the following values before proceeding. If the request
+already contains them, use them directly. If any required value is missing from the request, ask the user for it before continuing to Implementation Steps.
 
-### 0. Collect run parameters
-
-**Agent action:** Collect the following values before proceeding. If the request
-already contains them, use them directly.
-
-**User inputs required:**
+### Required from user
 | Parameter | Description | Example |
 |---|---|---|
 | `workload` | Short identifier for the workload, derived from the blog/project name | `blg`, `myapp`, `etl` |
@@ -47,7 +44,7 @@ already contains them, use them directly.
 
 Store these as the active run context. Reference them as `{workload}`, `{environment}`, `{azure_region}`, `{github_environment}`, `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`, `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}` throughout all subsequent steps.
 
-**Defaults (apply when user does not provide):**
+### Defaults
 - `github_environment`: derive a default as `{WORKLOAD_UPPER}-{ENVIRONMENT_UPPER}` (e.g. workload `blg` + environment `dev` -> `BLG-DEV`)
 - `tenant_secret_name`: default to `AZURE_TENANT_ID`
 - `subscription_secret_name`: default to `AZURE_SUBSCRIPTION_ID`
@@ -57,7 +54,7 @@ Store these as the active run context. Reference them as `{workload}`, `{environ
 - `existing_layer_sp_client_id_secret_name`: default to `EXISTING_LAYER_SP_CLIENT_ID`
 - `existing_layer_sp_object_id_secret_name`: default to `EXISTING_LAYER_SP_OBJECT_ID`
 
-**Agent notes:**
+### Input constraints
 - Keep secret naming configurable. Do not assume organization-specific secret names.
 - Existing-layer principal secrets are only required when `layer_sp_mode=existing`.
 - Object ID secrets must be **Service Principal (Enterprise Application) object IDs**. Do not use App Registration object IDs.
@@ -67,22 +64,51 @@ Store these as the active run context. Reference them as `{workload}`, `{environ
 	- `{existing_layer_sp_client_id_secret_name}` can point to the same value as `{client_id_secret_name}`.
 	- `{sp_object_id_secret_name}` and `{existing_layer_sp_object_id_secret_name}` should both use the object ID of that same principal.
 
+## Implementation Steps
+
 ### 1. Fetch article
 ```bash
 python .github/skills/blog-to-databricks-iac/scripts/fetch_blog.py "<URL>"
 ```
-If fetch fails, stop and return the fetch error output. In addition to the content analyse also all images and code snippets in the article to extract any relevant information for the implementation.
+If fetch fails, stop and return the fetch error output. Do not retry; surface the error to the user and wait for guidance. 
 
-### 2 Save execution plan prompt
-Before generating code, create and save the execution plan in `.github/prompts/` as:
-`plan-blogToDatabricksIac-YYYY-MM-DD-HHmmss.prompt.md`
+### 2. Analyse article
+Analyse the fetched article against the structured checklist in
+`.github/skills/blog-to-databricks-iac/references/blog-analysis-checklist.md`.
+The analysis covers the article text, diagrams, screenshots, and code
+snippets.
+
+Write the analysis to `SPEC.md` at the repository root. `SPEC.md` is the
+authoritative architecture summary for this run and is consumed by every
+subsequent generation step.
 
 Rules:
-- The file must contain the current execution plan content only (no YAML frontmatter).
-- Always append the execution date in `YYYY-MM-DD` format.
-- Keep only 3 full execution plan files in total, delete older ones if necessary.
+- For every checklist item, record either a stated value from the article or
+  the literal string `not stated in article`. Do not invent defaults, and do
+  not omit items.
+- Mark values inferred from diagrams or code snippets (rather than stated in
+  prose) as `inferred from <source>`, e.g. `inferred from code snippet`,
+  `inferred from architecture diagram`.
+- Preserve names used in the article (resource names, table names, job
+  names) where compatible with the naming conventions defined in the Terraform 
+	skill loaded in step 3. Where a name must be transformed to be compatible, record the
+  original and the transformed name side by side.
+- Aim for one to three bullets per checklist item. Prefer precise short
+  entries over prose.
+- Do not include content outside the checklist structure. If the article
+  mentions something interesting but not covered by the checklist, add it to
+  a final "Other observations" section rather than scattering it through the
+  main sections.
 
-### 3 Generate validation workflow dynamically
+Every `not stated in article` entry in `SPEC.md` must appear as a TODO.md
+item when step 8 generates TODO.md. Step 8 depends on this mapping; do not
+resolve `not stated` values here by guessing.
+
+### 3. Apply Terraform code generation best practices
+Before generating or validating Terraform code, load and apply the principles from `.github/skills/terraform/SKILL.md`.
+
+
+### 4. Generate validation workflow dynamically
 Before generating Terraform/DAB code, create (or refresh) `.github/workflows/validate-terraform.yml` by running:
 
 ```bash
@@ -93,7 +119,7 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_validate_wor
 	--subscription-secret "{subscription_secret_name}"
 ```
 
-### 4 Generate infrastructure deploy workflow dynamically
+### 5. Generate infrastructure deploy workflow dynamically
 Create (or refresh) `.github/workflows/deploy-infrastructure.yml` by running:
 
 ```bash
@@ -129,7 +155,7 @@ Repeatability and restricted-tenant guardrails (mandatory):
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`.
 It also uploads a `deploy-context` artifact that records the intended DAB target, environment, and source commit SHA for downstream deployment.
 
-### 5 Generate DAB deploy workflow dynamically
+### 6. Generate DAB deploy workflow dynamically
 Create (or refresh) `.github/workflows/deploy-dab.yml` by running:
 
 ```bash
@@ -156,7 +182,7 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
-### 6 Generate DAB jobs bundle dynamically
+### 7. Generate DAB jobs bundle dynamically
 Create (or refresh) `databricks-bundle/resources/jobs.yml` by running:
 
 ```bash
@@ -166,22 +192,14 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.
 
 This file is a generated artifact. Keep the source of truth in the generator script, not in manual edits to `jobs.yml`.
 
-### 7 Apply Terraform code generation best practices
-Before generating or validating Terraform code, load and apply the principles from `.github/skills/terraform/SKILL.md`.
 
-### 8. Validate output
-- **DAB**: syntactically valid, uses placeholders for unknowns
-- **TODO**: only unresolved values
-- **Separation**: no Terraform resources in DAB, no jobs/notebooks in Terraform
-- **Code**: production-ready, no fictional values, assumptions explicit
-
-### 9. Generate README and TODO from templates
+### 8. Generate README and TODO from templates
 
 Use the templates in `.github/skills/blog-to-databricks-iac/templates/`:
 - `README.md.template` -> `README.md`
 - `TODO.md.template` -> `TODO.md`
 
-Replace placeholders with run context values (from step 0), then write final files to repository root.
+Replace placeholders with run context values from ## Inputs, then write final files to repository root.
 
 Rules:
 - Do not leave unresolved placeholders in output files.
@@ -189,28 +207,118 @@ Rules:
 - Do not include credentials, connection strings, or subscription IDs in `README.md`.
 - Keep template details in templates/references, not in this SKILL file.
 
-### 10. Mandatory correctness validation before completion
-Run all checks below before declaring generation complete:
+### 9. Validate output before declaring generation complete
 
-1. Python compile checks on generator scripts, DAB deploy bridge script, and medallion Python scripts.
-2. Terraform checks:
-	- `terraform -chdir=infra/terraform init -backend=false`
-	- `terraform -chdir=infra/terraform validate`
-3. YAML parse checks for workflows and DAB YAML files.
-4. Generator runtime checks by executing workflow generators and confirming file regeneration succeeds.
-5. Functional test run: execute an end-to-end functional test and report the result.
-	- Minimum acceptance: run the medallion flow (orchestrator job) and verify Bronze/Silver/Gold target tables are created/updated.
-	- If execution is blocked by environment prerequisites, document exactly what is missing and add clear run instructions in `TODO.md`.
+This step has three parts. All of it must pass before the skill reports
+completion.
 
-Mandatory guardrails:
-- Generated workflows must resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
-- In `layer_sp_mode=existing`, generated workflow logic must support fallback to deployment principal values.
-- In `layer_sp_mode=existing`, Terraform must avoid Graph-dependent principal lookups and use provided service principal object IDs directly.
-- Terraform outputs must include both `databricks_workspace_url` and `databricks_workspace_resource_id` for the DAB bridge.
-- Keep Databricks bundle configuration schema-valid: avoid unsupported fields under `targets.<env>.workspace` and prefer setting Databricks Azure auth context through environment variables in the deploy bridge.
-- DAB layer scripts must not hardcode environment-specific table paths; pass catalog/schema via task parameters.
-- `databricks-bundle/databricks.yml` must include `resources/*.yml` so bundle resources are deployed (no no-op success).
-- `databricks-bundle/resources/jobs.yml` must be generated from `.github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.py`, and the DAB deploy bridge must refresh it before `databricks bundle deploy`.
-- In `databricks-bundle/resources/jobs.yml`, `spark_python_task.python_file` paths must be relative to the resources file location (for example `../src/<layer>/main.py`).
-- Every Spark task in DAB jobs must define compute via one of: `job_cluster_key`, `existing_cluster_id`, `new_cluster`, or `environment_key`.
-- AzureRM provider `features.key_vault.recover_soft_deleted_key_vaults` must be configurable through a Terraform variable (for example `var.key_vault_recover_soft_deleted`), and the deploy workflow must set it per run using `key_vault_recovery_mode` (`auto`, `recover`, `fresh`) with auto-detection via `az keyvault list-deleted`.
+#### 9.1 Acceptance criteria
+
+The generated output must satisfy the following properties. Each is paired
+with the verification in 9.2 that proves it.
+
+| # | Criterion | Verified by |
+|---|---|---|
+| A | DAB is syntactically valid and uses placeholders for values that could not be determined from the article. | 9.2.3 (YAML parse), 9.2.4 (generator runtime) |
+| B | `TODO.md` contains only unresolved values and post-deployment actions — no duplication of content that appears in `README.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
+| C | Concerns are separated: no Terraform resources defined inside the DAB, no Databricks jobs or notebooks defined inside Terraform. | 9.2.6 (manual inspection) |
+| D | Generated code is production-ready. No fictional resource IDs, no placeholder subscription IDs, no `example.com` hostnames. Every assumption made by the skill is recorded in `TODO.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
+| E | Architectural invariants from 9.3 hold for every relevant generated file. | 9.2.5 (invariant checks) |
+
+#### 9.2 Verification commands
+
+Report pass/fail for each. If any required check fails, stop and report the failures; do not archive until they are resolved.
+
+1. **Python compile.** Run `python -m py_compile` on every generator script,
+   the DAB deploy bridge script, and every medallion Python script.
+2. **Terraform static checks.**
+   - `terraform -chdir=infra/terraform init -backend=false`
+   - `terraform -chdir=infra/terraform validate`
+3. **YAML parse.** Parse every file under `.github/workflows/` and every
+   `*.yml` file under `databricks-bundle/` using a YAML parser. Any parse
+   error is a failure.
+4. **Generator runtime.** Execute each workflow generator and confirm file
+   regeneration succeeds without error and produces a non-empty file.
+5. **Invariant checks.** Run the automated checks in 9.3. Each item marked
+   "verified at validation" must have a corresponding check here.
+6. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading
+   the generated files. Record findings in the execution record
+   (step 10).
+7. **Functional test (optional, environment-permitting).** Run the
+   end-to-end medallion flow via the orchestrator job. Verify Bronze,
+   Silver, and Gold target tables are created or updated. If the run is
+   blocked by environment prerequisites, document exactly what is missing
+   in `TODO.md` and mark this check as deferred — do not mark it failed.
+
+#### 9.3 Architectural invariants
+
+Each invariant is labelled by where it is enforced: **generation-time** means
+the relevant generator or template must produce code that satisfies it and
+validation does not re-check it; **validation-time** means 9.2 must contain
+a check that proves the invariant holds on the generated output.
+
+Workflow and credentials (generation-time, enforced by workflow generators):
+- Generated workflows resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
+- When `layer_sp_mode=existing`, generated workflow logic falls back to
+  deployment principal values where existing-layer values are unset.
+
+Terraform (validation-time):
+- `outputs.tf` exports both `databricks_workspace_url` and
+  `databricks_workspace_resource_id`. Check: grep both names in
+  `infra/terraform/outputs.tf`.
+- When `layer_sp_mode=existing`, Terraform contains no Graph-dependent
+  principal lookups.
+
+```bash
+  grep -rE 'data[[:space:]]+"azuread_' infra/terraform/
+```
+
+  Expected: no matches.
+- AzureRM provider `features.key_vault.recover_soft_deleted_key_vaults` is
+  driven by a Terraform variable (e.g. `var.key_vault_recover_soft_deleted`),
+  not hardcoded. Check: grep the provider block.
+
+DAB bundle (validation-time):
+- `databricks-bundle/databricks.yml` includes `resources/*.yml`. Check:
+  grep for `include:` followed by `resources/*.yml`.
+- `databricks-bundle/resources/jobs.yml` was produced by
+  `generate_jobs_bundle.py` in this run (not hand-edited). Check: compare
+  file hash to the generator output.
+- Every `spark_python_task.python_file` in `jobs.yml` is a relative path
+  from the resources file location (e.g. `../src/<layer>/main.py`).
+  Check: parse `jobs.yml` and verify every python_file entry starts with `../`.
+- Every Spark task in `jobs.yml` defines compute via exactly one of
+  `job_cluster_key`, `existing_cluster_id`, `new_cluster`, or
+  `environment_key`. Check: parse `jobs.yml` and assert exactly-one.
+
+DAB bundle (generation-time, enforced by bundle generator):
+- DAB layer scripts do not hardcode environment-specific table paths;
+  catalog and schema are passed via task parameters.
+- `targets.<env>.workspace` in `databricks.yml` contains only
+  schema-supported fields; Databricks Azure auth context is set via
+  environment variables in the deploy bridge, not in the bundle config.
+
+Deploy workflow (generation-time, enforced by deploy-infrastructure generator):
+- `key_vault_recovery_mode` input accepts `auto`, `recover`, `fresh`, and
+  auto-detection uses `az keyvault list-deleted`.
+
+### 10. Archive execution record
+
+After validation completes, create `.github/prompts/plan-blogToDatabricksIac-YYYY-MM-DD-HHmmss.prompt.md`
+(timestamp reflects run start).
+
+Contents:
+- Resolved Inputs (workload, environment, region, github_environment, secret
+  names, `layer_sp_mode`)
+- Source blog URL and fetch timestamp
+- Path to SPEC.md and summary of architecture decisions
+- List of generated artifacts with relative paths
+- Validation results: which checks from step 9 passed, which were skipped, and why
+- Unresolved items deferred to TODO.md (counts and section headings)
+
+Rules:
+- No YAML frontmatter in the file.
+- Timestamp format: `YYYY-MM-DD-HHmmss`, UTC, reflecting run start.
+- Retain only the 3 most recent prompt files in `.github/prompts/` by filename
+  timestamp; delete older ones.
+- Do not include credentials, secret values, or subscription IDs.

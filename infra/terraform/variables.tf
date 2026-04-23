@@ -1,77 +1,77 @@
+# ── Core deployment parameters ─────────────────────────────────────────────────
+
 variable "workload" {
-  description = "Short workload identifier used in resource names."
+  description = "Short workload identifier used in resource names (e.g. blg)."
   type        = string
-  default     = "blg"
 }
 
 variable "environment" {
-  description = "Deployment environment."
+  description = "Deployment environment identifier (e.g. dev, prd)."
   type        = string
-  default     = "dev"
-
-  validation {
-    condition     = contains(["dev", "tst", "prd"], var.environment)
-    error_message = "environment must be one of: dev, tst, prd."
-  }
 }
 
 variable "azure_region" {
-  description = "Azure region where resources are deployed."
-  type        = string
-  default     = "eastus2"
-}
-
-variable "azure_tenant_id" {
-  description = "Azure tenant ID for provider authentication."
+  description = "Azure region for all resources (e.g. uksouth)."
   type        = string
 }
 
-variable "azure_subscription_id" {
-  description = "Azure subscription ID for provider authentication."
+# ── Authentication ─────────────────────────────────────────────────────────────
+
+variable "subscription_id" {
+  description = "Azure subscription ID."
   type        = string
+  sensitive   = true
 }
 
-variable "azure_client_id" {
-  description = "Deployment service principal client ID (application ID)."
+variable "tenant_id" {
+  description = "Azure tenant ID."
   type        = string
+  sensitive   = true
 }
 
-variable "azure_sp_object_id" {
-  description = "Deployment service principal object ID (Enterprise Applications object ID)."
+variable "deployment_sp_object_id" {
+  description = "Object ID of the deployment service principal. Used to grant Key Vault access."
   type        = string
+  sensitive   = true
 }
+
+# ── Layer service principals (existing mode) ───────────────────────────────────
 
 variable "layer_sp_mode" {
-  description = "Layer principal mode: create new principals or reuse existing ones."
+  description = "How layer service principals are managed. 'existing' = provided externally; 'create' = created by Terraform."
   type        = string
-  default     = "create"
+  default     = "existing"
 
   validation {
-    condition     = contains(["create", "existing"], var.layer_sp_mode)
-    error_message = "layer_sp_mode must be either 'create' or 'existing'."
+    condition     = contains(["existing", "create"], var.layer_sp_mode)
+    error_message = "layer_sp_mode must be 'existing' or 'create'."
   }
 }
 
 variable "existing_layer_sp_client_id" {
-  description = "Client ID for an existing reusable layer principal (required in existing mode)."
+  description = "Client ID of the pre-existing service principal used for layer jobs (required when layer_sp_mode=existing)."
   type        = string
   default     = ""
+  sensitive   = true
 }
 
 variable "existing_layer_sp_object_id" {
-  description = "Object ID for an existing reusable layer principal (required in existing mode)."
+  description = "Object ID of the pre-existing service principal used for layer jobs (required when layer_sp_mode=existing)."
   type        = string
   default     = ""
+  sensitive   = true
 }
 
+# ── Feature flags ──────────────────────────────────────────────────────────────
+
 variable "enable_access_connectors" {
-  description = "Whether to create Databricks access connectors and connector RBAC assignments."
+  description = "Create Azure Databricks Access Connectors (required for Unity Catalog)."
   type        = bool
   default     = true
 }
 
 variable "key_vault_recover_soft_deleted" {
-  description = "Enable Key Vault soft-deleted vault recovery in provider features for this run."
+  description = "Whether the AzureRM provider should recover soft-deleted Key Vaults instead of failing."
   type        = bool
   default     = true
 }
