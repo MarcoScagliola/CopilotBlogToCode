@@ -84,7 +84,16 @@ When generating code for different operational modes or constraints:
   ```
 - **Document both paths**: In README.md and variables.tf, explain what each mode does and why a user might choose one over the other.
 
-### 8. Documentation and Outputs
+### 8. Iteration Shape vs. Resource Identity
+When using `for_each` or `count` to create multiple instances of a resource, ensure that the values being iterated actually produce distinct resource identities at the cloud provider:
+
+- **Identify the provider's identity tuple** for each resource type. For role assignments this is typically `(scope, role, principal)`; for storage objects it may be `(account, container, name)`; for DNS records `(zone, name, type)`.
+- **Ensure the iteration varies at least one component of that tuple.** If every `for_each` instance produces the same identity tuple, all instances collide on a single cloud-side resource. Terraform will create one successfully and fail the rest with a "resource already exists" error.
+- **When the iterating dimension does not actually vary identity, drop the iteration.** A single resource is the right shape, even if it feels asymmetric with neighboring iterating resources.
+- **Compute the identity-varying component explicitly** (e.g. `each.value.principal_object_id` rather than a shared `var.principal_id`) so the divergence is visible in code review.
+- **Document why iteration is safe** when the answer isn't obvious — a one-line comment on the `for_each` explaining which dimension makes each instance unique.
+
+### 9. Documentation and Outputs
 Generated code must be self-documenting:
 
 - **Include comments** explaining non-obvious resource configurations, especially when they reflect provider compatibility decisions.
@@ -157,6 +166,14 @@ Address these common Terraform deployment error categories in generated code:
 - When reusing existing identities, avoid mandatory Microsoft Graph reads during apply (for example data-source lookups that require directory read permissions); prefer direct use of provided service principal object IDs for RBAC assignments
 - Add notes in README.md about restricted-tenant workarounds
 
+### Iteration Collisions on Shared Identity (Resource Already Exists)
+**Error**: Multiple `for_each` or `count` instances of the same resource fail at apply time with "already exists" / 409 / 409 Conflict, where the existing resource ID matches the one another iteration produced. The first instance creates the cloud resource; the rest collide on the same resource identity.
+**Prevention**:
+- When using `for_each` to create per-environment, per-layer, or per-tenant resources that depend on an identity (principal, IAM role, account), confirm the identity actually varies per iteration. If `principal_id` (or its equivalent) is the same expression for every `for_each` instance, the iterations collide.
+- If the identity is shared by design (one principal serving all layers), drop the `for_each` and create a single resource. Iteration is the wrong shape when the iterating dimension does not vary identity.
+- If the design genuinely requires per-iteration identities, ensure the iteration source (`local.layers`, `local.environments`, etc.) carries a distinct identity per entry, and reference it via `each.value.<identity_field>` rather than a top-level `var.*`.
+- Symptom to watch for: identical resource IDs reported in the error message across multiple `for_each` keys, or a refresh phase that shows the same ID under a different `for_each` key than the one currently failing.
+
 ### Provider Behavior Mismatches (Data Plane Auth, Polling)
 **Error**: Provider control-plane expects one auth method but data-plane uses another; provider still uses legacy auth during resource polling.
 **Prevention**:
@@ -204,6 +221,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] Conditional resources use `for_each` with conditions computed in `locals.tf`
 - [ ] No hardcoded credentials or secrets in code
 - [ ] Deprecated provider properties avoided
+- [ ] `for_each` and `count` iterations vary at least one component of the resulting resource's identity tuple
 
 **Error Prevention and Compatibility**
 - [ ] Deployment-safe defaults used for security-sensitive properties (with migration path to stricter settings)
