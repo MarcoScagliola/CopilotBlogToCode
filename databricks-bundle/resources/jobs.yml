@@ -1,11 +1,4 @@
-from __future__ import annotations
-
-import argparse
-from pathlib import Path
-
-
-def build_jobs_yaml() -> str:
-    return """resources:
+resources:
   jobs:
     setup_job:
       name: medallion-setup-${bundle.target}
@@ -212,27 +205,3 @@ def build_jobs_yaml() -> str:
             - task_key: run_gold
           run_job_task:
             job_id: ${resources.jobs.smoke_test_job.id}
-"""
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Generate databricks-bundle/resources/jobs.yml"
-    )
-    parser.add_argument(
-        "--output",
-        default="databricks-bundle/resources/jobs.yml",
-        help="Output path for generated DAB jobs YAML.",
-    )
-    args = parser.parse_args()
-
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(build_jobs_yaml(), encoding="utf-8")
-
-    print(f"Generated jobs bundle: {output}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
