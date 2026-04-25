@@ -1,6 +1,6 @@
 ---
 name: databricks-asset-bundle
-description: "Create, update, or review a Databricks Asset Bundle. Use when designing bundle structure, authoring jobs.yml, Python entrypoints, bundle variables, spark_python_task jobs, run_job_task orchestrators, environment targets, or mapping infrastructure outputs into bundle deployment variables. Delegates databricks.yml authoring to the .github\skills\databricks-asset-bundle\databricks-yml-authoring.md skill."
+description: "Create, update, or review a Databricks Asset Bundle. Use when designing bundle structure, authoring jobs.yml, bundle variables, spark_python_task jobs, run_job_task orchestrators, environment targets, or mapping infrastructure outputs into bundle deployment variables. Delegates databricks.yml authoring to the databricks-yml-authoring skill, and Python entrypoint authoring to the python-entrypoints skill."
 ---
 
 # Databricks Asset Bundle
@@ -9,9 +9,8 @@ description: "Create, update, or review a Databricks Asset Bundle. Use when desi
 This skill captures general guidance for creating and maintaining a Databricks Asset Bundle (DAB).
 
 Use this skill when:
-- coordinating bundle-wide changes (`databricks.yml` authoring itself is delegated to the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill)
+- coordinating bundle-wide changes (artifact-specific authoring is delegated to leaf skills, see `## Delegated Skills`)
 - creating or updating `resources/jobs.yml`
-- creating or updating Python entrypoints under `src/`
 - defining bundle variables and deployment targets
 - wiring infrastructure outputs into bundle deployment variables
 - designing orchestration with `run_job_task`
@@ -22,7 +21,9 @@ This skill is intentionally generic. Adapt it to the current repository structur
 ## Delegated Skills
 Some concerns within a bundle have their own dedicated skill and should be handled there rather than in this skill.
 
-- **`.github\skills\databricks-asset-bundle\databricks-yml-authoring.md`**: owns authoring of `databricks.yml` itself — bundle name, `include:` directives, variable declarations, target definitions, and workspace/auth configuration. Load this skill whenever the task creates or modifies `databricks.yml`. This skill (the broader asset-bundle skill) remains the router: use it to determine scope and sequencing, then defer `databricks.yml` work to `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md`.
+- **`databricks-yml-authoring`**: owns authoring of `databricks.yml` itself — bundle name, `include:` directives, variable declarations, target definitions, and workspace/auth configuration. Load this skill whenever the task creates or modifies `databricks.yml`. This skill (the broader asset-bundle skill) remains the router: use it to determine scope and sequencing, then defer `databricks.yml` work to `databricks-yml-authoring`.
+
+- **`python-entrypoints`**: owns authoring of individual Python entrypoint files (typically `src/<job>/main.py`). Load this skill whenever an entrypoint file is created or modified. Covers file structure, argparse contracts, secret handling, object-name construction, and the singleton rule that prevents duplicate-`main` regressions.
 
 Return to this skill after the delegated work is complete, for tasks that span multiple artifacts (resource files, entrypoints, parameter-flow review).
 
@@ -54,11 +55,9 @@ A common bundle structure looks like this:
 databricks-bundle/
   databricks.yml
   resources/
-    jobs.yml
+    *.yml
   src/
-    <job-a>/main.py
-    <job-b>/main.py
-    <job-c>/main.py
+    <job>/main.py
 ```
 
 If the current repo uses different folder names, preserve the repo's existing structure rather than forcing this layout.
@@ -66,7 +65,7 @@ If the current repo uses different folder names, preserve the repo's existing st
 ## Bundle Contract
 
 ### databricks.yml
-Authoring `databricks.yml` is delegated to the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill. Load that skill whenever `databricks.yml` is created or modified — it covers bundle name, `include:` directives, variable declarations, target definitions, workspace/auth configuration, and the constraints around fields that do not support variable interpolation.
+Authoring `databricks.yml` is delegated to the `databricks-yml-authoring` skill. Load that skill whenever `databricks.yml` is created or modified — it covers bundle name, `include:` directives, variable declarations, target definitions, workspace/auth configuration, and the constraints around fields that do not support variable interpolation.
 
 From this skill's perspective, treat `databricks.yml` as the declaration layer that:
 - lists the bundle's runtime variables
@@ -78,10 +77,10 @@ The responsibilities of this skill that touch `databricks.yml` are coordination 
 - ensuring environment-specific values are declared as variables rather than hardcoded in jobs or code
 - ensuring target names used elsewhere exist in that file
 
-Do not duplicate `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` guidance here.
+Do not duplicate `databricks-yml-authoring` guidance here.
 
 ### Targets
-Targets commonly represent environments such as `dev`, `test`, or `prd`. Authoring rules for targets within `databricks.yml` (structure, `mode`, `default: true` placement, per-target workspace configuration) live in the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill. The guidance below covers how targets relate to the rest of the bundle.
+Targets commonly represent environments such as `dev`, `test`, or `prd`. Authoring rules for targets within `databricks.yml` (structure, `mode`, `default: true` placement, per-target workspace configuration) live in the `databricks-yml-authoring` skill. The guidance below covers how targets relate to the rest of the bundle.
 
 General guidance:
 1. Development targets can use `mode: development`.
@@ -106,26 +105,16 @@ Guidance:
 4. Prefer simple, readable task graphs over deeply nested orchestration.
 
 ## Python Entrypoints
-Python entrypoints under `src/` should be small runtime units with clear argument contracts.
+Authoring of individual entrypoint files is delegated to the `python-entrypoints` skill. Load that skill whenever an entrypoint is created or modified — it covers file structure, argparse contracts, secret handling, object-name construction, and the singleton rule that prevents duplicate-`main` regressions.
 
-Recommended patterns:
-1. Parse arguments explicitly with `argparse`.
-2. Build fully qualified object names from arguments rather than hardcoding them.
-3. Read secrets at runtime through Databricks secret utilities if needed.
-4. Keep transforms deterministic and idempotent when possible.
+From this skill's perspective, treat entrypoints as leaves in the job graph:
+- they receive arguments from their resource file's parameter list
+- they perform a single bounded unit of work (ingest, transform, aggregate, audit)
+- they never orchestrate other jobs (orchestration belongs in resource files via `run_job_task`)
 
-Common categories of entrypoints:
-- ingestion jobs
-- transformation jobs
-- aggregation jobs
-- orchestration checkpoint or audit jobs
+Secret handling is part of the entrypoint authoring contract and is covered in the `python-entrypoints` skill. At the bundle level, ensure secrets never appear in `databricks.yml`, in `resources/*.yml` task parameters, or in any repository file, and keep secret key names consistent across environments.
 
-### Secret Handling
-If a job needs secrets:
-1. Read them at runtime.
-2. Do not print or log secret values.
-3. Do not hardcode secrets in the bundle, repository, or task parameters.
-4. Keep secret key names consistent across environments.
+Do not duplicate `python-entrypoints` guidance here.
 
 ## Parameter Flow
 One of the most important bundle design concerns is keeping parameter flow consistent across layers.
@@ -138,13 +127,13 @@ Every runtime value should be traceable through this chain:
 5. runtime object naming or logic
 
 Whenever a variable changes name, verify all affected layers:
-- bundle variable definitions in `databricks.yml` (authored per the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill)
+- bundle variable definitions in `databricks.yml` (authored per the `databricks-yml-authoring` skill)
 - `jobs.yml` parameter lists
-- Python entrypoint argument parsing
+- Python entrypoint argument parsing (authored per the `python-entrypoints` skill)
 - deployment bridge scripts
 - documentation
 
-The `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill contains a downstream-consistency check (Step 5 of its procedure) that is the canonical place to enforce variable-name parity. Trigger it whenever a variable is renamed, added, or removed anywhere in the chain.
+The `databricks-yml-authoring` skill contains a downstream-consistency check (Step 5 of its procedure) that is the canonical place to enforce variable-name parity. Trigger it whenever a variable is renamed, added, or removed anywhere in the chain.
 
 ## Infrastructure Output Mapping
 Many repositories deploy the bundle using values emitted by infrastructure code.
@@ -166,7 +155,7 @@ If the repo contains a deployment bridge script, keep it aligned with both:
 - the infrastructure output names
 - the variable names in `databricks.yml`
 
-When bridge changes add, rename, or remove `--var` flags, load the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill to update the variable declarations in `databricks.yml` accordingly. Bridge and bundle variable sets must stay in one-to-one correspondence.
+When bridge changes add, rename, or remove `--var` flags, load the `databricks-yml-authoring` skill to update the variable declarations in `databricks.yml` accordingly. Bridge and bundle variable sets must stay in one-to-one correspondence.
 
 ## Deployment Model
 A bundle can be deployed in different ways. This skill supports both common patterns:
@@ -186,25 +175,24 @@ If the repo uses split workflows:
 2. Bundle stage should consume that artifact rather than re-running infrastructure logic.
 3. Authentication for bundle deploy should be consistent with the repository's preferred model.
 
-## Authoring Rules
-When creating or changing a Databricks Asset Bundle:
+## Bundle-Wide Principles
+These principles apply across all bundle artifacts. Specific authoring rules live in the relevant leaf skill.
 
-1. Keep job definitions declarative in `jobs.yml`.
-2. Keep environment-specific values out of Python code.
-3. Prefer catalog/schema-qualified names over implicit defaults.
-4. Prefer deterministic write behavior for transform and aggregate jobs.
-5. Use append only when the semantics genuinely require incremental ingestion.
-6. Keep Python entrypoints focused; avoid mixing orchestration with business transformation logic.
-7. Keep bundle variables, deployment bridge mapping, and docs aligned.
-8. Preserve the repo's existing naming conventions unless the task explicitly requires renaming.
+1. Job definitions are declarative, expressed in `jobs.yml` rather than Python.
+2. Environment-specific values flow through bundle variables, not hardcoded literals.
+3. Object names are catalog/schema-qualified rather than relying on implicit defaults.
+4. Transform and aggregate jobs default to deterministic write behavior; append is opt-in for genuine incremental ingestion.
+5. Entrypoints are leaves: focused on one unit of work, not orchestration.
+6. Bundle variables, deployment bridge mappings, and documentation stay aligned.
+7. The repo's existing naming conventions are preserved unless the task explicitly requires renaming.
 
 ## Required Review Checklist
 Before considering bundle changes complete, verify:
 
-1. `databricks.yml` has been reviewed against the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill's review checklist (singleton top-level keys, literal bundle name, no `${var.*}` in auth fields, no `resources.jobs: <string>`, variable parity with downstream consumers).
+1. `databricks.yml` has been reviewed against the `databricks-yml-authoring` skill's review checklist (singleton top-level keys, literal bundle name, no `${var.*}` in auth fields, no `resources.jobs: <string>`, variable parity with downstream consumers).
 2. `resources/jobs.yml` references valid relative entrypoint paths.
-3. All parameters passed in `jobs.yml` match the Python entrypoint arguments.
-4. Secret usage is runtime-only and does not leak into logs or repository files.
+3. Each modified entrypoint has been reviewed against the `python-entrypoints` skill's review checklist (singleton structure, argparse parity with its resource file, runtime-only secret handling).
+4. The parameter chain is consistent end-to-end: bundle variables in `databricks.yml` → `${var.*}` references in `resources/jobs.yml` → argparse arguments in entrypoints.
 5. Infrastructure output names expected by the deployment bridge still exist.
 6. Workflow changes still preserve the intended infra-to-bundle handoff.
 7. The bundle remains consistent across all targets.
@@ -218,4 +206,6 @@ Use this skill for tasks such as:
 - converting from a single deployment workflow to split workflows
 - coordinating multi-file changes where `databricks.yml`, `resources/*.yml`, and entrypoints must move together
 
-Tasks that also modify `databricks.yml` (adding or removing bundle variables, renaming variables, adjusting targets, changing `include:` paths, changing workspace/auth configuration) additionally load the `.github\skills\databricks-asset-bundle\databricks-yml-authoring.md` skill for the `databricks.yml` portion of the work.
+Tasks that also modify `databricks.yml` (adding or removing bundle variables, renaming variables, adjusting targets, changing `include:` paths, changing workspace/auth configuration) additionally load the `databricks-yml-authoring` skill for the `databricks.yml` portion of the work.
+
+Tasks that also modify Python entrypoints additionally load the `python-entrypoints` skill for the entrypoint portion of the work.

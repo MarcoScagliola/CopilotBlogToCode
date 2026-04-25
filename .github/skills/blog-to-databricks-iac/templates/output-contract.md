@@ -44,6 +44,7 @@ Generate:
 ## 5. README.md
 
 Include:
+- Design of the architecture
 - how to fill variables
 - Terraform apply steps
 - Databricks bundle validate/deploy/run steps
