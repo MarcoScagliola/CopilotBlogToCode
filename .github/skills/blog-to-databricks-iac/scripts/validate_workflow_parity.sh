@@ -120,10 +120,11 @@ echo
 # ---------------------------------------------------------------------------
 echo "Check 2: -input=false on every terraform apply invocation"
 
-# Match lines that invoke `terraform apply`, allowing flags between the two
-# words (e.g. `terraform -chdir=infra/terraform apply`). Excludes lines that
-# already contain -input=false.
-bad_lines=$(grep -nE 'terraform([[:space:]]+-[^[:space:]]+)*[[:space:]]+apply' "$WORKFLOW_FILE" \
+# Match lines that invoke `terraform apply` as a shell command (anchored at
+# line start with optional indentation), allowing flags between the two words
+# (e.g. `terraform -chdir=infra/terraform apply`). Excludes lines that already
+# contain -input=false.
+bad_lines=$(grep -nE '^[[:space:]]*terraform([[:space:]]+-[^[:space:]]+)*[[:space:]]+apply([[:space:]]|$)' "$WORKFLOW_FILE" \
   | grep -v -- '-input=false' || true)
 
 if [ -n "$bad_lines" ]; then

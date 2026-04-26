@@ -234,48 +234,13 @@ Report pass/fail for each. If any required check fails, stop and report the fail
    - `terraform -chdir=infra/terraform validate`
 3. **YAML parse.** Parse every file under `.github/workflows/` and every `*.yml` file under `databricks-bundle/` using a YAML parser. Any parse error is a failure.
 4. **Generator runtime.** Execute each workflow generator and confirm file regeneration succeeds without error and produces a non-empty file.
-5. **Invariant checks.** Run the automated checks in 9.3. The Terraform↔workflow parity check is the most regression-prone; verify it explicitly:
+5. **Invariant checks.** Run the automated checks in 9.3. The Terraform↔workflow parity check is the most regression-prone; run it explicitly:
 
 ```bash
-   # Every required (no-default) variable in variables.tf must have a TF_VAR_<name> in the workflow.
-   missing=()
-   in_var=0
-   var_name=""
-   has_default=0
-   while IFS= read -r line; do
-     if [[ $line =~ ^variable\ \"([^\"]+)\" ]]; then
-       if [ $in_var -eq 1 ] && [ $has_default -eq 0 ]; then
-         grep -q "TF_VAR_${{var_name}}:" .github/workflows/deploy-infrastructure.yml || missing+=("$var_name")
-       fi
-       var_name="${{BASH_REMATCH[1]}}"
-       in_var=1
-       has_default=0
-     elif [[ $line =~ ^\}$ ]] && [ $in_var -eq 1 ]; then
-       if [ $has_default -eq 0 ]; then
-         grep -q "TF_VAR_${{var_name}}:" .github/workflows/deploy-infrastructure.yml || missing+=("$var_name")
-       fi
-       in_var=0
-     elif [[ $line =~ ^[[:space:]]+default ]] && [ $in_var -eq 1 ]; then
-       has_default=1
-     fi
-   done < infra/terraform/variables.tf
-
-   if [ ${{#missing[@]}} -gt 0 ]; then
-     echo "FAIL: variables.tf declares required variables with no TF_VAR_* export in workflow:"
-     printf '  - %s\n' "${{missing[@]}}"
-     exit 1
-   fi
-   echo "PASS: all required Terraform variables have TF_VAR_* exports"
-
-   # Every terraform apply must use -input=false
-   if grep -E "terraform .* apply" .github/workflows/deploy-infrastructure.yml | grep -v -- "-input=false" >/dev/null; then
-     echo "FAIL: at least one terraform apply invocation is missing -input=false"
-     exit 1
-   fi
-   echo "PASS: all terraform apply invocations use -input=false"
+   bash .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh
 ```
 
-   Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, add the check.
+  The script asserts every required variable in `variables.tf` has a matching `TF_VAR_*` export in `deploy-infrastructure.yml`, and that every `terraform apply` invocation uses `-input=false`. Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, extend this script (or add a new one) and reference it here.
 6. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
 7. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
 
