@@ -191,9 +191,12 @@ jobs:
 
       - name: Terraform Apply
         env:
-          TF_VAR_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
-          TF_VAR_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
-          TF_VAR_deployment_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
+          # Variables declared in infra/terraform/variables.tf
+          TF_VAR_azure_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
+          TF_VAR_azure_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
+          TF_VAR_azure_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
+          TF_VAR_azure_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
+          TF_VAR_azure_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
           TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
           TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
           TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
@@ -233,14 +236,22 @@ jobs:
           export TF_VAR_key_vault_recover_soft_deleted="$current_recover"
 
           set +e
-          terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover" 2>&1 | tee /tmp/tf-apply.log
+          terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover" 2>&1 | tee /tmp/tf-apply.log
           rc=${{PIPESTATUS[0]}}
           set -e
 
           if [ $rc -ne 0 ]; then
+            # Fail fast on configuration errors. Retry logic below only handles transient
+            # provider/API issues and Key Vault state mismatches; it must never re-run a
+            # broken Terraform input contract.
+            if grep -Eqi "No value for required variable|Invalid value for variable" /tmp/tf-apply.log; then
+              echo "Configuration error detected — refusing to retry on Terraform input issues."
+              exit $rc
+            fi
+
             if grep -Eqi "SoftDeletedVaultDoesNotExist|soft[- ]deleted.*does not exist" /tmp/tf-apply.log; then
               echo "Detected SoftDeletedVaultDoesNotExist. Retrying with key_vault_recover_soft_deleted=false."
-              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
+              terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=false'
             elif grep -Eqi "recovering this KeyVault has been disabled|existing soft-deleted Key Vault exists" /tmp/tf-apply.log; then
               echo "Detected recovery-disabled Key Vault error. Recovering vault and importing into Terraform state."
               az group create --name "$rg_name" --location "$region" 1>/dev/null
@@ -254,25 +265,25 @@ jobs:
               if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
                 terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
-              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
+              terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=true'
             elif grep -Eqi "to be managed via Terraform this resource needs to be imported|already exists - to be managed via Terraform" /tmp/tf-apply.log; then
               echo "Detected existing active Key Vault not in state. Importing and retrying apply."
               if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
                 terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
-              terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
+              terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
             else
               if [ "${{{{ github.event.inputs.key_vault_recovery_mode }}}}" = "auto" ]; then
                 if [ "$current_recover" = "true" ]; then
                   echo "Auto mode fallback: flipping key_vault_recover_soft_deleted to false for retry."
-                  terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=false'
+                  terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=false'
                 else
                   echo "Auto mode fallback: flipping key_vault_recover_soft_deleted to true for retry."
-                  terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var='key_vault_recover_soft_deleted=true'
+                  terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=true'
                 fi
               else
                 echo "Initial terraform apply failed (exit $rc). Retrying once for transient provider/API consistency issues..."
-                terraform -chdir=infra/terraform apply -auto-approve -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
+                terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
               fi
             fi
           fi

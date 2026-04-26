@@ -234,7 +234,48 @@ Report pass/fail for each. If any required check fails, stop and report the fail
    - `terraform -chdir=infra/terraform validate`
 3. **YAML parse.** Parse every file under `.github/workflows/` and every `*.yml` file under `databricks-bundle/` using a YAML parser. Any parse error is a failure.
 4. **Generator runtime.** Execute each workflow generator and confirm file regeneration succeeds without error and produces a non-empty file.
-5. **Invariant checks.** Run the automated checks in 9.3. Each item marked "validation-time" must have a corresponding check here.
+5. **Invariant checks.** Run the automated checks in 9.3. The Terraform↔workflow parity check is the most regression-prone; verify it explicitly:
+
+```bash
+   # Every required (no-default) variable in variables.tf must have a TF_VAR_<name> in the workflow.
+   missing=()
+   in_var=0
+   var_name=""
+   has_default=0
+   while IFS= read -r line; do
+     if [[ $line =~ ^variable\ \"([^\"]+)\" ]]; then
+       if [ $in_var -eq 1 ] && [ $has_default -eq 0 ]; then
+         grep -q "TF_VAR_${{var_name}}:" .github/workflows/deploy-infrastructure.yml || missing+=("$var_name")
+       fi
+       var_name="${{BASH_REMATCH[1]}}"
+       in_var=1
+       has_default=0
+     elif [[ $line =~ ^\}$ ]] && [ $in_var -eq 1 ]; then
+       if [ $has_default -eq 0 ]; then
+         grep -q "TF_VAR_${{var_name}}:" .github/workflows/deploy-infrastructure.yml || missing+=("$var_name")
+       fi
+       in_var=0
+     elif [[ $line =~ ^[[:space:]]+default ]] && [ $in_var -eq 1 ]; then
+       has_default=1
+     fi
+   done < infra/terraform/variables.tf
+
+   if [ ${{#missing[@]}} -gt 0 ]; then
+     echo "FAIL: variables.tf declares required variables with no TF_VAR_* export in workflow:"
+     printf '  - %s\n' "${{missing[@]}}"
+     exit 1
+   fi
+   echo "PASS: all required Terraform variables have TF_VAR_* exports"
+
+   # Every terraform apply must use -input=false
+   if grep -E "terraform .* apply" .github/workflows/deploy-infrastructure.yml | grep -v -- "-input=false" >/dev/null; then
+     echo "FAIL: at least one terraform apply invocation is missing -input=false"
+     exit 1
+   fi
+   echo "PASS: all terraform apply invocations use -input=false"
+```
+
+   Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, add the check.
 6. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
 7. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
 
@@ -242,9 +283,13 @@ Report pass/fail for each. If any required check fails, stop and report the fail
 
 Each invariant is labelled by where it is enforced: **generation-time** means the relevant generator or template must produce code that satisfies it and validation does not re-check it; **validation-time** means 9.2 must contain a check that proves the invariant holds on the generated output.
 
-Workflow and credentials (generation-time, enforced by workflow generators):
-- Generated workflows resolve ARM credentials with `secrets.<NAME> || vars.<NAME>`.
-- When `layer_sp_mode=existing`, generated workflow logic falls back to deployment principal values where existing-layer values are unset.
+Workflow and credentials (validation-time):
+- Every required variable declared in `infra/terraform/variables.tf` (no `default`) has a corresponding `TF_VAR_<name>` export in the Terraform Apply step of `.github/workflows/deploy-infrastructure.yml`.
+Check: extract required variable names from `variables.tf`; assert each appears as `TF_VAR_<name>:` in the workflow. Failure mode if missing: `terraform apply` falls back to interactive prompts in CI and hangs until runner timeout.
+- Every `terraform apply` invocation in `.github/workflows/deploy-infrastructure.yml` includes `-input=false`.
+Check: `grep -E "terraform .* apply" .github/workflows/deploy-infrastructure.yml | grep -v "input=false"` — expected: no output (every apply has the flag).
+- The workflow's failure-handling block fast-fails on configuration errors before retry logic engages.
+Check: `grep -E "No value for required variable" .github/workflows/deploy-infrastructure.yml` — expected: at least one match in a guard that exits immediately.
 
 Terraform (validation-time):
 - `outputs.tf` exports both `databricks_workspace_url` and `databricks_workspace_resource_id`.
