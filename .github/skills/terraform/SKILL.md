@@ -85,13 +85,40 @@ When generating code for different operational modes or constraints:
 - **Document both paths**: In README.md and variables.tf, explain what each mode does and why a user might choose one over the other.
 
 ### 8. Iteration Shape vs. Resource Identity
-When using `for_each` or `count` to create multiple instances of a resource, ensure that the values being iterated actually produce distinct resource identities at the cloud provider:
+When using `for_each` or `count` to create multiple instances of a resource, two independent rules apply: iteration must vary the resource's identity at the cloud provider, **and** iteration keys must be statically known at plan time.
+
+**Identity rule.** Each iteration must produce a distinct identity tuple at the provider:
 
 - **Identify the provider's identity tuple** for each resource type. For role assignments this is typically `(scope, role, principal)`; for storage objects it may be `(account, container, name)`; for DNS records `(zone, name, type)`.
 - **Ensure the iteration varies at least one component of that tuple.** If every `for_each` instance produces the same identity tuple, all instances collide on a single cloud-side resource. Terraform will create one successfully and fail the rest with a "resource already exists" error.
 - **When the iterating dimension does not actually vary identity, drop the iteration.** A single resource is the right shape, even if it feels asymmetric with neighboring iterating resources.
 - **Compute the identity-varying component explicitly** (e.g. `each.value.principal_object_id` rather than a shared `var.principal_id`) so the divergence is visible in code review.
-- **Document why iteration is safe** when the answer isn't obvious — a one-line comment on the `for_each` explaining which dimension makes each instance unique.
+
+**Plan-time knowability rule.** `for_each` keys must be determinable before any resource is applied:
+
+- **Iterate over static sources.** The `for_each` argument's *keys* must come from input variables, hardcoded sets, or locals that do not depend on resource attributes. Map *values* may reference apply-time attributes; only keys must be static.
+- **Do not pass a resource as a `for_each` source** when downstream resources also iterate over it (e.g. `for_each = aws_iam_role.layer`). Even though Terraform allows it syntactically, it fails at plan time when the upstream resource's keys themselves derive from apply-time data, or when the planner cannot prove they don't.
+- **Pattern: parallel iteration over a shared static map.** When creating "one B per A," both A and B should iterate over the same static map, and B should reference A by key:
+```hcl
+  resource "_a" "layer" {
+    for_each = local.layers           # static keys
+    # ...
+  }
+
+  resource "_b" "layer" {
+    for_each = local.layers           # same static keys
+    a_id     = _a.layer[each.key].id   # apply-time value, lookup by static key
+  }
+```
+- **Hoist keys out of derived locals.** If a `local` driving iteration is computed from anything that might be apply-time, separate the static key set from the apply-time values:
+```hcl
+  locals {
+    layer_names = toset(["bronze", "silver", "gold"])   # static
+    layers = { for n in local.layer_names : n => { ... } }
+  }
+```
+
+**Document why iteration is safe** when the answer isn't obvious — a one-line comment on the `for_each` explaining which dimension makes each instance unique and where the keys come from.
 
 ### 9. Documentation and Outputs
 Generated code must be self-documenting:
@@ -174,6 +201,15 @@ Address these common Terraform deployment error categories in generated code:
 - If the design genuinely requires per-iteration identities, ensure the iteration source (`local.layers`, `local.environments`, etc.) carries a distinct identity per entry, and reference it via `each.value.<identity_field>` rather than a top-level `var.*`.
 - Symptom to watch for: identical resource IDs reported in the error message across multiple `for_each` keys, or a refresh phase that shows the same ID under a different `for_each` key than the one currently failing.
 
+### Unknown Keys in for_each (Invalid for_each argument)
+**Error**: `Invalid for_each argument` at plan time, with message "The 'for_each' map includes keys derived from resource attributes that cannot be determined until apply."
+**Prevention**:
+- The `for_each` argument's *keys* must be derivable at plan time. Values can be apply-time; keys cannot.
+- Do not use one resource as the `for_each` source for another (`for_each = some_resource.layer`). Iterate both over the same static map and look up the upstream resource by key: `some_resource.layer[each.key]`.
+- If a `local` that drives iteration is computed from data sources or other resources, separate the static key dimension from the apply-time value dimension. Hoist keys into a `toset(...)` or static map; let values carry the apply-time fields.
+- Reach for `-target` only as a last resort. Two-phase apply usually masks a structural issue that's better fixed by making keys static.
+- Symptom to watch for: the error names a specific resource attribute as "known only after apply," and the failing `for_each` references another resource directly rather than a static local or variable.
+
 ### Provider Behavior Mismatches (Data Plane Auth, Polling)
 **Error**: Provider control-plane expects one auth method but data-plane uses another; provider still uses legacy auth during resource polling.
 **Prevention**:
@@ -198,7 +234,6 @@ Address these common Terraform deployment error categories in generated code:
 - Provide a cleanup/teardown strategy in TODO.md (e.g., "Run `terraform destroy` or manually delete resource group before retrying")
 
 ## Pre-Generation Validation
-
 Before writing Terraform code, validate the generation strategy:
 
 - [ ] **Provider and authentication**: Identify the target provider (AWS, Azure, GCP) and authentication method (service principal, IAM role, static credentials)
@@ -211,7 +246,6 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] **Credentials and assumptions**: Document any assumptions about pre-existing identities, permissions, or resources in variables.tf and TODO.md.
 
 ## Implementation Checklist
-
 **Code Quality**
 - [ ] Provider versions pinned in `versions.tf`
 - [ ] All variables grouped and documented in `variables.tf`
@@ -222,6 +256,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] No hardcoded credentials or secrets in code
 - [ ] Deprecated provider properties avoided
 - [ ] `for_each` and `count` iterations vary at least one component of the resulting resource's identity tuple
+- [ ] `for_each` keys come from static sources (input variables, hardcoded sets, locals not derived from resource attributes); apply-time data appears only in values
 
 **Error Prevention and Compatibility**
 - [ ] Deployment-safe defaults used for security-sensitive properties (with migration path to stricter settings)
