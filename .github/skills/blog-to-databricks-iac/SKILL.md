@@ -200,13 +200,21 @@ Use the templates in `.github/skills/blog-to-databricks-iac/templates/`:
 - `README.md.template` -> `README.md`
 - `TODO.md.template` -> `TODO.md`
 
-Replace placeholders with run context values from ## Inputs, then write final files to repository root.
+`TODO.md.template` is a stencil. It carries the five required sections, the four-field entry shape, and entries that apply to every Azure-Databricks deployment from this orchestrator (RBAC roles, GitHub Environment setup, state management decision, etc.). Per-workload entries are added by this step from `SPEC.md`.
 
-Rules:
-- Do not leave unresolved placeholders in output files.
-- Keep `TODO.md` focused on unresolved values and post-deployment actions.
-- Do not include credentials, connection strings, or subscription IDs in `README.md`.
-- Keep template details in templates/references, not in this SKILL file.
+Rules for `TODO.md`:
+- The five sections (`Pre-deployment`, `Deployment-time inputs`, `Post-infrastructure`, `Post-DAB`, `Architectural decisions deferred`) are always present, even if a section ends up empty.
+- Every entry has the four fields: **What** (heading), **Why deferred**, **Source**, **Resolution**.
+- Substitute every `{...}` placeholder with the corresponding value from `## Inputs`.
+- For each `not stated in article` entry in `SPEC.md`, add a corresponding entry to one of: `Pre-deployment`, `Deployment-time inputs`, or `Architectural decisions deferred`. Use the `<from SPEC.md § ...>` shape shown in the template.
+- For workload-specific work (UC object provisioning, runtime secret population, entrypoint replacement, consumer access grants), add per-workload entries under `Post-infrastructure` and `Post-DAB`. Reference `SPEC.md` sections for specific names rather than embedding them in the template.
+- Remove the HTML comment guides (`<!-- ... -->`) from the output.
+- Do not include credentials, connection strings, subscription IDs, or any secret values.
+- Do not leave any `<placeholder>` or `{placeholder}` slots unresolved.
+
+Rules for `README.md`:
+- Do not leave unresolved placeholders in output.
+- Do not include credentials, connection strings, or subscription IDs.
 
 ### 9. Validate output before declaring generation complete
 
@@ -276,6 +284,16 @@ DAB bundle (generation-time, enforced by leaf skills):
 
 Deploy workflow (generation-time, enforced by deploy-infrastructure generator):
 - `key_vault_recovery_mode` input accepts `auto`, `recover`, `fresh`, and auto-detection uses `az keyvault list-deleted`.
+
+TODO.md (validation-time):
+- `TODO.md` contains all five required sections.
+  Check: `for s in "Pre-deployment" "Deployment-time inputs" "Post-infrastructure" "Post-DAB" "Architectural decisions deferred"; do grep -q "^## $s\$" TODO.md || { echo "Missing section: $s"; exit 1; }; done`
+- No HTML comment guides remain in the output.
+  Check: `grep -E '<!--' TODO.md` — expected: no matches.
+- No `{...}` or `<...>` placeholder slots remain unresolved.
+  Check: `grep -E '\{[a-z_]+\}|<from SPEC\.md|<runtime_value_not_stated>' TODO.md` — expected: no matches.
+- Every `not stated in article` entry in `SPEC.md` is reflected in `TODO.md`.
+  Check: count `not stated in article` occurrences in `SPEC.md` and the count of `Source: SPEC.md` references in `TODO.md`; the latter should equal or exceed the former. (Manual inspection acceptable.)
 
 ### 10. Archive execution record
 

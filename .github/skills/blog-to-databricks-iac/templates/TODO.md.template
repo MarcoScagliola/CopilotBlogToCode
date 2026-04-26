@@ -1,45 +1,135 @@
-# TODO — Secure Medallion Architecture
+# TODO — {workload} {environment}
 
-## Required Before First Deployment
+This file lists everything not yet resolved by the generated artifacts.
+Items are grouped by when they need to be addressed. Each entry has four
+fields: **What** (the heading), **Why deferred**, **Source**, and
+**Resolution**.
 
-- [ ] Confirm deployment principal has `Contributor` on the target subscription or resource group.
-- [ ] **Confirm deployment principal can create Entra app registrations** (if using `layer_sp_mode=create`). If you see `Authorization_RequestDenied` during apply:
-  - Either: Request `Application.ReadWrite.All` in Entra for the deployment principal.
-  - Or: **Use `layer_sp_mode=existing` and pre-create the layer principals**, then provide their client IDs and object IDs in GitHub secrets.
-- [ ] Populate GitHub Environment `{github_environment}` with all required secrets (see README).
-- [ ] Verify `{sp_object_id_secret_name}` and (if used) `{existing_layer_sp_object_id_secret_name}` are **Enterprise Applications object IDs**, not App Registration object IDs.
+The five sections below are always present. Per-workload entries are
+added by the orchestrator at Step 8 based on `SPEC.md` (look for
+`<from SPEC.md ...>` slots and replace them).
 
-## Post-Infrastructure Deployment
+## Pre-deployment
 
-- [ ] Create Unity Catalog catalogs: `{environment}_bronze`, `{environment}_silver`, `{environment}_gold`.
-- [ ] Create schemas:
-  - `{environment}_bronze.ingestion` (for raw events)
-  - `{environment}_silver.refined` (for deduplicated events)
-  - `{environment}_gold.curated` (for aggregated summaries)
-- [ ] Grant layer service principal IDs the appropriate Unity Catalog privileges per catalog.
-- [ ] Create a Key Vault-backed secret scope named `kv-{environment}-scope` in the Databricks workspace.
-- [ ] Replace sample Bronze ingestion logic (`databricks-bundle/src/bronze/main.py`) with actual data source extraction.
+### Deployment principal has required Azure RBAC roles
+- **Why deferred**: RBAC assignment must precede the first `terraform apply`; the deployment fails with `403 Forbidden` if missing.
+- **Source**: `terraform` skill — RBAC / Permission Errors.
+- **Resolution**: Assign at minimum `Contributor` and `User Access Administrator` on the target subscription. Verify:
 
-## Security & Operations Follow-up
+```bash
+  az role assignment list --assignee <YOUR_CLIENT_ID> --scope /subscriptions/<YOUR_SUBSCRIPTION_ID>
+```
 
-- [ ] Enable Azure Key Vault diagnostic logs and review access regularly.
-- [ ] Add secret rotation/expiration policies in Azure Key Vault.
-- [ ] Add Databricks cluster policies per layer to limit compute blast radius.
-- [ ] Enable Databricks system tables for job monitoring and cost visibility per layer.
-- [ ] Disable `shared_access_key_enabled` on storage accounts post-deployment (if stricter zero-trust is required).
+### Deployment principal has Entra ID permissions if `layer_sp_mode = create`
+- **Why deferred**: Tenant policy may restrict app registration; the orchestrator cannot detect this in advance.
+- **Source**: `terraform` skill — Identity Creation Restrictions; SKILL.md Step 5 restricted-tenant guardrails.
+- **Resolution**: Either grant the deployment principal `Application.ReadWrite.All` in Entra ID, or set `layer_sp_mode = existing`, pre-create the layer service principals manually, and populate `{existing_layer_sp_client_id_secret_name}` and `{existing_layer_sp_object_id_secret_name}`.
 
-## State Management
+### GitHub Environment `{github_environment}` exists with all required secrets
+- **Why deferred**: GitHub Environment configuration is platform-level, outside Terraform's reach.
+- **Source**: SKILL.md Step 6; `repo-context.md` Deploy Bridge Variable Contract.
+- **Resolution**: In repo Settings → Environments → New environment named `{github_environment}`, add:
+  - `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`
+  - If `layer_sp_mode = existing`: also `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}`
+  - All object-ID secrets must use the **Enterprise Application object ID**, not the App Registration object ID. Find it under Microsoft Entra ID → Enterprise applications → search by name → Object ID.
 
-- Terraform state is currently local/ephemeral (per GitHub Actions runner).
-- **Before production use:** Configure a remote backend in `backend.tf` (Azure Storage Blob Storage recommended).
-- **For iterative development:** Use `state_strategy=recreate_rg` during Deploy Infrastructure to handle ephemeral state reruns.
+<!-- Add per-workload Pre-deployment entries here from SPEC.md if any. Use the shape:
 
-## Testing & Validation
+### <Short title naming the action>
+- **Why deferred**: <why the orchestrator did not handle this>
+- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
+- **Resolution**: <concrete steps; commands where possible>
 
-- [ ] Run end-to-end deployment in `{environment}` and trigger the `orchestrator_job`.
-- [ ] Verify all three tables exist post-run:
-  - `{environment}_bronze.ingestion.raw_events`
-  - `{environment}_silver.refined.events`
-  - `{environment}_gold.curated.event_summary`
-- [ ] Add smoke tests that assert table counts and schema integrity after a run.
-- [ ] Add `terraform fmt -check` to CI for code style validation.
+Reference SPEC.md sections for workload-specific names rather than hardcoding them.
+-->
+
+## Deployment-time inputs
+
+### `key_vault_recovery_mode` — choose per-run when dispatching the workflow
+- **Why deferred**: The right value depends on whether a soft-deleted Key Vault exists from a prior deploy.
+- **Source**: SKILL.md Step 5 workflow inputs; `terraform` skill — Key Vault Soft-Delete Recovery.
+- **Resolution**: Default `auto`. Use `recover` if you know a soft-deleted vault exists; `fresh` if you're certain none does.
+
+### `state_strategy` — choose per-run when dispatching the workflow
+- **Why deferred**: The right value depends on whether the run is ephemeral CI/dev or production-style.
+- **Source**: SKILL.md Step 5 state-strategy policy.
+- **Resolution**: `fail` for production-style runs (default). `recreate_rg` only for ephemeral dev runs where full resource group deletion is acceptable.
+
+<!-- Add one entry per "not stated in article" SPEC.md value that must be supplied at deploy time. Use the shape:
+
+### <from SPEC.md § {section}>: <runtime_value_not_stated>
+- **Why deferred**: SPEC.md § {section} records this as `not stated in article`.
+- **Source**: SPEC.md § {section}.
+- **Resolution**: Determine the appropriate value from the deployment environment and pass via the relevant workflow input or terraform variable.
+-->
+
+## Post-infrastructure
+
+<!-- Per-workload entries from SPEC.md go here. Use the shape:
+
+### <Short title naming the action>
+- **Why deferred**: <why the orchestrator did not handle this>
+- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
+- **Resolution**: <concrete steps; commands where possible>
+
+Common categories at this stage:
+- Unity Catalog object provisioning (catalogs, schemas, grants), if not in scope of Terraform/bundle
+- Population of runtime secrets in Azure Key Vault (source-system credentials, API tokens)
+- Replacement of any sample / scaffolded entrypoint logic with the workload's actual data movement
+
+Reference SPEC.md sections for workload-specific names rather than hardcoding them.
+-->
+
+## Post-DAB
+
+### Verify the orchestrator job runs end-to-end
+- **Why deferred**: Functional validation of the deployed pipeline is environment-permitting per SKILL.md Step 9.2 item 7.
+- **Source**: SKILL.md Step 9.2 functional test.
+- **Resolution**: Trigger the orchestrator job in the deployed workspace and verify the expected target tables and outputs (names listed in `SPEC.md § Catalogs and schemas` or equivalent). If any layer fails, check task logs and verify argument resolution from `databricks-bundle/resources/jobs.yml`.
+
+<!-- Add per-workload Post-DAB entries here from SPEC.md if any. Use the shape:
+
+### <Short title naming the action>
+- **Why deferred**: <why the orchestrator did not handle this>
+- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
+- **Resolution**: <concrete steps; commands where possible>
+
+Common categories at this stage:
+- End-user / consumer-group access grants for gold-layer schemas
+- Smoke tests asserting table existence, row counts, and schema integrity after a run
+
+Reference SPEC.md sections for workload-specific names rather than hardcoding them.
+-->
+
+## Architectural decisions deferred
+
+### Local-only Terraform state
+- **Why deferred**: This baseline uses ephemeral state to keep CI cheap and reproducible across runner resets.
+- **Source**: `terraform` skill — State Management; SKILL.md Step 5 state-strategy policy.
+- **Resolution**: Before promoting beyond dev, configure a remote backend in `infra/terraform/backend.tf`. Azure Storage with state locking via blob lease is the typical choice. After this, `state_strategy = fail` becomes the default safe option.
+
+### `shared_access_key_enabled = true` on storage accounts
+- **Why deferred**: Required during initial provisioning because the AzureRM provider polls blob storage with key auth.
+- **Source**: `terraform` skill — Provider Behavior Mismatches.
+- **Resolution**: After the first successful apply, set `var.enable_shared_key = false` and re-apply. Validate that workloads continue to authenticate via service principal / managed identity only.
+
+### `terraform fmt -check` in CI
+- **Why deferred**: The validation pipeline currently checks `terraform validate` but not formatting.
+- **Source**: SKILL.md Step 9.2 verification commands.
+- **Resolution**: Add a `terraform -chdir=infra/terraform fmt -check -recursive` step to `.github/workflows/validate-terraform.yml`. If you regenerate the validate workflow, update `generate_validate_workflow.py` to emit the step.
+
+<!-- Add per-workload Architectural decisions deferred entries here from SPEC.md if any. Use the shape:
+
+### <Short title naming the decision>
+- **Why deferred**: <why this baseline made the current choice>
+- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
+- **Resolution**: <what "decided" looks like; the alternative path and how to take it>
+
+Common categories at this stage:
+- Cluster policies per layer to limit compute blast radius
+- Diagnostic logging for Key Vault, storage, and workspace
+- Secret rotation / expiration policies in Key Vault
+- System tables enabled for job and cost visibility
+
+Reference SPEC.md sections for workload-specific names rather than hardcoding them.
+-->
