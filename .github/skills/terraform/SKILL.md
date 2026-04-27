@@ -75,6 +75,12 @@ Establish secure handling of authentication credentials:
   
   When generating the workflow's name-computation logic, derive it from the same components and the same region-abbreviation table that `locals.tf` uses. The workflow should not invent its own naming conventions — it follows Terraform's.
 
+  **Computing the region abbreviation in the workflow.** The workflow generator must compute the region abbreviation once, in an early job step, and write the result to `$GITHUB_ENV` so all later steps reference the same value. The mapping table (from `azure_region` input to abbreviation, e.g. `uksouth` → `uks`) lives in this single early step, not duplicated across multiple steps. Subsequent steps that need the abbreviation read it from the env, not from local recomputation. This eliminates the class of bug where two steps independently compute names and silently produce different values.
+
+  **Shell variable contract for resource names.** The deployment workflow uses `$rg_name`, `$kv_name`, `$workspace_name`, and `$storage_name_<layer>` shell variables to refer to canonical resources. These variables must be assigned in an early step and reused across all later steps — state preflight, soft-delete recovery, `terraform import`, output extraction. No step may compute or hardcode a resource name; it must reference the variable. This makes name drift impossible *within* the workflow (the variables are computed once) and pushes drift detection to the boundary with `locals.tf` (where the parity check operates).
+
+  **Atomic updates across both sides.** A change to any naming pattern (a new region in the abbreviation table, a different truncation rule, a new resource type) requires updating both `locals.tf` and `generate_deploy_workflow.py` in the same commit. The parity check (`validate_workflow_parity.sh` or a peer `validate_resource_naming_parity.sh`) verifies that the generated workflow's `$rg_name` and `$kv_name` patterns match `locals.tf` before merge. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
+
 ### 6. Variable Organization
 Input variables structure the interface between code and consumers:
 
