@@ -1,0 +1,64 @@
+bundle:
+  name: medallion-etl
+  environment: dev
+
+variables:
+  workspace_host:
+    description: Databricks workspace host URL
+    
+  workspace_resource_id:
+    description: Databricks workspace Azure resource ID
+    
+  secret_scope:
+    description: Name of the AKV-backed secret scope
+    
+  bronze_catalog:
+    description: Bronze layer catalog name
+    
+  silver_catalog:
+    description: Silver layer catalog name
+    
+  gold_catalog:
+    description: Gold layer catalog name
+    
+  bronze_schema:
+    description: Bronze layer schema name
+    default: bronze_schema
+    
+  silver_schema:
+    description: Silver layer schema name
+    default: bronze_schema
+    
+  gold_schema:
+    description: Gold layer schema name
+    default: bronze_schema
+    
+  bronze_storage_account:
+    description: Bronze storage account name
+    
+  silver_storage_account:
+    description: Silver storage account name
+    
+  gold_storage_account:
+    description: Gold storage account name
+    
+  bronze_access_connector_id:
+    description: Bronze Access Connector resource ID
+    
+  silver_access_connector_id:
+    description: Silver Access Connector resource ID
+    
+  gold_access_connector_id:
+    description: Gold Access Connector resource ID
+    
+  bronze_principal_client_id:
+    description: Bronze layer principal client ID
+    
+  silver_principal_client_id:
+    description: Silver layer principal client ID
+    
+  gold_principal_client_id:
+    description: Gold layer principal client ID
+
+include:
+  - resources/*.yml
