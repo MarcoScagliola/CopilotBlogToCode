@@ -1,44 +1,84 @@
 # TODO — {workload} {environment}
 
-This file lists everything not yet resolved by the generated artifacts.
-Items are grouped by when they need to be addressed. Each entry has four
-fields: **What** (the heading), **Why deferred**, **Source**, and
-**Resolution**.
+This file lists everything not yet resolved by the generated artifacts. Items are grouped by when they need to be addressed. Each entry explains what the action is, why the orchestrator did not do it, and what "done" looks like — at the level of concepts, not commands.
 
-The five sections below are always present. Per-workload entries are
-added by the orchestrator at Step 8 based on `SPEC.md` (look for
-`<from SPEC.md ...>` slots and replace them).
+The five sections below are always present. Per-workload entries are added by the orchestrator at Step 8 based on `SPEC.md` (look for `<from SPEC.md § ...>` slots and replace them).
 
 ## Pre-deployment
 
-### Deployment principal has required Azure RBAC roles
-- **Why deferred**: RBAC assignment must precede the first `terraform apply`; the deployment fails with `403 Forbidden` if missing.
-- **Source**: `terraform` skill — RBAC / Permission Errors.
-- **Resolution**: Assign at minimum `Contributor` and `User Access Administrator` on the target subscription. Verify:
+### Deployment principal has the required Azure RBAC roles
 
-```bash
-  az role assignment list --assignee <YOUR_CLIENT_ID> --scope /subscriptions/<YOUR_SUBSCRIPTION_ID>
-```
+**What this is.** The "deployment principal" is the Azure service principal whose credentials are stored in the GitHub Environment as `{client_id_secret_name}` and `{client_secret_secret_name}`. It is the identity Terraform uses to provision every resource in `infra/terraform/`. Like any Azure identity, it has no permissions until they are explicitly granted.
+
+The required roles are not narrow. Terraform creates resource groups, storage accounts, a Key Vault, a Databricks workspace, and several role assignments — each of those last is itself a privileged operation. The deployment principal therefore needs both broad resource-creation permission and the specific permission to assign roles to other identities.
+
+**Why deferred.** RBAC assignment must happen before the first `terraform apply`. The deployment workflow itself uses the deployment principal's credentials to run; it cannot grant itself permissions it does not yet have.
+
+**Source.** `terraform` skill — RBAC / Permission Errors.
+
+**Resolution.**
+1. Identify the deployment principal in Azure (the App Registration whose Application ID matches `{client_id_secret_name}`, and its corresponding Enterprise Application object).
+2. At the subscription scope, assign at minimum the `Contributor` role (to create resources) and the `User Access Administrator` role (to assign roles, e.g. for the layer principals and the access connectors).
+3. Verify the assignments are in place before triggering the deployment workflow.
+
+**Done looks like.** A role list query against the deployment principal at subscription scope returns at least `Contributor` and `User Access Administrator`. The first `terraform apply` proceeds past resource creation without `403 Forbidden` errors.
 
 ### Deployment principal has Entra ID permissions if `layer_sp_mode = create`
-- **Why deferred**: Tenant policy may restrict app registration; the orchestrator cannot detect this in advance.
-- **Source**: `terraform` skill — Identity Creation Restrictions; SKILL.md Step 5 restricted-tenant guardrails.
-- **Resolution**: Either grant the deployment principal `Application.ReadWrite.All` in Entra ID, or set `layer_sp_mode = existing`, pre-create the layer service principals manually, and populate `{existing_layer_sp_client_id_secret_name}` and `{existing_layer_sp_object_id_secret_name}`.
+
+**What this is.** When `layer_sp_mode` is set to `create`, Terraform creates one Entra ID app registration per layer (bronze / silver / gold) and the matching service principal (Enterprise Application) for each. App registration is a directory-level operation in Entra ID, not a subscription-level one — it requires permission against the directory (Microsoft Graph), not against an Azure subscription.
+
+Many Azure tenants restrict app registration so that only specific roles or admins can do it. If the deployment principal lacks this permission, Terraform will fail mid-apply with `Authorization_RequestDenied` against Microsoft Graph rather than against the AzureRM provider.
+
+**Why deferred.** Tenant policy may restrict app registration in ways the orchestrator cannot detect in advance. The deployer is the only party who can confirm or change tenant policy.
+
+**Source.** `terraform` skill — Identity Creation Restrictions; SKILL.md Step 5 restricted-tenant guardrails.
+
+**Resolution.** Choose one of two paths:
+
+1. **Grant directory permission to the deployment principal.** Assign `Application.ReadWrite.All` (or a more restricted equivalent your tenant allows) so the principal can create app registrations and service principals. This requires Entra ID Global Admin or Privileged Role Admin to grant.
+
+2. **Use existing principals.** Set `layer_sp_mode = existing`, pre-create the layer service principals manually (one per layer, named consistently with the workload and environment), and populate `{existing_layer_sp_client_id_secret_name}` and `{existing_layer_sp_object_id_secret_name}` with their identifiers. Terraform will then reuse those identities instead of creating new ones.
+
+**Done looks like.** The deployment workflow runs to completion in `create` mode without `Authorization_RequestDenied` errors, or it runs in `existing` mode with valid pre-created principals referenced by the GitHub secrets above.
 
 ### GitHub Environment `{github_environment}` exists with all required secrets
-- **Why deferred**: GitHub Environment configuration is platform-level, outside Terraform's reach.
-- **Source**: SKILL.md Step 6; `repo-context.md` Deploy Bridge Variable Contract.
-- **Resolution**: In repo Settings → Environments → New environment named `{github_environment}`, add:
-  - `{tenant_secret_name}`, `{subscription_secret_name}`, `{client_id_secret_name}`, `{client_secret_secret_name}`, `{sp_object_id_secret_name}`
-  - If `layer_sp_mode = existing`: also `{existing_layer_sp_client_id_secret_name}`, `{existing_layer_sp_object_id_secret_name}`
-  - All object-ID secrets must use the **Enterprise Application object ID**, not the App Registration object ID. Find it under Microsoft Entra ID → Enterprise applications → search by name → Object ID.
 
-<!-- Add per-workload Pre-deployment entries here from SPEC.md if any. Use the shape:
+**What this is.** A GitHub Environment is a named container inside a GitHub repository that holds secrets and variables scoped to a specific deployment target (typically one per Azure environment: dev, prod, etc.). The deployment workflows generated by this orchestrator reference `{github_environment}` and read all Azure credentials and identifiers from it.
+
+The environment is platform configuration, not infrastructure: it lives in GitHub, not in Azure, and Terraform has no way to create or modify it.
+
+**Why deferred.** GitHub Environment configuration is outside Terraform's reach. Even if the orchestrator could create it via the GitHub API, the secrets it needs to hold are credentials the orchestrator must not see.
+
+**Source.** SKILL.md Step 6; `repo-context.md` Deploy Bridge Variable Contract.
+
+**Resolution.**
+1. In the repository's Settings → Environments, create an environment named `{github_environment}`.
+2. Populate the required secrets:
+   - `{tenant_secret_name}` — the Azure tenant ID
+   - `{subscription_secret_name}` — the Azure subscription ID
+   - `{client_id_secret_name}` — the deployment principal's Application (client) ID
+   - `{client_secret_secret_name}` — the deployment principal's client secret
+   - `{sp_object_id_secret_name}` — the deployment principal's Enterprise Application object ID
+3. If `layer_sp_mode = existing`, also populate:
+   - `{existing_layer_sp_client_id_secret_name}` — the layer principal's Application (client) ID
+   - `{existing_layer_sp_object_id_secret_name}` — the layer principal's Enterprise Application object ID
+4. For every object-ID secret above, use the **Enterprise Application** object ID (visible under Microsoft Entra ID → Enterprise applications → search by display name → Object ID). Do not use the App Registration object ID — they are distinct values and only the Enterprise Application form is correct for RBAC assignments.
+
+**Done looks like.** The environment exists in the repository, contains all required secrets with non-empty values, and is referenced by the deployment workflows. A workflow run that depends on `{github_environment}` is able to start without "missing required environment" errors.
+
+<!-- Add per-workload Pre-deployment entries here from SPEC.md if any. Use the entry-field contract:
 
 ### <Short title naming the action>
-- **Why deferred**: <why the orchestrator did not handle this>
-- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
-- **Resolution**: <concrete steps; commands where possible>
+
+**What this is** (when the heading does not stand alone). <one or two short paragraphs defining the object or action and its role in the system>
+
+**Why deferred.** <conceptual explanation of why the orchestrator did not handle this>
+
+**Source.** SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>.
+
+**Resolution.** <numbered list of conceptual steps; no commands or code>
+
+**Done looks like** (when the success state is not obvious). <a verifiable assertion>
 
 Reference SPEC.md sections for workload-specific names rather than hardcoding them.
 -->
@@ -46,36 +86,118 @@ Reference SPEC.md sections for workload-specific names rather than hardcoding th
 ## Deployment-time inputs
 
 ### `key_vault_recovery_mode` — choose per-run when dispatching the workflow
-- **Why deferred**: The right value depends on whether a soft-deleted Key Vault exists from a prior deploy.
-- **Source**: SKILL.md Step 5 workflow inputs; `terraform` skill — Key Vault Soft-Delete Recovery.
-- **Resolution**: Default `auto`. Use `recover` if you know a soft-deleted vault exists; `fresh` if you're certain none does.
+
+**Why deferred.** The right value depends on whether a Key Vault with the target name exists in a soft-deleted state from a prior deploy. Azure retains deleted Key Vaults for a default soft-delete window, and a re-creation attempt within that window must explicitly recover or skip the deleted vault. The orchestrator cannot know in advance which case applies for a given run.
+
+**Source.** SKILL.md Step 5 workflow inputs; `terraform` skill — Key Vault Soft-Delete Recovery.
+
+**Resolution.** When dispatching the deployment workflow:
+- Use `auto` (the default) for normal runs. The workflow checks for a soft-deleted vault matching the target name and decides automatically.
+- Use `recover` if you know a soft-deleted vault exists and want it recovered into the new deployment.
+- Use `fresh` only if you are certain no soft-deleted vault exists with the target name. Choosing `fresh` when one does exist will cause the apply to fail with a recovery-disabled error.
 
 ### `state_strategy` — choose per-run when dispatching the workflow
-- **Why deferred**: The right value depends on whether the run is ephemeral CI/dev or production-style.
-- **Source**: SKILL.md Step 5 state-strategy policy.
-- **Resolution**: `fail` for production-style runs (default). `recreate_rg` only for ephemeral dev runs where full resource group deletion is acceptable.
+
+**Why deferred.** This baseline keeps Terraform state ephemeral inside the GitHub Actions runner. On rerun, Terraform has no state and treats every existing Azure resource as "not managed by this workspace" — leading to creation conflicts. The right way to handle this depends on whether the run is a clean-slate dev iteration or a production-style deployment.
+
+**Source.** SKILL.md Step 5 state-strategy policy.
+
+**Resolution.** When dispatching the deployment workflow:
+- Use `fail` (the default) for any run where existing resources represent real state that must be preserved. The workflow will stop with a clear message rather than overwrite resources Terraform does not track.
+- Use `recreate_rg` only for ephemeral dev runs where you accept full deletion and recreation of the workload's resource group. This is destructive and irreversible.
+
+**Done looks like.** The choice matches the run's intent. For prod-style runs, this typically means `state_strategy = fail` plus a remote backend configured (see "Local-only Terraform state" under Architectural decisions deferred).
 
 <!-- Add one entry per "not stated in article" SPEC.md value that must be supplied at deploy time. Use the shape:
 
 ### <from SPEC.md § {section}>: <runtime_value_not_stated>
-- **Why deferred**: SPEC.md § {section} records this as `not stated in article`.
-- **Source**: SPEC.md § {section}.
-- **Resolution**: Determine the appropriate value from the deployment environment and pass via the relevant workflow input or terraform variable.
+
+**Why deferred.** SPEC.md § {section} records this value as `not stated in article`. The orchestrator does not invent values that the source blog did not specify.
+
+**Source.** SPEC.md § {section}.
+
+**Resolution.** Determine the appropriate value from the deployment environment (operator knowledge, organizational policy, the architecture's actual data sources, etc.) and pass it via the relevant workflow input or terraform variable when dispatching the workflow.
 -->
 
 ## Post-infrastructure
 
-<!-- Per-workload entries from SPEC.md go here. Use the shape:
+### Create the Azure Key Vault-backed Databricks secret scope
 
-### <Short title naming the action>
-- **Why deferred**: <why the orchestrator did not handle this>
-- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
-- **Resolution**: <concrete steps; commands where possible>
+**What this is.** A Databricks secret scope is a named handle through which code running inside the workspace reaches credentials. It is not a credential store itself — it is the bridge to one. An *Azure Key Vault-backed* scope points at a specific Key Vault, so any secret-read call from a notebook or job is satisfied by the corresponding secret in that vault.
 
-Common categories at this stage:
-- Unity Catalog object provisioning (catalogs, schemas, grants), if not in scope of Terraform/bundle
-- Population of runtime secrets in Azure Key Vault (source-system credentials, API tokens)
-- Replacement of any sample / scaffolded entrypoint logic with the workload's actual data movement
+The vault was provisioned by Terraform on the Azure side. The scope is a separate object that lives inside the Databricks workspace on the Databricks side. Without the scope, code in the workspace has no path to read from the vault even though both exist.
+
+The bundle's jobs were generated to read secrets through this scope. The `secret_scope` bundle variable, the `--secret-scope` argument passed to each entrypoint, and the entrypoints' own secret-read calls all assume the scope exists with the agreed name and is wired to the agreed vault.
+
+**Why deferred.** Provisioning a secret scope requires a Databricks workspace to already exist and be reachable. The infrastructure workflow ends just after the workspace is created; this step bridges that workflow to the bundle deploy by establishing the secret-access path the bundle relies on.
+
+**Source.** `databricks-asset-bundle` skill — Scope Boundary; `repo-context.md` Deploy Bridge Variable Contract.
+
+**Resolution.**
+1. Identify the Key Vault Terraform provisioned. Its name follows the pattern `kv-{workload}-{environment}-{azure_region_abbrev}`, truncated to 24 characters if needed.
+2. Note the vault's resource ID (the full `/subscriptions/.../vaults/...` path) and its DNS hostname (the `vaultUri` property). Both are needed to wire the scope.
+3. In the Databricks workspace, create a secret scope of type *Azure Key Vault*. The scope name must match the value the bundle expects: typically `kv-{environment}-scope`, configurable via the `secret_scope` bundle variable. Provide the vault's resource ID and DNS hostname when prompted.
+4. Confirm the workspace's identity has permission to read secrets from the vault. Terraform should have granted `Key Vault Secrets User` on the vault to the relevant workspace identity (the system-assigned managed identity, or for Unity Catalog setups, the access connector identity). Verify the role assignment exists rather than assuming.
+5. The scope can be created via the Databricks workspace UI (Settings → Secret scopes → Create) or via the Databricks CLI. Both paths produce the same result.
+
+**Done looks like.** The scope `kv-{environment}-scope` exists in the workspace, has backend type `AZURE_KEYVAULT`, and points at the Terraform-provisioned vault. A test secret read from any notebook in the workspace returns the expected value rather than a "secret not found" or "permission denied" error.
+
+### Populate Azure Key Vault with the runtime secrets the bundle reads
+
+**What this is.** The bundle's jobs read source-system credentials and any third-party tokens at runtime through Databricks' secret-utility API. Each call asks for a `(scope, key)` pair: the scope is the secret scope created in the previous step, and the key is a name that must match a secret stored in the underlying Azure Key Vault.
+
+These secrets are credentials, not infrastructure. The orchestrator does not store them in any generated file, does not include them in any workflow input, and does not pass them through the deploy bridge. They must be placed directly in the Key Vault by an operator before the first job run.
+
+The set of *which* keys the bundle expects is workload-specific. The pattern, however, is universal: every Azure-Databricks deployment from this orchestrator routes runtime credentials through this scope-and-vault mechanism.
+
+**Why deferred.** Credentials must come from the operator. They cannot be embedded in repository files, infrastructure code, or workflow inputs without compromising the credentials.
+
+**Source.** SKILL.md Step 6 architecture-specific runtime secrets; `databricks-asset-bundle` skill — Secret Handling at the Bundle Level; `python-entrypoints` skill — Secret Handling.
+
+**Resolution.**
+1. Determine the list of keys the bundle requires. The authoritative source is the entrypoint code: open `databricks-bundle/src/<layer>/main.py` for each layer and find every secret-read call. Each call names the key it requests. `SPEC.md § Runtime secrets` should also list these if the architecture was specific enough; if `SPEC.md` says `not stated in article`, the entrypoints are the only authoritative source.
+2. For each key, place the corresponding secret value in the Key Vault. The deployment principal already has `Key Vault Secrets Officer` role (granted by Terraform), so this can be done by anyone authenticated as the deployment principal or as a tenant admin.
+3. Be precise about naming conventions. Key Vault stores secret names with hyphens; entrypoint code may request keys with underscores. Whichever form the entrypoint uses is the form the secret-utility call will translate into a Key Vault secret name. Verify the form by reading the entrypoint code rather than guessing.
+4. After populating, verify the vault contains all expected secrets and no others.
+
+**Done looks like.** Every key referenced by a secret-read call in any entrypoint has a matching secret in the Key Vault. The bundle's first end-to-end run reads them without `RESOURCE_NOT_FOUND` or `PERMISSION_DENIED` errors.
+
+### Establish the Unity Catalog privilege model
+
+**What this is.** Unity Catalog is the governance layer that controls which identities can read from and write to which catalogs, schemas, and tables. The bundle's jobs run *as* a specific identity (typically the layer service principal — bronze, silver, gold), and that identity needs explicit privileges on the objects it reads from and writes to.
+
+There are two distinct categories of privilege to set up:
+
+- **Layer principal privileges.** Each layer's job needs `USE CATALOG` and `USE SCHEMA` on the catalogs and schemas it touches, plus `SELECT` (read) on its sources, `MODIFY` (write/overwrite) on its targets, and `CREATE TABLE` if the layer creates tables in its target schema. The exact privileges depend on what the layer does, which the entrypoints make concrete.
+- **Access connector privileges.** When Unity Catalog reads or writes external storage (the per-layer storage accounts in this baseline), it does so via an Azure managed identity called an "access connector." Each access connector needs `Storage Blob Data Contributor` (or equivalent) on the storage account it serves. Terraform should have granted these; verify rather than assume.
+
+The catalog and schema *objects* themselves may also need to be created if Terraform did not provision them — that is workload-specific.
+
+**Why deferred.** UC privileges depend on which catalogs and schemas the workload uses, which identities run the jobs, and what each job does to which tables. These facts come from `SPEC.md` and from the entrypoints, not from anything the orchestrator can determine universally.
+
+**Source.** `databricks-asset-bundle` skill — Scope Boundary; SPEC.md § Catalogs and schemas; SPEC.md § Layer principals.
+
+**Resolution.**
+1. Confirm the catalogs and schemas the bundle uses. These names appear in the bundle's variables (`bronze_catalog`, `bronze_schema`, etc.) and in `SPEC.md § Catalogs and schemas`. If they do not yet exist in the workspace, create them as a workload-specific step (see the comment guide below).
+2. For each layer, identify the principal that runs that layer's jobs (the bronze SP runs the bronze job, etc.) and grant it `USE CATALOG` and `USE SCHEMA` on its catalog and schema, plus the privileges its entrypoint needs (`SELECT` for sources, `MODIFY` and `CREATE TABLE` for targets, in most cases).
+3. Verify each access connector has `Storage Blob Data Contributor` on its layer's storage account. The role assignment is on the Azure side (storage account scope), not in Unity Catalog.
+4. Decide on an *ownership* model for the catalogs and schemas. By default, the identity that creates an object owns it. If the deployment principal created them and only the deployment principal owns them, day-to-day operations may need to be reassigned to a more permanent owner (a group, a different SP).
+
+**Done looks like.** Each layer's job runs end-to-end without `INSUFFICIENT_PRIVILEGES` errors when reading from sources or writing to targets. Each access connector successfully reads from and writes to its layer's storage. The catalog/schema ownership is held by an identity that will outlive the initial deployment.
+
+<!-- Add per-workload Post-infrastructure entries here from SPEC.md. Use the entry-field contract. Common categories at this stage:
+
+- Unity Catalog *object* provisioning — the actual creation of catalogs and schemas, with their specific names from SPEC.md.
+- The exact list of runtime-secret keys the bundle expects for this workload (specific values for the universal "Populate Azure Key Vault" entry above).
+- Replacement of any sample / scaffolded entrypoint logic with the workload's actual data movement (which sources, which transformations, which targets).
+
+Each entry needs:
+- a heading naming the action
+- "What this is" if the action is not self-explanatory
+- "Why deferred" — typically references SPEC.md or workload specifics
+- "Source" — pointing to SPEC.md sections
+- "Resolution" — numbered conceptual steps
+- "Done looks like" if the success state is not obvious
 
 Reference SPEC.md sections for workload-specific names rather than hardcoding them.
 -->
@@ -83,20 +205,40 @@ Reference SPEC.md sections for workload-specific names rather than hardcoding th
 ## Post-DAB
 
 ### Verify the orchestrator job runs end-to-end
-- **Why deferred**: Functional validation of the deployed pipeline is environment-permitting per SKILL.md Step 9.2 item 7.
-- **Source**: SKILL.md Step 9.2 functional test.
-- **Resolution**: Trigger the orchestrator job in the deployed workspace and verify the expected target tables and outputs (names listed in `SPEC.md § Catalogs and schemas` or equivalent). If any layer fails, check task logs and verify argument resolution from `databricks-bundle/resources/jobs.yml`.
 
-<!-- Add per-workload Post-DAB entries here from SPEC.md if any. Use the shape:
+**What this is.** The bundle deploys a set of jobs to the Databricks workspace, typically including an "orchestrator" job that triggers the layer jobs in sequence. A successful bundle deploy (Step 6 of the orchestrator workflow) confirms the *definitions* are valid and registered with the workspace, but it does not confirm the *runtime* path works: the layer entrypoints actually executing, reading from sources, writing to targets, and producing the expected outputs.
 
-### <Short title naming the action>
-- **Why deferred**: <why the orchestrator did not handle this>
-- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
-- **Resolution**: <concrete steps; commands where possible>
+This check is the first time the entire chain is exercised together — Azure RBAC, Unity Catalog privileges, secret scope, secrets, layer principals, access connectors, storage accounts, and the bundle's job graph all participating in a real run.
 
-Common categories at this stage:
-- End-user / consumer-group access grants for gold-layer schemas
-- Smoke tests asserting table existence, row counts, and schema integrity after a run
+**Why deferred.** Functional validation requires the deployed pipeline to actually execute, which depends on every preceding step being correctly resolved. SKILL.md Step 9.2 marks this check as environment-permitting because some deployments may not have the source data or downstream consumers available at the time of the deploy.
+
+**Source.** SKILL.md Step 9.2 functional test.
+
+**Resolution.**
+1. In the deployed workspace, locate the orchestrator job and trigger a single run.
+2. Watch the run's task graph. Each layer job should start, succeed, and pass control to the next.
+3. After the run completes, verify the expected target tables exist with the expected schemas and contain rows. The specific tables and schemas come from `SPEC.md § Catalogs and schemas` (or equivalent) and from the entrypoints' write logic.
+4. If any layer fails, the failure mode points at the gap:
+   - Authentication errors usually mean the layer principal is missing UC privileges, or the secret scope is misnamed.
+   - "Secret not found" errors mean a key is missing from the Key Vault.
+   - Storage errors mean an access connector lacks the right role on the storage account.
+   - Schema or table errors mean the catalog/schema does not exist or is owned by an identity that has not granted the layer principal access.
+
+**Done looks like.** The orchestrator job runs to completion. All expected target tables exist and have rows. No layer failed with permission, secret, storage, or catalog errors.
+
+<!-- Add per-workload Post-DAB entries here from SPEC.md. Use the entry-field contract. Common categories at this stage:
+
+- End-user / consumer-group access grants on gold-layer schemas (the consumers identified in SPEC.md § Consumers).
+- Smoke tests that assert table existence, row counts, and schema integrity after a run.
+- Handoff to operational consumers (BI dashboards, downstream pipelines, ML feature stores) that depend on the pipeline's output.
+
+Each entry needs:
+- a heading naming the action
+- "What this is" if the action is not self-explanatory
+- "Why deferred"
+- "Source" — pointing to SPEC.md sections
+- "Resolution" — numbered conceptual steps
+- "Done looks like" if the success state is not obvious
 
 Reference SPEC.md sections for workload-specific names rather than hardcoding them.
 -->
@@ -104,32 +246,74 @@ Reference SPEC.md sections for workload-specific names rather than hardcoding th
 ## Architectural decisions deferred
 
 ### Local-only Terraform state
-- **Why deferred**: This baseline uses ephemeral state to keep CI cheap and reproducible across runner resets.
-- **Source**: `terraform` skill — State Management; SKILL.md Step 5 state-strategy policy.
-- **Resolution**: Before promoting beyond dev, configure a remote backend in `infra/terraform/backend.tf`. Azure Storage with state locking via blob lease is the typical choice. After this, `state_strategy = fail` becomes the default safe option.
+
+**What this is.** Terraform tracks every resource it manages in a "state file" — the source of truth for which Azure resources Terraform considers part of this deployment. This baseline keeps the state file local to the GitHub Actions runner that executes the deployment workflow. When the runner is recycled (every workflow run), the state is lost.
+
+Local state has two consequences. First, every rerun starts from an empty state, which is why the `state_strategy` workflow input exists — to handle the conflict between empty state and existing Azure resources. Second, two parallel deployments cannot coexist, because there is no shared lock to coordinate them.
+
+A *remote* state backend (Azure Storage with state locking via blob lease, the typical choice) solves both problems: state persists across runs, and concurrent operations are serialized by the lock.
+
+**Why deferred.** This baseline values fast iteration on a fresh tenant over durable production state. The decision was made deliberately at generation time and is appropriate for development; it is the wrong default for production.
+
+**Source.** `terraform` skill — State Management; SKILL.md Step 5 state-strategy policy.
+
+**Resolution.**
+1. Decide whether this deployment is moving toward production. If yes, configuring a remote backend is required before further changes.
+2. Provision the backend storage (an Azure Storage account with a container for state) outside this Terraform configuration. It cannot be created by the same Terraform that uses it.
+3. Add a `backend "azurerm" { ... }` block to `infra/terraform/backend.tf` referencing the storage account, container, and key.
+4. Migrate any existing local state to the new backend.
+5. With remote state in place, `state_strategy = fail` becomes the safe default for all subsequent runs; the `recreate_rg` option becomes obsolete.
+
+**Done looks like.** Terraform commands report state is loaded from the remote backend. Two concurrent runs against the same configuration are serialized by the lock rather than racing. Reruns preserve managed resources across runner recycles.
 
 ### `shared_access_key_enabled = true` on storage accounts
-- **Why deferred**: Required during initial provisioning because the AzureRM provider polls blob storage with key auth.
-- **Source**: `terraform` skill — Provider Behavior Mismatches.
-- **Resolution**: After the first successful apply, set `var.enable_shared_key = false` and re-apply. Validate that workloads continue to authenticate via service principal / managed identity only.
+
+**What this is.** Azure Storage accounts can authenticate access either via static account keys (legacy, less secure) or via Azure AD identity (modern, preferred). For zero-trust deployments, the goal is to disable account-key access entirely so all reads and writes go through identity-based authentication.
+
+The AzureRM Terraform provider, however, still polls some storage account state via account-key authentication even after the resource is created. Disabling key access at provisioning time causes provider-level operations (like waiting for the storage account to reach a usable state) to fail. The baseline therefore enables key access during initial provisioning and exposes a variable to disable it afterward.
+
+**Why deferred.** Disabling key access at provisioning time breaks the AzureRM provider's polling. It must be enabled during the first apply and can only be safely disabled after.
+
+**Source.** `terraform` skill — Provider Behavior Mismatches.
+
+**Resolution.**
+1. Confirm the workload does not need account-key authentication for any of its access paths. All access must go through identity-based authentication (managed identities, service principals, or access connectors).
+2. After the first successful apply, set the relevant Terraform variable (typically `var.enable_shared_key`) to `false` and re-apply.
+3. Validate that workloads — both the bundle's layer jobs and any external consumers — continue to read and write successfully without account keys.
+
+**Done looks like.** The `shared_access_key_enabled` property on every storage account in the deployment is `false`. All workload access continues to function via identity authentication only.
 
 ### `terraform fmt -check` in CI
-- **Why deferred**: The validation pipeline currently checks `terraform validate` but not formatting.
-- **Source**: SKILL.md Step 9.2 verification commands.
-- **Resolution**: Add a `terraform -chdir=infra/terraform fmt -check -recursive` step to `.github/workflows/validate-terraform.yml`. If you regenerate the validate workflow, update `generate_validate_workflow.py` to emit the step.
 
-<!-- Add per-workload Architectural decisions deferred entries here from SPEC.md if any. Use the shape:
+**What this is.** Terraform has an opinionated formatter (`terraform fmt`) that normalizes whitespace, indentation, and alignment in `.tf` files. Running it in `-check` mode in CI fails the build if any file is not formatted to the canonical form, preventing style drift between contributors.
 
-### <Short title naming the decision>
-- **Why deferred**: <why this baseline made the current choice>
-- **Source**: SPEC.md § <relevant section>; or `<skill-name>` skill — <relevant rule>
-- **Resolution**: <what "decided" looks like; the alternative path and how to take it>
+The current validation pipeline runs `terraform validate` (which checks for syntactic and semantic correctness) but not `terraform fmt -check` (which checks for stylistic consistency). Both are useful; they catch different problems.
 
-Common categories at this stage:
-- Cluster policies per layer to limit compute blast radius
-- Diagnostic logging for Key Vault, storage, and workspace
-- Secret rotation / expiration policies in Key Vault
-- System tables enabled for job and cost visibility
+**Why deferred.** This baseline focuses on functional correctness. Formatting consistency is desirable but not required for the deployment to work. It is a follow-up hygiene item.
+
+**Source.** SKILL.md Step 9.2 verification commands.
+
+**Resolution.**
+1. Add a `terraform fmt -check -recursive` step to the validate-terraform workflow. The step should fail the workflow if any file is not formatted to the canonical form.
+2. If the validate workflow is generated by `generate_validate_workflow.py` (this orchestrator's pattern), update the generator to emit the new step, then regenerate. Hand-editing the generated workflow will be lost on the next regeneration.
+
+**Done looks like.** Every PR that modifies any `.tf` file is checked for formatting consistency before merge. CI fails on style drift rather than allowing it to accumulate.
+
+<!-- Add per-workload Architectural decisions deferred entries here from SPEC.md. Use the entry-field contract. Common categories at this stage:
+
+- Cluster policies per layer to limit compute blast radius and cost.
+- Diagnostic logging on Key Vault, storage accounts, and the workspace, routed to a Log Analytics workspace.
+- Secret rotation / expiration policies on Key Vault secrets that hold credentials.
+- System tables enabled in the workspace for job and cost visibility.
+- Network restrictions: private endpoints, service endpoints, or VNet integration on storage accounts and Key Vault.
+
+Each entry needs:
+- a heading naming the deferred decision
+- "What this is" — definition of the decision and its current state in the baseline
+- "Why deferred" — why the baseline made the current choice
+- "Source"
+- "Resolution" — what choosing the alternative looks like
+- "Done looks like" — the verifiable assertion that the alternative is in place
 
 Reference SPEC.md sections for workload-specific names rather than hardcoding them.
 -->

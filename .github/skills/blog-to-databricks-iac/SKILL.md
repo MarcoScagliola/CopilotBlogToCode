@@ -200,19 +200,43 @@ Use the templates in `.github/skills/blog-to-databricks-iac/templates/`:
 - `README.md.template` -> `README.md`
 - `TODO.md.template` -> `TODO.md`
 
-`TODO.md.template` is a stencil. It carries the five required sections, the four-field entry shape, and entries that apply to every Azure-Databricks deployment from this orchestrator (RBAC roles, GitHub Environment setup, state management decision, etc.). Per-workload entries are added by this step from `SPEC.md`.
+`TODO.md.template` is a stencil. It carries the five required sections, the entry-field contract, and *universal entries* — actions that apply to every Azure-Databricks deployment from this orchestrator regardless of the source blog (RBAC roles, GitHub Environment setup, secret-scope wiring, the runtime-secrets concept, the Unity Catalog privilege model, state-management decisions, etc.). The template explains each universal entry in enough conceptual depth that a reader unfamiliar with the stack can act on it.
 
-Rules for `TODO.md`:
+Per-workload entries — the *specifics* that change per blog (which keys, which catalogs, which consumers) — are added by this step from `SPEC.md`. Comment guides in the template show where these go and what shape they take.
+
+#### Entry-field contract
+
+Every entry uses the following fields:
+
+- **Heading** — the action or object in plain language.
+- **What this is** (include when the heading does not stand alone) — a short paragraph defining the object or action and its role in the system. Use this whenever a reader unfamiliar with the stack would not know what the heading refers to or how it relates to other generated artifacts. Always include for entries that name an object or wiring (secret scopes, secrets, grants, jobs); often omitted for entries that name a simple value (workflow inputs, RBAC roles).
+- **Why deferred** — why the orchestrator did not handle this. Prefer conceptual explanations ("requires the workspace to already exist") over procedural ones ("Step 6 of the skill says so").
+- **Source** — pointer to where the requirement originated: a `SPEC.md` section, a SKILL.md step, or a skill name.
+- **Resolution** — the steps to take, described as concepts and decisions. Numbered. The reader should know enough to find the right tool and act.
+- **Done looks like** (include when the success state isn't obvious from the Resolution) — an assertion the reader can verify after acting.
+
+#### Prohibition on commands and code
+
+Resolutions describe the operator's task in conceptual terms. They do not include shell commands, `az` invocations, `terraform` invocations, `databricks` CLI calls, code snippets, or any other copy-pasteable text.
+
+If a specific tool, UI, or CLI is the natural way to perform a step, name the tool ("the Databricks CLI", "the workspace UI under Settings → Secret scopes", "an `az role assignment` command"). Do not write the command itself. The goal is that an operator who knows the tools can act; an operator who does not know the tools should learn them from the tool's own documentation, not from the TODO.
+
+This rule keeps the file durable: command syntax ages, but conceptual descriptions of what a step is for and how it wires to the rest of the system do not.
+
+#### Rules for `TODO.md`
 - The five sections (`Pre-deployment`, `Deployment-time inputs`, `Post-infrastructure`, `Post-DAB`, `Architectural decisions deferred`) are always present, even if a section ends up empty.
-- Every entry has the four fields: **What** (heading), **Why deferred**, **Source**, **Resolution**.
+- Every entry follows the entry-field contract above.
 - Substitute every `{...}` placeholder with the corresponding value from `## Inputs`.
+- The `<YOUR_*>` form (e.g. `<YOUR_CLIENT_ID>`) marks values the deployer fills in at run time. Do not substitute these at Step 8 — leave them as-is so the reader knows they are inputs to provide.
 - For each `not stated in article` entry in `SPEC.md`, add a corresponding entry to one of: `Pre-deployment`, `Deployment-time inputs`, or `Architectural decisions deferred`. Use the `<from SPEC.md § ...>` shape shown in the template.
-- For workload-specific work (UC object provisioning, runtime secret population, entrypoint replacement, consumer access grants), add per-workload entries under `Post-infrastructure` and `Post-DAB`. Reference `SPEC.md` sections for specific names rather than embedding them in the template.
+- For workload-specific work, add per-workload entries under `Post-infrastructure` and `Post-DAB` using the comment guides as templates. Reference `SPEC.md` sections for workload-specific names rather than embedding them in the entry.
+- Per-workload entries follow the same entry-field contract as universal entries, including the same prohibition on commands.
 - Remove the HTML comment guides (`<!-- ... -->`) from the output.
 - Do not include credentials, connection strings, subscription IDs, or any secret values.
-- Do not leave any `<placeholder>` or `{placeholder}` slots unresolved.
+- Do not leave any `{placeholder}` or `<from SPEC.md § ...>` slots unresolved. (`<YOUR_*>` slots are intentional and are kept as-is.)
 
-Rules for `README.md`:
+#### Rules for `README.md`
+
 - Do not leave unresolved placeholders in output.
 - Do not include credentials, connection strings, or subscription IDs.
 
