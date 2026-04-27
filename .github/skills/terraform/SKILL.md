@@ -53,6 +53,19 @@ Names are critical for resource organization and cost tracking:
 - **Include region abbreviations** in names (e.g., `rg-myapp-dev-uksouth` or `rg-myapp-dev-uks`).
 - **Document naming conventions** in SPEC.md or README.md.
 
+## Authentication and Credentials Policy
+
+Establish secure handling of authentication credentials:
+
+- **Never hardcode secrets**: All credentials must come from environment variables or secret management systems.
+- **Use sensitive = true**: Mark password, token, and secret variables with `sensitive = true` to prevent accidental exposure.
+- **Separate by scope**: Group authentication variables by their scope (tenant/org credentials, subscription/account credentials, resource credentials).
+- **Document credential requirements**: In TODO.md, list all credentials needed and their originating source (e.g., "service principal credentials from GitHub Secrets").
+- **Avoid cross-environment sharing**: Do not reuse credentials across tenants/accounts/environments unless explicitly intended.
+- **Pin the credential variable contract**: The Terraform module's `variables.tf` declares the credential inputs the deployment workflow exports as `TF_VAR_*`. Both sides must use identical names. This baseline uses **unprefixed** names: `tenant_id`, `subscription_id`, `client_id`, `client_secret`, `sp_object_id`. Do not introduce `azure_*` or other provider prefixes for these specific variables — any drift between `variables.tf` and the workflow generator is a deploy-blocking error caught by `validate_workflow_parity.sh`.
+- **Atomic updates across both sides**: If a future change introduces a new credential variable or renames an existing one, update `generate_deploy_workflow.py` and the `variables.tf` generation pattern in the same commit, and run `validate_workflow_parity.sh` to verify alignment before merging. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
+- **Cross-reference from the orchestrator**: The orchestrator's Step 5 (deploy-infrastructure workflow generation) must reference this credential variable contract, so an agent generating the workflow without loading the full terraform skill still produces names that align with `variables.tf`.
+
 ### 6. Variable Organization
 Input variables structure the interface between code and consumers:
 

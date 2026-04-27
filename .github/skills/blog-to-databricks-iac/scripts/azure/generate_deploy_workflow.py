@@ -192,11 +192,11 @@ jobs:
       - name: Terraform Apply
         env:
           # Variables declared in infra/terraform/variables.tf
-          TF_VAR_azure_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
-          TF_VAR_azure_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
-          TF_VAR_azure_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
-          TF_VAR_azure_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
-          TF_VAR_azure_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
+          TF_VAR_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
+          TF_VAR_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
+          TF_VAR_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
+          TF_VAR_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
+          TF_VAR_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
           TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
           TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
           TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
