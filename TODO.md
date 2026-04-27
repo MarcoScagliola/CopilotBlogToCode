@@ -2,36 +2,37 @@
 
 ## Required Before First Deployment
 
-- Confirm whether you want `layer_sp_mode=create` or `layer_sp_mode=existing` for this environment.
-- If using `layer_sp_mode=existing`, populate `EXISTING_LAYER_SP_CLIENT_ID` and `EXISTING_LAYER_SP_OBJECT_ID` in `BLG2CODEDEV`.
-- Ensure the deployment principal has `Contributor` and `User Access Administrator` on the target scope.
-- If using `layer_sp_mode=create`, ensure the deployment principal has permission to create Entra applications and service principals.
-- Confirm the GitHub environment `BLG2CODEDEV` exists and contains all required Azure credentials.
-
-## Deployment-Time Inputs Still Open
-
-- Exact Bronze ingestion source and format are not stated in the article.
-- Exact schema names are not stated in the article.
-- Scheduling cadence and SLA targets are not stated in the article.
-- The article does not define production DR or retention requirements.
+- Confirm whether layer identities will be created by Terraform (`layer_sp_mode=create`) or reused (`layer_sp_mode=existing`).
+- If `layer_sp_mode=existing`, populate:
+  - `EXISTING_LAYER_SP_CLIENT_ID`
+  - `EXISTING_LAYER_SP_OBJECT_ID`
+- Confirm GitHub Environment exists: `BLG2CODEDEV`.
+- Confirm deployment principal has required RBAC for resource creation and role assignments.
 
 ## Post-Infrastructure Deployment
 
-- Create the Azure Key Vault-backed Databricks secret scope using the Key Vault created by Terraform.
-- Add the runtime secret key `source-system-token` to Azure Key Vault.
-- Confirm the layer principals and access connectors have the required RBAC and Unity Catalog privileges.
-- Verify the Databricks workspace can resolve Key Vault secrets through the secret scope.
+- Create AKV-backed Databricks secret scope in the workspace.
+- Populate runtime secrets in Azure Key Vault (at minimum `source-system-token` for current sample entrypoint logic).
+- Grant Unity Catalog privileges for layer principals and Access Connectors.
+- Validate catalog and schema ownership model for Bronze/Silver/Gold.
 
-## Post-DAB Deployment
+## Security and Operations Follow-up
 
-- Run the orchestrator job once end to end.
-- Confirm the setup job created the target catalogs and schemas.
-- Confirm Bronze wrote `raw_events`, Silver wrote `events`, and Gold wrote `event_summary`.
-- Review failures for missing secrets, missing grants, or storage access issues before retrying.
+- Enable and verify Databricks system tables required for monitoring.
+- Configure job failure alerts per environment.
+- Review Key Vault access logs and configure retention.
+- Decide and apply secret rotation cadence.
 
-## Architectural Decisions Deferred
+## State Management
 
-- Configure a remote Terraform backend before production use.
-- Decide whether to disable shared key access on storage accounts after initial provisioning.
-- Add Databricks system tables, diagnostics, and alert routing for operational visibility.
-- Replace the sample Bronze ingestion logic with the real source-system implementation.
+- CI currently supports ephemeral/local Terraform state workflows.
+- For production, configure a remote backend and state locking before broad rollout.
+- If rerunning with local state and existing resources, use controlled import or reset strategy.
+
+## Open Architecture Inputs (not stated in article)
+
+- Final cluster sizes and autoscaling bounds by layer.
+- Exact ingestion source for Bronze (event stream, files, database, etc.).
+- SLA/SLO targets for orchestration frequency and retry policy.
+- Final naming for schemas/tables beyond defaults.
+- Disaster recovery and multi-region failover requirements.

@@ -149,6 +149,27 @@ Workflow credential-resolution policy (must be enforced by generated workflow):
 - When `state_strategy=recreate_rg`, delete `rg-<workload>-<environment>-platform` before `terraform apply`.
 - When `state_strategy=fail`, stop with a clear message that remote backend + import is required for non-destructive adoption.
 
+Soft-delete recovery state machine (must be enforced by generated workflow):
+
+- The auto mode for `key_vault_recovery_mode` follows a recovery-first strategy: the initial apply attempts with `key_vault_recover_soft_deleted=true`. The retry logic handles two failure cases:
+  - If the initial apply fails with `SoftDeletedVaultDoesNotExist` (no recoverable vault exists), retry with `key_vault_recover_soft_deleted=false`.
+  - If the initial apply fails with "recovering this KeyVault has been disabled" or "existing soft-deleted Key Vault exists" (which only happens when the flag was `false` going in — e.g. via `mode=fresh`, or via stale state inherited from `$GITHUB_ENV`), perform recovery and import via the recovery handler, then retry with `key_vault_recover_soft_deleted=true`.
+
+- In auto mode, the `az keyvault list-deleted` query inside the detection step is informational — its result is logged but does not affect the recovery flag. The recovery flag is set to `true` unconditionally in auto mode (recovery-first), because detection-driven branching is unreliable when the deployment principal lacks permission to query soft-deleted vault state. The detection step still writes `TF_VAR_key_vault_recover_soft_deleted=true` to `$GITHUB_ENV` so the apply step has a defined starting value.
+
+- The detection step must write `TF_VAR_key_vault_recover_soft_deleted` to `$GITHUB_ENV` in all three modes (`auto`, `recover`, `fresh`). It must not skip the write in any mode. This prevents stale values from a previous workflow run's mid-fallback failure from leaking into the next run's apply step.
+
+- The apply step must echo the resolved value of `TF_VAR_key_vault_recover_soft_deleted` immediately before running `terraform apply`. This makes the state machine visible in the workflow log and helps diagnose any drift between the detection step and the apply step.
+
+- The auto-mode fallback retries only on the specific Key Vault state errors below. All other failure classes — including configuration errors (`No value for required variable`, `Invalid value for variable`), authentication errors, and unrelated provider errors — exit immediately with the original return code. The `Configuration error detected — refusing to retry` guard is required as the first check in the failure-handling block.
+  - `SoftDeletedVaultDoesNotExist` → flip recover flag from `true` to `false` and retry.
+  - `recovering this KeyVault has been disabled` / `existing soft-deleted Key Vault exists` → run the recovery handler (recover the vault, import into Terraform state), then retry with `key_vault_recover_soft_deleted=true`.
+  - `to be managed via Terraform this resource needs to be imported` / `already exists - to be managed via Terraform` → import the existing vault, then retry.
+  
+  Adding a new fallback case requires explicitly extending this list and the corresponding case in `generate_deploy_workflow.py`. Generic catch-all retries are not permitted.
+
+- The soft-delete recovery handler's resource group and key vault names must be computed from the same conventions as `infra/terraform/locals.tf` (see the `terraform` skill's Resource naming contract). When the recovery handler runs `az group create`, `az keyvault recover`, or `terraform import`, it must reference the *Terraform-canonical* names, not workflow-invented names. Any divergence breaks the recovery path silently — the handler appears to run successfully but the subsequent retry apply fails because Terraform looks for a differently-named resource.
+
 Repeatability and restricted-tenant guardrails (mandatory):
 - In `layer_sp_mode=existing`, treat `existing_layer_sp_object_id` as a trusted input and pass it directly to RBAC resources.
 - Do **not** add Terraform data-source validation that reads Microsoft Graph for existing principals (for example `data "azuread_service_principal" "existing_layer"`).

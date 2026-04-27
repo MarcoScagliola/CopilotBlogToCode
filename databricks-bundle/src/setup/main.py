@@ -1,9 +1,10 @@
-import argparse
+"""Setup job entrypoint for medallion namespaces."""
 
+import argparse
 from pyspark.sql import SparkSession
 
 
-def parse_args() -> argparse.Namespace:
+def main() -> None:
     parser = argparse.ArgumentParser(description="Create medallion catalogs and schemas.")
     parser.add_argument("--bronze-catalog", required=True)
     parser.add_argument("--silver-catalog", required=True)
@@ -17,23 +18,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bronze-access-connector-id", required=True)
     parser.add_argument("--silver-access-connector-id", required=True)
     parser.add_argument("--gold-access-connector-id", required=True)
-    return parser.parse_args()
+    args = parser.parse_args()
 
-
-def ensure_namespace(spark: SparkSession, catalog: str, schema: str) -> None:
-    spark.sql(f"CREATE CATALOG IF NOT EXISTS {catalog}")
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}")
-
-
-def main() -> None:
-    args = parse_args()
     spark = SparkSession.builder.getOrCreate()
+    spark.sql(f"CREATE CATALOG IF NOT EXISTS {args.bronze_catalog}")
+    spark.sql(f"CREATE CATALOG IF NOT EXISTS {args.silver_catalog}")
+    spark.sql(f"CREATE CATALOG IF NOT EXISTS {args.gold_catalog}")
 
-    ensure_namespace(spark, args.bronze_catalog, args.bronze_schema)
-    ensure_namespace(spark, args.silver_catalog, args.silver_schema)
-    ensure_namespace(spark, args.gold_catalog, args.gold_schema)
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.bronze_catalog}.{args.bronze_schema}")
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.silver_catalog}.{args.silver_schema}")
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {args.gold_catalog}.{args.gold_schema}")
 
-    print("Setup completed for medallion catalogs and schemas.")
+    print("Setup completed.")
 
 
 if __name__ == "__main__":

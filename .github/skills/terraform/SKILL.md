@@ -65,6 +65,15 @@ Establish secure handling of authentication credentials:
 - **Pin the credential variable contract**: The Terraform module's `variables.tf` declares the credential inputs the deployment workflow exports as `TF_VAR_*`. Both sides must use identical names. This baseline uses **unprefixed** names: `tenant_id`, `subscription_id`, `client_id`, `client_secret`, `sp_object_id`. Do not introduce `azure_*` or other provider prefixes for these specific variables — any drift between `variables.tf` and the workflow generator is a deploy-blocking error caught by `validate_workflow_parity.sh`.
 - **Atomic updates across both sides**: If a future change introduces a new credential variable or renames an existing one, update `generate_deploy_workflow.py` and the `variables.tf` generation pattern in the same commit, and run `validate_workflow_parity.sh` to verify alignment before merging. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
 - **Cross-reference from the orchestrator**: The orchestrator's Step 5 (deploy-infrastructure workflow generation) must reference this credential variable contract, so an agent generating the workflow without loading the full terraform skill still produces names that align with `variables.tf`.
+- **Pin the resource naming contract for cross-system references.** Resource names that are referenced by *both* the Terraform module and the deployment workflow must follow a single contract. The patterns below are canonical and apply to every Azure-Databricks deployment from this orchestrator:
+  - Resource group: `rg-{workload}-{environment}-{azure_region_abbrev}`
+  - Key Vault: `kv-{workload}-{environment}-{azure_region_abbrev}` (truncated to 24 chars)
+  - Storage accounts (when present): `st{workload}{environment}{layer}{azure_region_abbrev}` (lowercase, no hyphens, 24-char limit)
+  - Databricks workspace: `dbw-{workload}-{environment}-{azure_region_abbrev}`
+  
+  These patterns must be reflected identically in `infra/terraform/locals.tf` (where Terraform computes them) and in `generate_deploy_workflow.py` (where the workflow uses them for state preflight, soft-delete recovery, and import). Drift is a deploy-blocking error.
+  
+  When generating the workflow's name-computation logic, derive it from the same components and the same region-abbreviation table that `locals.tf` uses. The workflow should not invent its own naming conventions — it follows Terraform's.
 
 ### 6. Variable Organization
 Input variables structure the interface between code and consumers:

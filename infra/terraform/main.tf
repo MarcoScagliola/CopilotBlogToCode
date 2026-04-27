@@ -38,12 +38,11 @@ resource "azurerm_role_assignment" "connector_storage_access" {
 }
 
 resource "azurerm_databricks_workspace" "main" {
-  name                          = local.workspace_name
-  resource_group_name           = azurerm_resource_group.platform.name
-  location                      = azurerm_resource_group.platform.location
-  sku                           = "premium"
-  managed_resource_group_name   = "${local.resource_group_name}-managed"
-  public_network_access_enabled = true
+  name                        = local.workspace_name
+  resource_group_name         = azurerm_resource_group.platform.name
+  location                    = azurerm_resource_group.platform.location
+  sku                         = "premium"
+  managed_resource_group_name = "${local.resource_group_name}-managed"
 
   custom_parameters {
     no_public_ip = true

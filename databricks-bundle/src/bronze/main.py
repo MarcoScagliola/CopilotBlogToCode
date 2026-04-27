@@ -1,3 +1,5 @@
+"""Bronze ingestion entrypoint using runtime secret resolution."""
+
 import argparse
 from datetime import datetime, timezone
 
@@ -5,15 +7,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Bronze ingestion layer.")
-    parser.add_argument("--catalog", required=True)
-    parser.add_argument("--schema", required=True)
-    parser.add_argument("--secret-scope", required=True)
-    return parser.parse_args()
-
-
-def load_source_secret(secret_scope: str) -> str:
+def _load_source_secret(secret_scope: str) -> str:
     try:
         return dbutils.secrets.get(secret_scope, "source-system-token")  # type: ignore[name-defined]
     except Exception:
@@ -21,10 +15,14 @@ def load_source_secret(secret_scope: str) -> str:
 
 
 def main() -> None:
-    args = parse_args()
-    spark = SparkSession.builder.getOrCreate()
+    parser = argparse.ArgumentParser(description="Bronze ingestion layer.")
+    parser.add_argument("--catalog", required=True)
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--secret-scope", required=True)
+    args = parser.parse_args()
 
-    _ = load_source_secret(args.secret_scope)
+    spark = SparkSession.builder.getOrCreate()
+    _ = _load_source_secret(args.secret_scope)
 
     now = datetime.now(timezone.utc).isoformat()
     rows = [

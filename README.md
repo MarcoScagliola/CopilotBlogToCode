@@ -1,13 +1,12 @@
 # Secure Medallion Architecture on Azure Databricks
 
-This repository implements the architecture from:
+This repository implements the architecture described in:
 - https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
-The generated solution includes:
-- Terraform infrastructure in `infra/terraform`
-- Databricks Asset Bundle runtime assets in `databricks-bundle`
-- GitHub Actions workflows in `.github/workflows`
-- deployment documentation in `SPEC.md` and `TODO.md`
+It deploys:
+- Azure infrastructure with Terraform (`infra/terraform`)
+- Databricks runtime assets with a Databricks Asset Bundle (`databricks-bundle`)
+- CI/CD workflows for Terraform validation, infrastructure deployment, and DAB deployment (`.github/workflows`)
 
 ## Run Context Used
 
@@ -15,75 +14,70 @@ The generated solution includes:
 - environment: `dev`
 - azure_region: `uksouth`
 - github_environment: `BLG2CODEDEV`
-- layer_sp_mode: `create` by default, with `existing` supported
+- layer_sp_mode: `create` (or `existing` in restricted tenants)
 
 ## Prerequisites
 
-- Terraform 1.6 or newer
-- Python 3.10 or newer
-- A GitHub environment named `BLG2CODEDEV`
+- Terraform >= 1.6.0
+- Python 3.10+
 - Azure credentials available as GitHub secrets or environment variables
-- Databricks CLI available in the deployment workflow runtime
+- Databricks CLI available in deployment workflow runtime
 
-## Required GitHub Secrets / Variables
+## Expected GitHub Secrets / Variables
 
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_CLIENT_ID`
 - `AZURE_CLIENT_SECRET`
 - `AZURE_SP_OBJECT_ID`
+- `EXISTING_LAYER_SP_CLIENT_ID` (required when `layer_sp_mode=existing`)
+- `EXISTING_LAYER_SP_OBJECT_ID` (required when `layer_sp_mode=existing`)
 
-When `layer_sp_mode=existing`, also provide:
-
-- `EXISTING_LAYER_SP_CLIENT_ID`
-- `EXISTING_LAYER_SP_OBJECT_ID`
-
-Use Enterprise Application object IDs for all `*_OBJECT_ID` values, not App Registration object IDs.
+Use Enterprise Application object IDs for all `*_OBJECT_ID` values.
 
 ## Architecture Summary
 
-- Separate storage account per layer: Bronze, Silver, Gold.
-- Separate Databricks access connector per layer.
-- Separate layer principals when `layer_sp_mode=create`, or a reusable existing principal path when `layer_sp_mode=existing`.
+- Per-layer storage accounts: Bronze, Silver, Gold.
+- Per-layer Databricks Access Connectors.
+- Layer identities can be created (`create`) or reused (`existing`).
 - Orchestrator job runs Setup -> Bronze -> Silver -> Gold -> Smoke Test.
-- Unity Catalog managed tables are used for runtime data objects.
-- Runtime secrets are read from Azure Key Vault through a Databricks secret scope.
+- Managed tables in Unity Catalog are used by the sample runtime implementation.
 
 ## Workflows
 
-- `.github/workflows/validate-terraform.yml`: runs Terraform init and validate without a backend.
-- `.github/workflows/deploy-infrastructure.yml`: applies Terraform, handles soft-deleted Key Vault recovery, and uploads output artifacts.
-- `.github/workflows/deploy-dab.yml`: consumes Terraform outputs and deploys the Databricks Asset Bundle.
+- `validate-terraform.yml`: Terraform init/validate checks.
+- `deploy-infrastructure.yml`: Terraform apply and outputs artifact publication.
+- `deploy-dab.yml`: Bundle deploy consuming terraform outputs and deploy context artifacts.
 
 ## Local Validation Commands
 
 ```powershell
-python -m py_compile .github/skills/blog-to-databricks-iac/scripts/azure/*.py
+Get-ChildItem .github/skills/blog-to-databricks-iac/scripts/azure -Filter *.py | ForEach-Object { python -m py_compile $_.FullName }
+Get-ChildItem databricks-bundle/src -Recurse -Filter main.py | ForEach-Object { python -m py_compile $_.FullName }
+
 terraform -chdir=infra/terraform init -backend=false
 terraform -chdir=infra/terraform validate
+
 python -c "import yaml, glob; [yaml.safe_load(open(f, encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]"
 python -c "import yaml, glob; [yaml.safe_load(open(f, encoding='utf-8')) for f in glob.glob('databricks-bundle/**/*.yml', recursive=True)]"
+
 python .github/skills/blog-to-databricks-iac/scripts/azure/post_deploy_checklist.py --contract-only
+"C:\Program Files\Git\bin\bash.exe" .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh
 ```
 
 ## Smoke Test Job
 
-The generated `smoke_test_job` validates that the following managed tables exist and contain rows:
-
+The generated `smoke_test` job validates that these tables exist and have rows:
 - Bronze: `raw_events`
 - Silver: `events`
 - Gold: `event_summary`
 
-## After Infrastructure Deployment
+## Post-Deploy Checklist
 
-Use `TODO.md` for the required post-infrastructure tasks:
+Use:
 
-- create the AKV-backed Databricks secret scope
-- populate the runtime secret keys in Azure Key Vault
-- grant Unity Catalog privileges to the layer principals and verify storage access
-- run the orchestrator job end to end
+```powershell
+python .github/skills/blog-to-databricks-iac/scripts/azure/post_deploy_checklist.py --contract-only
+```
 
-## Documentation
-
-- `SPEC.md` documents what was stated versus not stated in the source article.
-- `TODO.md` captures the manual setup and unresolved decisions the blog leaves open.
+For unresolved items and manual setup, see `TODO.md`.

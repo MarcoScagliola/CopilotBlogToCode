@@ -1,12 +1,12 @@
 locals {
   region_abbr = {
-    eastus       = "eus"
-    eastus2      = "eus2"
-    westus2      = "wus2"
-    westeurope   = "weu"
-    northeurope  = "neu"
-    uksouth      = "uks"
-    ukwest       = "ukw"
+    eastus      = "eus"
+    eastus2     = "eus2"
+    westus2     = "wus2"
+    westeurope  = "weu"
+    northeurope = "neu"
+    uksouth     = "uks"
+    ukwest      = "ukw"
   }
 
   region_token = lookup(local.region_abbr, var.azure_region, replace(var.azure_region, " ", ""))
@@ -28,7 +28,7 @@ locals {
 
   resource_group_name = "rg-${var.workload}-${var.environment}-platform"
   workspace_name      = "dbx-${var.workload}-${var.environment}"
-  key_vault_name      = substr("kv-${var.workload}-${var.environment}-${local.region_token}", 0, 24)
+  key_vault_name      = substr(replace("kv-${var.workload}-${var.environment}-${local.region_token}", "_", ""), 0, 24)
 
   layer_storage_account_names = {
     for layer, config in local.layers :
