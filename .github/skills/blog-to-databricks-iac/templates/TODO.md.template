@@ -108,6 +108,52 @@ Reference SPEC.md sections for workload-specific names rather than hardcoding th
 
 **Done looks like.** The choice matches the run's intent. For prod-style runs, this typically means `state_strategy = fail` plus a remote backend configured (see "Local-only Terraform state" under Architectural decisions deferred).
 
+### Choose the right combination of dispatch inputs for your scenario
+
+**What this is.** Each dispatch of the deployment workflow takes three independent inputs that interact: `key_vault_recovery_mode`, `layer_sp_mode`, and `state_strategy`. The right combination depends on what state Azure is in and what you want this run to do. Choosing inputs in isolation produces failures that are hard to diagnose; choosing them as a combination matched to a scenario succeeds reliably.
+
+**Why deferred.** The orchestrator cannot know in advance which Azure state your tenant is in, whether your tenant restricts app registration, whether prior deploys have left soft-deleted Key Vaults, or whether you intend a clean rebuild versus an incremental update. These are operator decisions made per dispatch.
+
+**Source.** SKILL.md Step 5 workflow inputs.
+
+**Resolution.** Identify the scenario that matches your current situation and use the corresponding combination. Five scenarios cover almost every dispatch:
+
+- **First deploy in a clean tenant.** No prior workload resources in Azure. Tenant allows the deployment principal to create app registrations.
+  - `key_vault_recovery_mode = auto`
+  - `layer_sp_mode = create`
+  - `state_strategy = fail`
+
+- **First deploy in a restricted tenant.** Same as above, but the tenant blocks the deployment principal from creating app registrations. You have pre-created the layer service principals manually and populated the existing-* secrets in the GitHub Environment.
+  - `key_vault_recovery_mode = auto`
+  - `layer_sp_mode = existing`
+  - `state_strategy = fail`
+
+- **Iterating in dev — full reset.** A previous deploy succeeded, you've made changes, and you accept losing all data and resources to start clean.
+  - `key_vault_recovery_mode = auto`
+  - `layer_sp_mode = create` or `existing` (match your tenant)
+  - `state_strategy = recreate_rg`
+
+- **Adopting a manually-recovered Key Vault.** A soft-deleted vault existed, the automated recovery handler couldn't bring it back cleanly (because its original resource group was a non-canonical name from an older deploy), and you have manually recovered the vault into the canonical resource group.
+  - `key_vault_recovery_mode = recover`
+  - `layer_sp_mode = create` or `existing` (match your tenant)
+  - `state_strategy = fail`
+
+- **Production rerun.** Remote Terraform state is configured (see "Local-only Terraform state" under Architectural decisions deferred). You're applying changes incrementally to existing infrastructure.
+  - `key_vault_recovery_mode = auto`
+  - `layer_sp_mode = existing` (production typically uses pre-created SPs with managed lifecycle)
+  - `state_strategy = fail`
+
+Some combinations are unsafe and should be avoided regardless of scenario:
+
+- `state_strategy = recreate_rg` paired with `key_vault_recovery_mode = fresh`. Deleting the resource group automatically soft-deletes any Key Vault inside it. `fresh` mode then conflicts with the soft-deleted vault and the apply fails. Use `auto` instead.
+
+- `state_strategy = fail` on a rerun without remote state configured. With local-only state, every rerun starts from empty state. The workflow's preflight will detect existing Azure resources and exit immediately to prevent unsafe operations. Either set up remote state (see Architectural decisions deferred) or use `recreate_rg` if you accept the destructive reset.
+
+**Practical consequence of local-only state.** With local-only Terraform state, **only the destructive paths support reruns**. Non-destructive incremental updates require remote state. This is a one-time setup that pays back permanently — see "Local-only Terraform state" under Architectural decisions deferred.
+
+**Done looks like.** The combination matches your scenario, the workflow proceeds past preflight without exiting on `state_strategy=fail`, and the apply completes the operation you intended (clean creation, full rebuild, or incremental update). Failures during apply correspond to scenario-specific issues (Azure RBAC, soft-delete state, layer SP availability) rather than misconfigured input combinations.
+
+
 <!-- Add one entry per "not stated in article" SPEC.md value that must be supplied at deploy time. Use the shape:
 
 ### <from SPEC.md § {section}>: <runtime_value_not_stated>
@@ -226,22 +272,6 @@ This check is the first time the entire chain is exercised together — Azure RB
 
 **Done looks like.** The orchestrator job runs to completion. All expected target tables exist and have rows. No layer failed with permission, secret, storage, or catalog errors.
 
-<!-- Add per-workload Post-DAB entries here from SPEC.md. Use the entry-field contract. Common categories at this stage:
-
-- End-user / consumer-group access grants on gold-layer schemas (the consumers identified in SPEC.md § Consumers).
-- Smoke tests that assert table existence, row counts, and schema integrity after a run.
-- Handoff to operational consumers (BI dashboards, downstream pipelines, ML feature stores) that depend on the pipeline's output.
-
-Each entry needs:
-- a heading naming the action
-- "What this is" if the action is not self-explanatory
-- "Why deferred"
-- "Source" — pointing to SPEC.md sections
-- "Resolution" — numbered conceptual steps
-- "Done looks like" if the success state is not obvious
-
-Reference SPEC.md sections for workload-specific names rather than hardcoding them.
--->
 
 ## Architectural decisions deferred
 
