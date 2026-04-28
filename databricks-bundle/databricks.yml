@@ -1,0 +1,54 @@
+bundle:
+  name: secure-medallion
+
+include:
+  - resources/*.yml
+
+variables:
+  workspace_host:
+    description: Databricks workspace host used by the deployment bridge.
+  workspace_resource_id:
+    description: Azure resource ID of the Databricks workspace.
+  bronze_catalog:
+    description: Bronze Unity Catalog catalog name.
+  silver_catalog:
+    description: Silver Unity Catalog catalog name.
+  gold_catalog:
+    description: Gold Unity Catalog catalog name.
+  bronze_schema:
+    description: Bronze schema name.
+    default: bronze
+  silver_schema:
+    description: Silver schema name.
+    default: silver
+  gold_schema:
+    description: Gold schema name.
+    default: gold
+  secret_scope:
+    description: Databricks secret scope backed by Azure Key Vault.
+  bronze_principal_client_id:
+    description: Bronze layer execution principal client ID.
+  silver_principal_client_id:
+    description: Silver layer execution principal client ID.
+  gold_principal_client_id:
+    description: Gold layer execution principal client ID.
+  bronze_storage_account:
+    description: Bronze storage account name.
+  silver_storage_account:
+    description: Silver storage account name.
+  gold_storage_account:
+    description: Gold storage account name.
+  bronze_access_connector_id:
+    description: Bronze access connector resource ID.
+  silver_access_connector_id:
+    description: Silver access connector resource ID.
+  gold_access_connector_id:
+    description: Gold access connector resource ID.
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prd:
+    mode: production
