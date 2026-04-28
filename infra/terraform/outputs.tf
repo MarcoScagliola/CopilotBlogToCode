@@ -20,18 +20,6 @@ output "gold_catalog_name" {
   value = local.layer_settings.gold.catalog
 }
 
-output "bronze_schema_name" {
-  value = local.layer_settings.bronze.schema
-}
-
-output "silver_schema_name" {
-  value = local.layer_settings.silver.schema
-}
-
-output "gold_schema_name" {
-  value = local.layer_settings.gold.schema
-}
-
 output "secret_scope_name" {
   value = local.secret_scope_name
 }

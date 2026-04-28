@@ -5,40 +5,54 @@ include:
   - resources/*.yml
 
 variables:
-  workspace_host: {}
-  workspace_resource_id: {}
+  workspace_host:
+    description: Databricks workspace host supplied by the deploy bridge for CLI authentication context.
+  workspace_resource_id:
+    description: Azure resource id of the Databricks workspace supplied by the deploy bridge.
   bronze_catalog:
-    default: bronze_catalog
+    description: Bronze Unity Catalog catalog name.
+    default: blg_dev_bronze
   silver_catalog:
-    default: silver_catalog
+    description: Silver Unity Catalog catalog name.
+    default: blg_dev_silver
   gold_catalog:
-    default: gold_catalog
+    description: Gold Unity Catalog catalog name.
+    default: blg_dev_gold
   bronze_schema:
+    description: Bronze schema name.
     default: bronze
   silver_schema:
+    description: Silver schema name.
     default: silver
   gold_schema:
+    description: Gold schema name.
     default: gold
   secret_scope:
+    description: Databricks secret scope name backed by Azure Key Vault.
     default: blg-dev-scope
-  bronze_principal_client_id: {}
-  silver_principal_client_id: {}
-  gold_principal_client_id: {}
-  bronze_storage_account: {}
-  silver_storage_account: {}
-  gold_storage_account: {}
-  bronze_access_connector_id: {}
-  silver_access_connector_id: {}
-  gold_access_connector_id: {}
+  bronze_principal_client_id:
+    description: Client id for the Bronze execution principal.
+  silver_principal_client_id:
+    description: Client id for the Silver execution principal.
+  gold_principal_client_id:
+    description: Client id for the Gold execution principal.
+  bronze_storage_account:
+    description: Bronze layer storage account name.
+  silver_storage_account:
+    description: Silver layer storage account name.
+  gold_storage_account:
+    description: Gold layer storage account name.
+  bronze_access_connector_id:
+    description: Bronze Databricks access connector resource id.
+  silver_access_connector_id:
+    description: Silver Databricks access connector resource id.
+  gold_access_connector_id:
+    description: Gold Databricks access connector resource id.
 
 targets:
   dev:
     mode: development
     default: true
-    workspace:
-      host: ${var.workspace_host}
 
   prd:
     mode: production
-    workspace:
-      host: ${var.workspace_host}

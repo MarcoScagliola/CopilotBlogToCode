@@ -5,35 +5,34 @@
 - URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
 ## Architecture Summary
-- Pattern: Medallion architecture with isolated Bronze, Silver, and Gold layers.
-- Security model: least privilege with per-layer execution identities and scoped access.
-- Orchestration: one job per layer plus one orchestrator job.
-- Governance plane: Unity Catalog with per-layer catalog and schema boundaries.
-- Secret handling: runtime retrieval through Azure Key Vault-backed Databricks secret scope.
+- Pattern: security-first Medallion architecture with isolated Bronze, Silver, and Gold layers.
+- Execution model: one Lakeflow job per layer plus an orchestrator job.
+- Governance model: Unity Catalog catalogs and schemas separated by layer.
+- Secret model: runtime secret retrieval from an Azure Key Vault-backed Databricks secret scope.
 
 ## Azure Components
-- Azure Databricks workspace (Unity Catalog enabled).
-- ADLS Gen2 storage accounts: one per layer.
-- Databricks Access Connectors: one per layer.
+- Azure Databricks workspace.
+- Azure Data Lake Storage Gen2 storage account per layer.
+- Databricks Access Connector per layer.
 - Azure Key Vault for runtime secrets.
-- Microsoft Entra service principals for layer execution.
+- Microsoft Entra service principals for deployment and layer execution.
 
-## Baseline Defaults
-- Workload: blg
-- Environment: dev
-- Region: uksouth
-- GitHub environment: BLG2CODEDEV
-- Layer principal mode: create (supports existing mode)
+## Security Decisions
+- Least privilege enforced with per-layer identities.
+- Separate storage and compute blast-radius boundaries by layer.
+- No secret values in code, Git, workflow inputs, or job parameters.
+- Key Vault soft-delete recovery is handled in workflow retry logic.
 
-## Data Flow
-1. setup_job creates catalogs and schemas.
-2. bronze_job ingests seed events into Bronze.
-3. silver_job standardizes and deduplicates into Silver.
-4. gold_job computes aggregate facts into Gold.
-5. smoke_test_job validates minimum data presence.
+## Default Inputs
+- workload: blg
+- environment: dev
+- azure_region: uksouth
+- github_environment: BLG2CODEDEV
+- layer_sp_mode: create
 
-## Key Security Choices
-- Separate storage, compute, and principal boundaries per layer.
-- No secret values in code, workflow inputs, or job parameters.
-- RBAC assignments restricted to required scopes.
-- Recovery-safe workflow behavior for Key Vault soft-delete cases.
+## Runtime Flow
+1. setup_job provisions Medallion catalogs and schemas.
+2. bronze_job lands seed event data into Bronze.
+3. silver_job transforms and deduplicates Bronze into Silver.
+4. gold_job aggregates Silver into Gold.
+5. smoke_test_job validates end-to-end data presence.

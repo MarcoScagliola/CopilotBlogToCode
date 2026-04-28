@@ -26,22 +26,22 @@ variable "sp_object_id" {
 
 variable "workload" {
   type        = string
-  description = "Short workload name"
+  description = "Short workload code"
 }
 
 variable "environment" {
   type        = string
-  description = "Deployment environment (dev/prd)"
+  description = "Deployment environment"
 }
 
 variable "azure_region" {
   type        = string
-  description = "Azure region (for example uksouth)"
+  description = "Azure region for deployment"
 }
 
 variable "layer_sp_mode" {
   type        = string
-  description = "Whether layer principals are created or reused"
+  description = "Whether to create layer principals or use an existing one"
   default     = "create"
 
   validation {
@@ -52,18 +52,18 @@ variable "layer_sp_mode" {
 
 variable "existing_layer_sp_client_id" {
   type        = string
-  description = "Existing layer principal client id used when layer_sp_mode=existing"
+  description = "Existing layer principal client id for existing mode"
   default     = ""
 }
 
 variable "existing_layer_sp_object_id" {
   type        = string
-  description = "Existing layer principal object id used when layer_sp_mode=existing"
+  description = "Existing layer principal object id for existing mode"
   default     = ""
 }
 
 variable "key_vault_recover_soft_deleted" {
   type        = bool
-  description = "Controls AzureRM key vault soft-delete recovery behavior"
+  description = "Controls provider key vault soft-delete recovery behavior"
   default     = true
 }

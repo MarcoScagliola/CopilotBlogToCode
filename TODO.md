@@ -1,30 +1,30 @@
 # TODO
 
 ## Pre-deployment
-- Confirm the deployment service principal has rights to create resource groups, storage, Databricks, and role assignments.
-- Decide whether to keep `layer_sp_mode=create` or switch to `layer_sp_mode=existing` for restricted tenants.
-- If using existing mode, provide Enterprise Application object IDs for existing layer principals.
+- Confirm the deployment service principal can create resource groups, Azure Databricks, storage accounts, Key Vault, and RBAC assignments.
+- Decide whether to keep `layer_sp_mode=create` or use `layer_sp_mode=existing` for restricted tenants.
+- If using existing mode, prepare the Enterprise Application object ID and client ID for the shared layer principal.
 
 ## Deployment-time inputs
-- Validate workflow dispatch values: `workload`, `environment`, `azure_region`.
-- Choose `state_strategy`:
-  - `fail` for safe non-destructive retries.
+- Validate workflow inputs for workload, environment, and azure_region.
+- Choose `state_strategy` based on state persistence:
+  - `fail` for non-destructive adoption.
   - `recreate_rg` only for ephemeral environments.
-- Choose `key_vault_recovery_mode` (`auto` recommended).
+- Use `key_vault_recovery_mode=auto` unless you need explicit recovery behavior.
 
 ## Post-infrastructure
-- Create an Azure Key Vault-backed Databricks secret scope named from Terraform output `secret_scope_name`.
-- Add runtime secret key `source-system-token` in Key Vault.
-- Verify Databricks workspace can read the secret scope.
-- Grant Unity Catalog privileges to operational personas as needed.
+- Create an Azure Key Vault-backed Databricks secret scope using the Terraform `secret_scope_name` output.
+- Add the `source-system-token` secret into Azure Key Vault.
+- Verify Databricks can resolve and read the secret scope.
+- Apply Unity Catalog grants required by your data producers and consumers.
 
 ## Post-DAB
-- Run `orchestrator_job` and verify all five jobs complete.
-- Validate expected tables exist in Bronze, Silver, and Gold schemas.
-- Validate monitoring and alerting settings for production operations.
+- Run the orchestrator job and verify all layer jobs succeed.
+- Validate Bronze, Silver, and Gold tables exist and contain expected data.
+- Configure production monitoring, alerting, and budget controls.
 
 ## Architectural decisions deferred
-- Select remote Terraform backend for team/state durability.
-- Enforce production cluster policies and budget controls.
-- Replace seed Bronze ingestion with real source connectors and credential rotation policy.
-- Finalize private networking and data exfiltration controls for production.
+- Choose a remote Terraform backend for persistent team state.
+- Define production networking and exfiltration controls.
+- Replace seed Bronze ingestion with real source integrations.
+- Finalize production cluster policy, observability, and cost-governance settings.
