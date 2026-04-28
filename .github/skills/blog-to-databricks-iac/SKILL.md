@@ -146,8 +146,19 @@ Workflow credential-resolution policy (must be enforced by generated workflow):
 - Drive Terraform identity variables from resolved ARM env values (for example `TF_VAR_azure_client_id` from `ARM_CLIENT_ID`) rather than duplicating credential sources.
 - When `layer_sp_mode=existing`, validate existing-layer principal identifiers; otherwise do not require them.
 - Include a workflow input `state_strategy` with options `fail` and `recreate_rg` to handle ephemeral-state reruns predictably.
-- When `state_strategy=recreate_rg`, delete `rg-<workload>-<environment>-platform` before `terraform apply`.
+- When `state_strategy=recreate_rg`, delete the resource group named per the canonical pattern (see "Resource name computation in the generated workflow" below — the workflow's `$rg_name` shell variable). Do not hardcode a `-platform` suffix; the suffix is the region abbreviation as defined by the `terraform` skill's Section 5 (Resource Naming).
+
 - When `state_strategy=fail`, stop with a clear message that remote backend + import is required for non-destructive adoption.
+
+Resource name computation in the generated workflow (must be enforced by `generate_deploy_workflow.py`):
+
+- The canonical naming patterns are defined in the `terraform` skill's Section 5 (Resource Naming). The workflow generator must produce shell logic that computes names matching those patterns exactly. The workflow follows Terraform's naming, not the other way around.
+
+- Compute the region abbreviation once, in an early job step, and write the result to `$GITHUB_ENV` so all later steps reference the same value. The mapping table (from `azure_region` input to abbreviation, e.g. `uksouth` → `uks`) lives in this single early step, not duplicated across multiple steps. Subsequent steps that need the abbreviation read it from the env, not from local recomputation. This eliminates the class of bug where two steps independently compute names and silently produce different values.
+
+- The deployment workflow uses `$rg_name`, `$kv_name`, `$workspace_name`, and `$storage_name_<layer>` shell variables to refer to canonical resources. These variables must be assigned in an early step (after the region-abbreviation computation, before any step that operates on Azure resources) and reused across all later steps — state preflight, soft-delete recovery, `terraform import`, output extraction. No step may compute or hardcode a resource name; every reference goes through the variable.
+
+- Workflow-invented suffixes such as `-platform` are not permitted. The `terraform` skill's Section 5 explicitly forbids them. If a generator currently emits `-platform`, that is a regression caught by validation invariants in 9.3.
 
 Soft-delete recovery state machine (must be enforced by generated workflow):
 

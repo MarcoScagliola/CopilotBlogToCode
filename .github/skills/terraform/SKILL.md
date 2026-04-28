@@ -45,13 +45,30 @@ Terraform state is the source of truth for resource management:
 - **Include backend block in version control** so future contributors understand the state architecture.
 - **If ephemeral state is intentional**, explicitly document it and provide a deletion strategy (e.g., "delete Resource Group on rerun" or "configure remote backend for persistent state").
 
-### 5. Resource Naming
-Names are critical for resource organization and cost tracking:
 
-- **Derive all resource names from input variables** (workload, environment, region) using consistent conventions in `locals.tf`.
-- **Do not accept resource names as direct input variables**; compute them from semantic components.
-- **Include region abbreviations** in names (e.g., `rg-myapp-dev-uksouth` or `rg-myapp-dev-uks`).
-- **Document naming conventions** in SPEC.md or README.md.
+### 5. Resource Naming
+All resource names follow a single canonical template, computed in `locals.tf` from semantic components:
+`<resource-prefix>-{workload}-{environment}-{azure_region_abbrev}`
+
+Where `{azure_region_abbrev}` is the *suffix* — always last, never in the middle. The full canonical names for resources referenced by both the Terraform module and the deployment workflow:
+
+- Resource group: `rg-{workload}-{environment}-{azure_region_abbrev}`
+- Key Vault: `kv-{workload}-{environment}-{azure_region_abbrev}` (lowercase, underscores stripped, truncated to 24 chars)
+- Storage accounts: `st{workload}{environment}{layer}{azure_region_abbrev}` (lowercase, no hyphens, truncated to 24 chars)
+- Databricks workspace: `dbw-{workload}-{environment}-{azure_region_abbrev}`
+
+These patterns are non-negotiable. Specifically:
+- Do not use a fixed suffix like `-platform` in place of the region abbreviation. Even if a source blog uses `-platform` in its examples, the canonical template overrides article naming.
+- Do not include the region abbreviation in the *middle* of a name. It is always the last segment.
+- Do not omit the region abbreviation. Every resource name has it, regardless of whether the deployment is single-region.
+
+Compute names in `locals.tf` from input variables (`var.workload`, `var.environment`, `var.azure_region`). Convert `azure_region` to its abbreviation via the same mapping table the workflow uses (`uksouth → uks`, etc.). Both sides — `locals.tf` and `generate_deploy_workflow.py` — must reference the same mapping table.
+
+Do not accept resource names as direct input variables; compute them.
+
+Document the convention in SPEC.md or README.md.
+
+**Atomic updates across both sides.** A change to any naming pattern (a new region in the abbreviation table, a different truncation rule, a new resource type) requires updating both `locals.tf` and `generate_deploy_workflow.py` in the same commit. The parity check (`validate_workflow_parity.sh` or a peer `validate_resource_naming_parity.sh`) verifies that the generated workflow's `$rg_name` and `$kv_name` patterns match `locals.tf` before merge. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
 
 ## Authentication and Credentials Policy
 
@@ -65,21 +82,6 @@ Establish secure handling of authentication credentials:
 - **Pin the credential variable contract**: The Terraform module's `variables.tf` declares the credential inputs the deployment workflow exports as `TF_VAR_*`. Both sides must use identical names. This baseline uses **unprefixed** names: `tenant_id`, `subscription_id`, `client_id`, `client_secret`, `sp_object_id`. Do not introduce `azure_*` or other provider prefixes for these specific variables — any drift between `variables.tf` and the workflow generator is a deploy-blocking error caught by `validate_workflow_parity.sh`.
 - **Atomic updates across both sides**: If a future change introduces a new credential variable or renames an existing one, update `generate_deploy_workflow.py` and the `variables.tf` generation pattern in the same commit, and run `validate_workflow_parity.sh` to verify alignment before merging. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
 - **Cross-reference from the orchestrator**: The orchestrator's Step 5 (deploy-infrastructure workflow generation) must reference this credential variable contract, so an agent generating the workflow without loading the full terraform skill still produces names that align with `variables.tf`.
-- **Pin the resource naming contract for cross-system references.** Resource names that are referenced by *both* the Terraform module and the deployment workflow must follow a single contract. The patterns below are canonical and apply to every Azure-Databricks deployment from this orchestrator:
-  - Resource group: `rg-{workload}-{environment}-{azure_region_abbrev}`
-  - Key Vault: `kv-{workload}-{environment}-{azure_region_abbrev}` (truncated to 24 chars)
-  - Storage accounts (when present): `st{workload}{environment}{layer}{azure_region_abbrev}` (lowercase, no hyphens, 24-char limit)
-  - Databricks workspace: `dbw-{workload}-{environment}-{azure_region_abbrev}`
-  
-  These patterns must be reflected identically in `infra/terraform/locals.tf` (where Terraform computes them) and in `generate_deploy_workflow.py` (where the workflow uses them for state preflight, soft-delete recovery, and import). Drift is a deploy-blocking error.
-  
-  When generating the workflow's name-computation logic, derive it from the same components and the same region-abbreviation table that `locals.tf` uses. The workflow should not invent its own naming conventions — it follows Terraform's.
-
-  **Computing the region abbreviation in the workflow.** The workflow generator must compute the region abbreviation once, in an early job step, and write the result to `$GITHUB_ENV` so all later steps reference the same value. The mapping table (from `azure_region` input to abbreviation, e.g. `uksouth` → `uks`) lives in this single early step, not duplicated across multiple steps. Subsequent steps that need the abbreviation read it from the env, not from local recomputation. This eliminates the class of bug where two steps independently compute names and silently produce different values.
-
-  **Shell variable contract for resource names.** The deployment workflow uses `$rg_name`, `$kv_name`, `$workspace_name`, and `$storage_name_<layer>` shell variables to refer to canonical resources. These variables must be assigned in an early step and reused across all later steps — state preflight, soft-delete recovery, `terraform import`, output extraction. No step may compute or hardcode a resource name; it must reference the variable. This makes name drift impossible *within* the workflow (the variables are computed once) and pushes drift detection to the boundary with `locals.tf` (where the parity check operates).
-
-  **Atomic updates across both sides.** A change to any naming pattern (a new region in the abbreviation table, a different truncation rule, a new resource type) requires updating both `locals.tf` and `generate_deploy_workflow.py` in the same commit. The parity check (`validate_workflow_parity.sh` or a peer `validate_resource_naming_parity.sh`) verifies that the generated workflow's `$rg_name` and `$kv_name` patterns match `locals.tf` before merge. Do not change one side and rely on the parity check to fail loudly — the parity check is a safety net, not the contract.
 
 ### 6. Variable Organization
 Input variables structure the interface between code and consumers:
