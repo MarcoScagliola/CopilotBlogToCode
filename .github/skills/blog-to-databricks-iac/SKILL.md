@@ -181,6 +181,8 @@ Soft-delete recovery state machine (must be enforced by generated workflow):
 
 - The soft-delete recovery handler's resource group and key vault names must be computed from the same conventions as `infra/terraform/locals.tf` (see the `terraform` skill's Resource naming contract). When the recovery handler runs `az group create`, `az keyvault recover`, or `terraform import`, it must reference the *Terraform-canonical* names, not workflow-invented names. Any divergence breaks the recovery path silently — the handler appears to run successfully but the subsequent retry apply fails because Terraform looks for a differently-named resource.
 
+- The recovery handler must verify, after `az keyvault recover` succeeds, that the recovered vault's actual resource group matches `$rg_name`. If it does not, the vault was created with a non-canonical naming convention (typically a legacy deploy) and cannot be cleanly imported into the current Terraform state. The handler must exit with a clear error directing the operator to purge the vault and re-dispatch with `mode=fresh`. Silently importing into a wrong-RG state produces persistent Terraform diffs that look like infrastructure churn.
+
 Repeatability and restricted-tenant guardrails (mandatory):
 - In `layer_sp_mode=existing`, treat `existing_layer_sp_object_id` as a trusted input and pass it directly to RBAC resources.
 - Do **not** add Terraform data-source validation that reads Microsoft Graph for existing principals (for example `data "azuread_service_principal" "existing_layer"`).
