@@ -1,0 +1,44 @@
+bundle:
+  name: secure-medallion
+
+include:
+  - resources/*.yml
+
+variables:
+  workspace_host: {}
+  workspace_resource_id: {}
+  bronze_catalog:
+    default: bronze_catalog
+  silver_catalog:
+    default: silver_catalog
+  gold_catalog:
+    default: gold_catalog
+  bronze_schema:
+    default: bronze
+  silver_schema:
+    default: silver
+  gold_schema:
+    default: gold
+  secret_scope:
+    default: blg-dev-scope
+  bronze_principal_client_id: {}
+  silver_principal_client_id: {}
+  gold_principal_client_id: {}
+  bronze_storage_account: {}
+  silver_storage_account: {}
+  gold_storage_account: {}
+  bronze_access_connector_id: {}
+  silver_access_connector_id: {}
+  gold_access_connector_id: {}
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: ${var.workspace_host}
+
+  prd:
+    mode: production
+    workspace:
+      host: ${var.workspace_host}

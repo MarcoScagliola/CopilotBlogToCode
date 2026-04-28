@@ -1,25 +1,4 @@
-from __future__ import annotations
-
-import argparse
-from pathlib import Path
-
-
-def build_workflow_yaml(
-    workflow_name: str,
-    github_environment: str,
-    tenant_secret: str,
-    subscription_secret: str,
-    client_id_secret: str,
-    client_secret_secret: str,
-    sp_object_id_secret: str,
-    existing_layer_sp_client_id_secret: str,
-    existing_layer_sp_object_id_secret: str,
-    default_workload: str,
-    default_environment: str,
-    default_region: str,
-) -> str:
-    return f"""\
-name: {workflow_name}
+name: Deploy Infrastructure
 
 on:
   workflow_dispatch:
@@ -33,15 +12,15 @@ on:
       workload:
         description: Workload short name used in Terraform naming
         required: true
-        default: {default_workload}
+        default: blg
       environment:
         description: Environment value to pass to the downstream DAB deployment
         required: true
-        default: {default_environment}
+        default: dev
       azure_region:
         description: Azure region for Terraform deployment
         required: true
-        default: {default_region}
+        default: uksouth
       key_vault_recovery_mode:
         description: Key Vault soft-delete handling mode
         required: true
@@ -63,18 +42,18 @@ on:
 
 # ARM_* env vars are used by the Terraform AzureRM provider for service-principal auth.
 env:
-  ARM_TENANT_ID: ${{{{ secrets.{tenant_secret} || vars.{tenant_secret} }}}}
-  ARM_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} || vars.{subscription_secret} }}}}
-  ARM_CLIENT_ID: ${{{{ secrets.{client_id_secret} || vars.{client_id_secret} }}}}
-  ARM_CLIENT_SECRET: ${{{{ secrets.{client_secret_secret} || vars.{client_secret_secret} }}}}
-  ARM_SP_OBJECT_ID: ${{{{ secrets.{sp_object_id_secret} || vars.{sp_object_id_secret} }}}}
-  ARM_EXISTING_LAYER_SP_CLIENT_ID: ${{{{ secrets.{existing_layer_sp_client_id_secret} || vars.{existing_layer_sp_client_id_secret} || secrets.{client_id_secret} || vars.{client_id_secret} }}}}
-  ARM_EXISTING_LAYER_SP_OBJECT_ID: ${{{{ secrets.{existing_layer_sp_object_id_secret} || vars.{existing_layer_sp_object_id_secret} || secrets.{sp_object_id_secret} || vars.{sp_object_id_secret} }}}}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET || vars.AZURE_CLIENT_SECRET }}
+  ARM_SP_OBJECT_ID: ${{ secrets.AZURE_SP_OBJECT_ID || vars.AZURE_SP_OBJECT_ID }}
+  ARM_EXISTING_LAYER_SP_CLIENT_ID: ${{ secrets.EXISTING_LAYER_SP_CLIENT_ID || vars.EXISTING_LAYER_SP_CLIENT_ID || secrets.AZURE_CLIENT_ID || vars.AZURE_CLIENT_ID }}
+  ARM_EXISTING_LAYER_SP_OBJECT_ID: ${{ secrets.EXISTING_LAYER_SP_OBJECT_ID || vars.EXISTING_LAYER_SP_OBJECT_ID || secrets.AZURE_SP_OBJECT_ID || vars.AZURE_SP_OBJECT_ID }}
 
 jobs:
   deploy_infrastructure:
     runs-on: ubuntu-latest
-    environment: {github_environment}
+    environment: BLG2CODEDEV
 
     steps:
       - name: Checkout
@@ -84,17 +63,17 @@ jobs:
         run: |
           missing=()
           for var in ARM_TENANT_ID ARM_SUBSCRIPTION_ID ARM_CLIENT_ID ARM_CLIENT_SECRET; do
-            [ -n "${{!var}}" ] || missing+=("$var")
+            [ -n "${!var}" ] || missing+=("$var")
           done
-          [ -n "${{ARM_SP_OBJECT_ID}}" ] || missing+=("ARM_SP_OBJECT_ID")
+          [ -n "${ARM_SP_OBJECT_ID}" ] || missing+=("ARM_SP_OBJECT_ID")
 
-          if [ "${{{{ github.event.inputs.layer_sp_mode }}}}" = "existing" ]; then
-            [ -n "${{ARM_EXISTING_LAYER_SP_CLIENT_ID}}" ] || missing+=("ARM_EXISTING_LAYER_SP_CLIENT_ID")
-            [ -n "${{ARM_EXISTING_LAYER_SP_OBJECT_ID}}" ] || missing+=("ARM_EXISTING_LAYER_SP_OBJECT_ID")
+          if [ "${{ github.event.inputs.layer_sp_mode }}" = "existing" ]; then
+            [ -n "${ARM_EXISTING_LAYER_SP_CLIENT_ID}" ] || missing+=("ARM_EXISTING_LAYER_SP_CLIENT_ID")
+            [ -n "${ARM_EXISTING_LAYER_SP_OBJECT_ID}" ] || missing+=("ARM_EXISTING_LAYER_SP_OBJECT_ID")
           fi
 
-          if [ ${{#missing[@]}} -gt 0 ]; then
-            echo "Missing required values: ${{missing[*]}}"
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required values: ${missing[*]}"
             exit 1
           fi
 
@@ -119,7 +98,7 @@ jobs:
 
       - name: Handle existing resource group when state is ephemeral
         run: |
-          region="${{{{ github.event.inputs.azure_region }}}}"
+          region="${{ github.event.inputs.azure_region }}"
           case "$region" in
             eastus) region_abbr="eus" ;;
             eastus2) region_abbr="eus2" ;;
@@ -128,13 +107,13 @@ jobs:
             northeurope) region_abbr="neu" ;;
             uksouth) region_abbr="uks" ;;
             ukwest) region_abbr="ukw" ;;
-            *) region_abbr="${{region// /}}" ;;
+            *) region_abbr="${region// /}" ;;
           esac
-          rg_name="rg-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
+          rg_name="rg-${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}-$region_abbr"
           exists=$(az group exists --name "$rg_name")
 
           if [ "$exists" = "true" ]; then
-            if [ "${{{{ github.event.inputs.state_strategy }}}}" = "recreate_rg" ]; then
+            if [ "${{ github.event.inputs.state_strategy }}" = "recreate_rg" ]; then
               echo "Resource group '$rg_name' exists. Deleting because state_strategy=recreate_rg."
               az group delete --name "$rg_name" --yes --no-wait
               az group wait --name "$rg_name" --deleted
@@ -150,9 +129,9 @@ jobs:
 
       - name: Detect Key Vault soft-delete recovery mode
         run: |
-          mode="${{{{ github.event.inputs.key_vault_recovery_mode }}}}"
+          mode="${{ github.event.inputs.key_vault_recovery_mode }}"
 
-          region="${{{{ github.event.inputs.azure_region }}}}"
+          region="${{ github.event.inputs.azure_region }}"
           case "$region" in
             eastus) region_abbr="eus" ;;
             eastus2) region_abbr="eus2" ;;
@@ -161,12 +140,12 @@ jobs:
             northeurope) region_abbr="neu" ;;
             uksouth) region_abbr="uks" ;;
             ukwest) region_abbr="ukw" ;;
-            *) region_abbr="${{region// /}}" ;;
+            *) region_abbr="${region// /}" ;;
           esac
 
-          kv_name="kv-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
-          kv_name="${{kv_name//_/}}"
-          kv_name="${{kv_name:0:24}}"
+          kv_name="kv-${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}-$region_abbr"
+          kv_name="${kv_name//_/}"
+          kv_name="${kv_name:0:24}"
 
           if [ "$mode" = "recover" ]; then
             echo "TF_VAR_key_vault_recover_soft_deleted=true" >> "$GITHUB_ENV"
@@ -203,21 +182,21 @@ jobs:
       - name: Terraform Apply
         env:
           # Variables declared in infra/terraform/variables.tf
-          TF_VAR_tenant_id: ${{{{ env.ARM_TENANT_ID }}}}
-          TF_VAR_subscription_id: ${{{{ env.ARM_SUBSCRIPTION_ID }}}}
-          TF_VAR_client_id: ${{{{ env.ARM_CLIENT_ID }}}}
-          TF_VAR_client_secret: ${{{{ env.ARM_CLIENT_SECRET }}}}
-          TF_VAR_sp_object_id: ${{{{ env.ARM_SP_OBJECT_ID }}}}
-          TF_VAR_workload: ${{{{ github.event.inputs.workload }}}}
-          TF_VAR_environment: ${{{{ github.event.inputs.environment }}}}
-          TF_VAR_azure_region: ${{{{ github.event.inputs.azure_region }}}}
-          TF_VAR_layer_sp_mode: ${{{{ github.event.inputs.layer_sp_mode }}}}
-          TF_VAR_existing_layer_sp_client_id: ${{{{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}}}
-          TF_VAR_existing_layer_sp_object_id: ${{{{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}}}
+          TF_VAR_tenant_id: ${{ env.ARM_TENANT_ID }}
+          TF_VAR_subscription_id: ${{ env.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_client_id: ${{ env.ARM_CLIENT_ID }}
+          TF_VAR_client_secret: ${{ env.ARM_CLIENT_SECRET }}
+          TF_VAR_sp_object_id: ${{ env.ARM_SP_OBJECT_ID }}
+          TF_VAR_workload: ${{ github.event.inputs.workload }}
+          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_azure_region: ${{ github.event.inputs.azure_region }}
+          TF_VAR_layer_sp_mode: ${{ github.event.inputs.layer_sp_mode }}
+          TF_VAR_existing_layer_sp_client_id: ${{ env.ARM_EXISTING_LAYER_SP_CLIENT_ID }}
+          TF_VAR_existing_layer_sp_object_id: ${{ env.ARM_EXISTING_LAYER_SP_OBJECT_ID }}
         run: |
-          mode="${{{{ github.event.inputs.key_vault_recovery_mode }}}}"
-          current_recover="${{TF_VAR_key_vault_recover_soft_deleted:-}}"
-          region="${{{{ github.event.inputs.azure_region }}}}"
+          mode="${{ github.event.inputs.key_vault_recovery_mode }}"
+          current_recover="${TF_VAR_key_vault_recover_soft_deleted:-}"
+          region="${{ github.event.inputs.azure_region }}"
           case "$region" in
             eastus) region_abbr="eus" ;;
             eastus2) region_abbr="eus2" ;;
@@ -226,12 +205,12 @@ jobs:
             northeurope) region_abbr="neu" ;;
             uksouth) region_abbr="uks" ;;
             ukwest) region_abbr="ukw" ;;
-            *) region_abbr="${{region// /}}" ;;
+            *) region_abbr="${region// /}" ;;
           esac
-          rg_name="rg-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
-          kv_name="kv-${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}-$region_abbr"
-          kv_name="${{kv_name//_/}}"
-          kv_name="${{kv_name:0:24}}"
+          rg_name="rg-${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}-$region_abbr"
+          kv_name="kv-${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}-$region_abbr"
+          kv_name="${kv_name//_/}"
+          kv_name="${kv_name:0:24}"
 
           if [ -z "$current_recover" ]; then
             if [ "$mode" = "fresh" ]; then
@@ -248,7 +227,7 @@ jobs:
 
           set +e
           terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover" 2>&1 | tee /tmp/tf-apply.log
-          rc=${{PIPESTATUS[0]}}
+          rc=${PIPESTATUS[0]}
           set -e
 
           if [ $rc -ne 0 ]; then
@@ -284,7 +263,7 @@ jobs:
               fi
               terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
             else
-              if [ "${{{{ github.event.inputs.key_vault_recovery_mode }}}}" = "auto" ]; then
+              if [ "${{ github.event.inputs.key_vault_recovery_mode }}" = "auto" ]; then
                 if [ "$current_recover" = "true" ]; then
                   echo "Auto mode fallback: flipping key_vault_recover_soft_deleted to false for retry."
                   terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=false'
@@ -306,11 +285,11 @@ jobs:
       - name: Export deployment context
         run: |
           cat > infra/terraform/deploy-context.json <<'EOF'
-          {{
-            "target": "${{{{ github.event.inputs.target }}}}",
-            "environment": "${{{{ github.event.inputs.environment }}}}",
-            "git_sha": "${{{{ github.sha }}}}"
-          }}
+          {
+            "target": "${{ github.event.inputs.target }}",
+            "environment": "${{ github.event.inputs.environment }}",
+            "git_sha": "${{ github.sha }}"
+          }
           EOF
 
       - name: Upload Terraform outputs artifact
@@ -326,49 +305,3 @@ jobs:
           name: deploy-context
           path: infra/terraform/deploy-context.json
           retention-days: 7
-"""
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Generate .github/workflows/deploy-infrastructure.yml — Terraform apply only."
-    )
-    parser.add_argument("--output", default=".github/workflows/deploy-infrastructure.yml")
-    parser.add_argument("--workflow-name", default="Deploy Infrastructure")
-    parser.add_argument("--github-environment", default="MYAPP-DEV")
-    parser.add_argument("--tenant-secret", default="AZURE_TENANT_ID")
-    parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")
-    parser.add_argument("--client-id-secret", default="AZURE_CLIENT_ID")
-    parser.add_argument("--client-secret-secret", default="AZURE_CLIENT_SECRET")
-    parser.add_argument("--sp-object-id-secret", default="AZURE_SP_OBJECT_ID")
-    parser.add_argument("--existing-layer-sp-client-id-secret", default="EXISTING_LAYER_SP_CLIENT_ID")
-    parser.add_argument("--existing-layer-sp-object-id-secret", default="EXISTING_LAYER_SP_OBJECT_ID")
-    parser.add_argument("--default-workload", default="myapp")
-    parser.add_argument("--default-environment", default="dev")
-    parser.add_argument("--default-region", default="eastus2")
-
-    args = parser.parse_args()
-    output = Path(args.output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    content = build_workflow_yaml(
-        workflow_name=args.workflow_name,
-        github_environment=args.github_environment,
-        tenant_secret=args.tenant_secret,
-        subscription_secret=args.subscription_secret,
-        client_id_secret=args.client_id_secret,
-        client_secret_secret=args.client_secret_secret,
-        sp_object_id_secret=args.sp_object_id_secret,
-        existing_layer_sp_client_id_secret=args.existing_layer_sp_client_id_secret,
-        existing_layer_sp_object_id_secret=args.existing_layer_sp_object_id_secret,
-        default_workload=args.default_workload,
-        default_environment=args.default_environment,
-        default_region=args.default_region,
-    )
-    output.write_text(content, encoding="utf-8")
-    print(f"Generated workflow: {output}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
