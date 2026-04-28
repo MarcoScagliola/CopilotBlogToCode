@@ -181,7 +181,20 @@ Soft-delete recovery state machine (must be enforced by generated workflow):
 
 - The soft-delete recovery handler's resource group and key vault names must be computed from the same conventions as `infra/terraform/locals.tf` (see the `terraform` skill's Resource naming contract). When the recovery handler runs `az group create`, `az keyvault recover`, or `terraform import`, it must reference the *Terraform-canonical* names, not workflow-invented names. Any divergence breaks the recovery path silently — the handler appears to run successfully but the subsequent retry apply fails because Terraform looks for a differently-named resource.
 
-- The recovery handler must verify, after `az keyvault recover` succeeds, that the recovered vault's actual resource group matches `$rg_name`. If it does not, the vault was created with a non-canonical naming convention (typically a legacy deploy) and cannot be cleanly imported into the current Terraform state. The handler must exit with a clear error directing the operator to purge the vault and re-dispatch with `mode=fresh`. Silently importing into a wrong-RG state produces persistent Terraform diffs that look like infrastructure churn.
+- The recovery handler must address two preconditions around `az keyvault recover`. Both stem from a property of Azure: soft-deleted vaults remember their original resource group, and `az keyvault recover` puts them back there — not into whatever RG the workflow happens to have computed.
+
+  **Precondition 1: ensure the original RG exists before recovery.** If the soft-deleted vault's original resource group has been deleted (e.g. by a previous `state_strategy=recreate_rg` run), `az keyvault recover` fails with `ResourceGroupNotFound` before doing any work. The handler must run `az group create --name "$rg_name" --location "$region"` immediately before `az keyvault recover`. The command is idempotent — if the RG already exists, it succeeds without changes; if it does not, it creates it. This succeeds in the normal case (vault's original RG matches `$rg_name`, which it does for any vault created under the current naming scheme).
+
+  **Precondition 2: verify the recovered vault landed in the canonical RG.** After `az keyvault recover` succeeds and the vault is reachable via `az keyvault show`, query its actual resource group: `actual_rg=$(az keyvault show --name "$kv_name" --query resourceGroup -o tsv)`. Compare against `$rg_name`. They should match — the vault was originally in `$rg_name` (canonical naming) and Azure recovered it back there. If they differ, the vault is from a legacy deploy that used a non-canonical naming convention. The recovery handler cannot import this cleanly into the current Terraform state without producing persistent diffs (the resource definition's RG attribute would forever disagree with the actual resource's RG). The handler must exit with status 1 and a clear operator message:
+
+  > Recovered vault `<name>` is in resource group `<actual_rg>`, but the current Terraform configuration expects it in `<rg_name>`. This means the vault was created by a legacy deploy under a different naming convention. The recovery handler cannot import it cleanly. Resolution: purge the soft-deleted vault permanently and re-dispatch with `mode=fresh`. (Note: purging is irreversible. Back up any secrets you need before purging.)
+
+  Together, the two preconditions handle three distinct cases:
+  - Vault's original RG matches `$rg_name` and currently exists → recovery proceeds, post-recovery check passes, import succeeds.
+  - Vault's original RG matches `$rg_name` but was deleted → `az group create` recreates it, recovery proceeds into the recreated RG, post-recovery check passes, import succeeds.
+  - Vault's original RG differs from `$rg_name` (legacy deploy) → recovery may or may not succeed depending on whether the legacy RG still exists; either way, the post-recovery check fails and the handler exits with the operator message above.
+
+  Cases 1 and 2 are handled silently and automatically. Case 3 fails loudly with operator instructions, because no automated handling preserves Terraform-state correctness.
 
 Repeatability and restricted-tenant guardrails (mandatory):
 - In `layer_sp_mode=existing`, treat `existing_layer_sp_object_id` as a trusted input and pass it directly to RBAC resources.
