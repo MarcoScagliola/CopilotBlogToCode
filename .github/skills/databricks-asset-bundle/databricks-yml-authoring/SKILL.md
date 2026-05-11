@@ -87,12 +87,15 @@ If the repo uses separate resource files (the common case), declare an `include:
 Never replace `include:` with a `resources.jobs: <path>` string; that pattern is invalid.
 
 ### Step 3. Enumerate variables
-Collect the full list of runtime values the bundle needs. Sources typically include:
-- any deploy bridge or script that maps upstream values to `--var` flags
-- `${var.*}` references in resource files
-- arguments consumed by runtime entrypoints
+Collect the full list of runtime values the bundle needs.
 
-Every variable referenced via `${var.*}` in resource files must be declared here with the same spelling — that is a hard YAML reference and a typo will fail the deploy. Argparse argument names in entrypoints are a separate concern; see Step 5.
+Sources, in order of authority:
+
+1. **The deploy bridge.** Whichever script invokes `databricks bundle deploy --var name=value` is the canonical source for the subset of variables that must be declared. The current deploy bridge is `.github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py`. Every `--var` flag that script emits must appear under `variables:` in this file. The Databricks CLI rejects any undeclared `--var` with the error `variable <name> has not been defined`, which fails the deploy.
+
+2. **Resource files.** Every `${var.<name>}` reference in any file matched by the `include:` glob must be declared here. A typo here fails the deploy at resolve time.
+
+3. **Runtime entrypoints.** Arguments consumed by argparse in entrypoints are a separate concern. The mapping between a bundle variable and an entrypoint argument is made explicit in the resource file (see Step 5), so the variable name and the argparse flag need not match.
 
 Rules:
 1. One spelling per concept. Do not declare both `catalog` and `catalog_name` for the same value.
@@ -100,6 +103,19 @@ Rules:
 3. Do not declare variables that nothing downstream references. Dead variables mislead readers.
 4. Do not declare a variable that exists only to carry an auth-field value (e.g. a `workspace_host` variable when the deploy model uses `DATABRICKS_HOST`). Because auth fields cannot interpolate, such a variable has no legitimate consumer.
 5. Every variable needs a `description:`.
+6. **Per-layer variable families MUST be enumerated explicitly per layer.** Declaring one layer's variable does not cause sibling layers to be inferred. If the architecture defines layers (bronze/silver/gold, raw/curated/serving, or any other naming), every per-layer variable must be declared once per layer, by name. The model is prone to declaring three or four of a per-layer family and silently missing the fifth, because the families share a naming pattern and the omission is not visually obvious.
+
+   When the architecture uses distinct identities per data layer, the per-layer variable families typically required are:
+
+   - `<layer>_catalog` — Unity Catalog catalog name
+   - `<layer>_schema` — Unity Catalog schema name
+   - `<layer>_storage_account` — ADLS Gen2 storage account name
+   - `<layer>_access_connector_id` — Azure resource ID of the Databricks Access Connector
+   - `<layer>_principal_client_id` — application (client) ID of the layer Service Principal
+
+   Before finishing Step 3, enumerate the layer set, enumerate the families, and verify that the cartesian product appears under `variables:`. A family that is declared for some layers but not others is the most common failure mode this rule prevents.
+
+   Variable descriptions for `*_principal_client_id` entries MUST say "application (client) ID of the <layer> Service Principal", not just "client ID". The operator-facing distinction between application ID and object ID, and between App Registration and Service Principal, is load-bearing elsewhere in the deployment contract and the variable description is where it gets reinforced.
 
 ### Step 4. Define targets
 Declare at least one target. The set and names depend on the repo (commonly `dev`, `test`, `prd`, but `staging`/`prod`, per-developer sandboxes, and other schemes are valid).
@@ -118,7 +134,11 @@ Two boundaries to check, with different rules at each.
 **Explicit mapping (need not spell-match):** the parameter name passed by a resource file to a runtime entrypoint vs. the argparse flag the entrypoint accepts. The mapping is made explicit in the resource file (e.g. `parameters: ["--catalog", "${var.bronze_catalog}"]`), so the bundle variable can be `bronze_catalog` while the entrypoint flag is `--catalog`. What matters is that the chain is unambiguous.
 
 Before writing, confirm:
-1. The `--var <name>=...` flags produced by any deploy bridge match the variable names declared in this file.
+
+1. Run the parity check: `scripts/validate_bundle_parity.sh`. The script extracts the set of `--var` names emitted by the deploy bridge and the set of variable names declared in `databricks.yml` plus any included resource files, then diffs the two. The check fails if either set has entries the other does not. This must pass before the file is considered complete.
+
+   If `scripts/validate_bundle_parity.sh` does not exist in the repository, author it before continuing. Its shape is parallel to the existing `scripts/validate_workflow_parity.sh`: extract names from one artifact, extract declared names from another, diff, exit non-zero on any divergence.
+
 2. Every `${var.<name>}` reference in resource files matches a variable declared in this file.
 3. The argparse contract of each entrypoint is satisfied by the parameters its resource file passes (mapping is explicit; spellings need not match).
 
@@ -133,6 +153,7 @@ After writing, verify:
 4. `resources.jobs`, if present, is a map and not a string.
 5. Every declared variable has a `description:`.
 6. Every variable referenced downstream is declared.
+6a. `scripts/validate_bundle_parity.sh` exits zero. This is the executable equivalent of items 6 and 7. If the script reports a divergence, the divergence MUST be resolved in this file, not by editing the deploy bridge or by suppressing the script's output.
 7. Every declared variable is referenced by something (bridge, resource file, or target override).
 8. No declared variable's only apparent consumer is an auth field (which cannot interpolate).
 9. `include:` entries match paths that exist in the repo.
@@ -173,6 +194,7 @@ Reject any proposed change that would produce:
 5. Environment-specific defaults on variables intended for use across environments.
 6. Variables declared with no downstream consumer.
 7. Variables whose only apparent purpose is to populate an auth field via interpolation.
+8. **Per-layer variable families with missing layers.** If `bronze_principal_client_id` and `silver_principal_client_id` are declared, `gold_principal_client_id` must also be declared. Partial per-layer families are a deploy-time failure waiting to happen.
 
 ## Relationship to Other Skills
 - The broader `databricks-asset-bundle` skill owns resource files, runtime entrypoints, job topology, and end-to-end parameter flow. Return to it after `databricks-bundle\databricks.yml` work is complete for any cross-cutting bundle review. This skill defers to it for anything outside `databricks-bundle\databricks.yml`.
@@ -193,4 +215,6 @@ Reject any proposed change that would produce:
 - [ ] `include:` entries match paths that exist in the repo.
 - [ ] Auth configuration is handled outside the file (env var or per-target literal).
 - [ ] Deploy bridge `--var` names match this file's variable names.
+- [ ] `scripts/validate_bundle_parity.sh` exists and exits zero.
+- [ ] Every per-layer variable family is declared for every layer the architecture defines (no partial families).
 - [ ] No secrets or tokens embedded.

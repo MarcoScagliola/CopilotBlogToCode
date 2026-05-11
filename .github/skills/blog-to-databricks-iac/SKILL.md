@@ -305,6 +305,8 @@ The generated output must satisfy the following properties. Each is paired with 
 
 #### 9.2 Verification commands
 
+#### 9.2 Verification commands
+
 Report pass/fail for each. If any required check fails, stop and report the failures; do not archive until they are resolved.
 
 1. **Python compile.** Run `python -m py_compile` on every generator script, the DAB deploy bridge script, and every medallion Python script.
@@ -313,13 +315,16 @@ Report pass/fail for each. If any required check fails, stop and report the fail
    - `terraform -chdir=infra/terraform validate`
 3. **YAML parse.** Parse every file under `.github/workflows/` and every `*.yml` file under `databricks-bundle/` using a YAML parser. Any parse error is a failure.
 4. **Generator runtime.** Execute each workflow generator and confirm file regeneration succeeds without error and produces a non-empty file.
-5. **Invariant checks.** Run the automated checks in 9.3. The Terraform↔workflow parity check is the most regression-prone; run it explicitly:
+5. **Invariant checks.** Run the automated checks in 9.3. Two parity checks must pass; run both explicitly:
 
 ```bash
    bash .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh
+   bash .github/skills/blog-to-databricks-iac/scripts/validate_bundle_parity.sh
 ```
 
-  The script asserts every required variable in `variables.tf` has a matching `TF_VAR_*` export in `deploy-infrastructure.yml`, and that every `terraform apply` invocation uses `-input=false`. Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, extend this script (or add a new one) and reference it here.
+   The first asserts every required variable in `variables.tf` has a matching `TF_VAR_*` export in `deploy-infrastructure.yml`, and that every `terraform apply` invocation uses `-input=false`. The second asserts every `--var name=value` flag emitted by `deploy_dab.py` has a matching declaration under `variables:` in `databricks-bundle/databricks.yml` or any file matched by its `include:` glob, and vice versa.
+
+   Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, extend an existing script or add a new one and reference it here.
 6. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
 7. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
 
