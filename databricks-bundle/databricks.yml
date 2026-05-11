@@ -1,0 +1,59 @@
+bundle:
+  name: medallion-bundle
+
+include:
+  - resources/*.yml
+
+variables:
+  bronze_catalog:
+    description: Unity Catalog catalog name for the Bronze layer.
+  silver_catalog:
+    description: Unity Catalog catalog name for the Silver layer.
+  gold_catalog:
+    description: Unity Catalog catalog name for the Gold layer.
+
+  bronze_schema:
+    description: Unity Catalog schema name for the Bronze layer.
+    default: medallion
+  silver_schema:
+    description: Unity Catalog schema name for the Silver layer.
+    default: medallion
+  gold_schema:
+    description: Unity Catalog schema name for the Gold layer.
+    default: medallion
+
+  bronze_storage_account:
+    description: ADLS Gen2 storage account name for the Bronze layer.
+  silver_storage_account:
+    description: ADLS Gen2 storage account name for the Silver layer.
+  gold_storage_account:
+    description: ADLS Gen2 storage account name for the Gold layer.
+
+  bronze_access_connector_id:
+    description: Azure resource ID of the Bronze Databricks Access Connector.
+  silver_access_connector_id:
+    description: Azure resource ID of the Silver Databricks Access Connector.
+  gold_access_connector_id:
+    description: Azure resource ID of the Gold Databricks Access Connector.
+
+  bronze_principal_client_id:
+    description: Application (client) ID of the Bronze Service Principal.
+  silver_principal_client_id:
+    description: Application (client) ID of the Silver Service Principal.
+  gold_principal_client_id:
+    description: Application (client) ID of the Gold Service Principal.
+
+  secret_scope:
+    description: AKV-backed Databricks secret scope name used by entrypoints.
+
+  workspace_host:
+    description: Databricks workspace host passed by deploy bridge.
+  workspace_resource_id:
+    description: Azure resource ID of the Databricks workspace passed by deploy bridge.
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prd:
+    mode: production
