@@ -1,49 +1,53 @@
-# ===========================================================================
-# Resource group
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Resource Group
+# ---------------------------------------------------------------------------
 
 resource "azurerm_resource_group" "main" {
-  name     = local.resource_group_name
+  name     = local.rg_name
   location = var.azure_region
   tags     = local.common_tags
 }
 
-# ===========================================================================
-# Per-layer storage accounts (ADLS Gen2)
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# ADLS Gen2 Storage Accounts — one per layer
+# HNS (Hierarchical Namespace) must be true for Unity Catalog managed tables.
+# shared_access_key_enabled defaults to true because the AzureRM provider still
+# uses key-based auth for some control-plane polling operations. Disable it
+# post-deployment once all access paths are confirmed identity-based.
+# See "Architectural decisions deferred" in TODO.md.
+# ---------------------------------------------------------------------------
 
 resource "azurerm_storage_account" "layer" {
+  # Keys are static strings from local.layers — plan-time knowable.
   for_each = local.layers
 
-  name                     = local.storage_accounts[each.key]
+  name                     = local.storage_names[each.key]
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
 
-  # Enable hierarchical namespace (ADLS Gen2)
+  # Required for Unity Catalog managed tables.
   is_hns_enabled = true
 
-  # Allow shared access keys by default for provider compatibility.
-  # Post-deployment hardening: disable shared access keys once managed
-  # identities are verified working.
+  # Provider compatibility: keep enabled during initial provisioning.
+  # See terraform skill — Provider Behavior Mismatches.
   shared_access_key_enabled = true
 
-  min_tls_version                 = "TLS1_2"
-  allow_nested_items_to_be_public = false
-
-  tags = merge(local.common_tags, { layer = each.key })
+  tags = local.common_tags
 }
 
-# ===========================================================================
-# Per-layer Databricks Access Connectors
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Databricks Access Connectors — one per layer (System-Assigned Managed Identity)
+# Each SAMI is the identity Unity Catalog uses to access that layer's storage.
+# ---------------------------------------------------------------------------
 
 resource "azurerm_databricks_access_connector" "layer" {
+  # Same static layer keys — for_each is plan-time safe.
   for_each = local.layers
 
-  name                = local.access_connectors[each.key]
+  name                = local.access_connector_names[each.key]
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -51,13 +55,14 @@ resource "azurerm_databricks_access_connector" "layer" {
     type = "SystemAssigned"
   }
 
-  tags = merge(local.common_tags, { layer = each.key })
+  tags = local.common_tags
 }
 
-# ===========================================================================
-# Storage Blob Data Contributor — Access Connector SAMI → layer storage
-# Backs Unity Catalog External Locations. Each (scope, role, principal) is unique.
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# RBAC: Access Connector SAMI → Storage (Storage Blob Data Contributor)
+# Separate for_each per role-assignment because each iteration produces a
+# unique (scope, role, principal) tuple — scope and principal both vary by layer.
+# ---------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "connector_to_storage" {
   for_each = local.layers
@@ -67,66 +72,83 @@ resource "azurerm_role_assignment" "connector_to_storage" {
   principal_id         = azurerm_databricks_access_connector.layer[each.key].identity[0].principal_id
 }
 
-# ===========================================================================
-# Entra ID app registrations and service principals — one per layer
-# Only created when layer_sp_mode = "create".
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Entra ID Layer Service Principals (conditional — only when layer_sp_mode = "create")
+# Creates one app registration + service principal per layer.
+# Requires Application.ReadWrite.All in the target Entra ID tenant.
+# Set layer_sp_mode = "existing" in tenants where this is restricted.
+# ---------------------------------------------------------------------------
 
 resource "azuread_application" "layer" {
-  # for_each keys are statically known (local.layers is a static set).
+  # for_each over an empty set when create_layer_sps = false → zero resources created.
   for_each = local.create_layer_sps ? local.layers : toset([])
 
-  display_name = local.layer_sp_app_names[each.key]
+  display_name = local.sp_display_names[each.key]
 }
 
 resource "azuread_service_principal" "layer" {
+  # Mirrors azuread_application.layer exactly so keys are statically known.
   for_each = local.create_layer_sps ? local.layers : toset([])
 
   client_id = azuread_application.layer[each.key].client_id
+
+  depends_on = [azuread_application.layer]
 }
 
-# ===========================================================================
-# Storage Blob Data Contributor — layer SP → layer storage
-# Each (scope, role, principal) triple is unique across iterations.
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# RBAC: Layer SP → Storage (Storage Blob Data Contributor)
+# resolved_layer_object_ids handles both create and existing mode via ternary in locals.
+# ---------------------------------------------------------------------------
 
 resource "azurerm_role_assignment" "layer_sp_to_storage" {
   for_each = local.layers
 
   scope                = azurerm_storage_account.layer[each.key].id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = local.resolved_layer_object_ids[each.key]
+  # Apply-time value looked up by static key — for_each plan-time safety preserved.
+  principal_id = local.resolved_layer_object_ids[each.key]
 
-  depends_on = [azuread_service_principal.layer]
+  depends_on = [
+    azuread_service_principal.layer,
+    azurerm_storage_account.layer,
+  ]
 }
 
-# ===========================================================================
+# ---------------------------------------------------------------------------
 # Azure Key Vault
-# ===========================================================================
+# One vault per environment as recommended by the article.
+# Soft-delete is enabled by default in all Azure subscriptions (cannot disable).
+# purge_protection_enabled = false allows destroy without a 7-90 day wait.
+# ---------------------------------------------------------------------------
+
+data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "main" {
-  name                = local.key_vault_name
-  location            = azurerm_resource_group.main.location
+  name                = local.kv_name
   resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
   tenant_id           = var.tenant_id
   sku_name            = "standard"
 
-  soft_delete_retention_days = 7
-  purge_protection_enabled   = false
+  soft_delete_retention_days  = 7
+  purge_protection_enabled    = false
 
   tags = local.common_tags
 }
 
-# Key Vault access policy — deployment principal
+# Access policy for the deployment service principal (secret management during deploy).
 resource "azurerm_key_vault_access_policy" "deployment_sp" {
   key_vault_id = azurerm_key_vault.main.id
   tenant_id    = var.tenant_id
   object_id    = var.sp_object_id
 
-  secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
+  secret_permissions = [
+    "Get", "List", "Set", "Delete", "Recover", "Backup", "Restore", "Purge"
+  ]
 }
 
-# Key Vault access policy — per-layer service principals (read-only at runtime)
+# Access policy for layer service principals (runtime secret reads from notebooks/jobs).
+# One access policy per layer; principal_id varies so no identity collision.
 resource "azurerm_key_vault_access_policy" "layer_sp" {
   for_each = local.layers
 
@@ -136,20 +158,23 @@ resource "azurerm_key_vault_access_policy" "layer_sp" {
 
   secret_permissions = ["Get", "List"]
 
-  depends_on = [azuread_service_principal.layer]
+  depends_on = [
+    azuread_service_principal.layer,
+    azurerm_key_vault_access_policy.deployment_sp,
+  ]
 }
 
-# ===========================================================================
-# Azure Databricks workspace (Premium, SCC / No Public IP)
-# ===========================================================================
+# ---------------------------------------------------------------------------
+# Databricks Workspace — Premium tier, Secure Cluster Connectivity (No Public IP)
+# ---------------------------------------------------------------------------
 
 resource "azurerm_databricks_workspace" "main" {
   name                = local.workspace_name
-  location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
   sku                 = "premium"
 
-  # Secure Cluster Connectivity — eliminates public IPs on cluster nodes.
+  # Secure Cluster Connectivity — explicitly required by the article.
   custom_parameters {
     no_public_ip = true
   }

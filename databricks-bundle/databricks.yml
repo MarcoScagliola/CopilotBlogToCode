@@ -4,55 +4,66 @@ bundle:
 include:
   - resources/*.yml
 
+# ---------------------------------------------------------------------------
+# Bundle variables — all values default to empty string so the bundle
+# can be validated locally without requiring live infrastructure.
+# Populated at deploy time by deploy_dab.py from Terraform outputs.
+# See repo-context.md Deploy Bridge Variable Contract for the full mapping.
+# ---------------------------------------------------------------------------
 variables:
   workspace_host:
-    description: "Databricks workspace host URL. Set via DATABRICKS_HOST env var by the deploy bridge."
+    description: "Databricks workspace URL. Set via DATABRICKS_HOST env var — not interpolated here (auth constraint)."
     default: ""
 
   workspace_resource_id:
-    description: "Full Azure resource ID of the Databricks workspace. Set by the deploy bridge."
+    description: "Full Azure resource ID of the Databricks workspace. Used for Azure SP auth context."
     default: ""
 
+  # Unity Catalog — per-layer catalogs
   bronze_catalog:
     description: "Unity Catalog catalog name for the Bronze layer."
-    default: bronze
+    default: "bronze"
 
   silver_catalog:
     description: "Unity Catalog catalog name for the Silver layer."
-    default: silver
+    default: "silver"
 
   gold_catalog:
     description: "Unity Catalog catalog name for the Gold layer."
-    default: gold
+    default: "gold"
 
+  # Unity Catalog — per-layer schemas
   bronze_schema:
     description: "Unity Catalog schema name for the Bronze layer."
-    default: main
+    default: "main"
 
   silver_schema:
     description: "Unity Catalog schema name for the Silver layer."
-    default: main
+    default: "main"
 
   gold_schema:
     description: "Unity Catalog schema name for the Gold layer."
-    default: main
+    default: "main"
 
+  # Secret scope (Key Vault-backed, one per environment)
   secret_scope:
-    description: "Databricks secret scope name backed by the Azure Key Vault."
-    default: kv-dev
+    description: "Name of the Key Vault-backed Databricks secret scope."
+    default: "kv-dev-scope"
 
+  # Per-layer service principal client IDs
   bronze_principal_client_id:
-    description: "Application (client) ID of the Bronze layer service principal."
+    description: "Client ID of the Bronze layer service principal."
     default: ""
 
   silver_principal_client_id:
-    description: "Application (client) ID of the Silver layer service principal."
+    description: "Client ID of the Silver layer service principal."
     default: ""
 
   gold_principal_client_id:
-    description: "Application (client) ID of the Gold layer service principal."
+    description: "Client ID of the Gold layer service principal."
     default: ""
 
+  # Per-layer storage accounts
   bronze_storage_account:
     description: "Storage account name for the Bronze layer."
     default: ""
@@ -65,16 +76,17 @@ variables:
     description: "Storage account name for the Gold layer."
     default: ""
 
+  # Per-layer access connectors
   bronze_access_connector_id:
-    description: "Full Azure resource ID of the Bronze Databricks Access Connector."
+    description: "Resource ID of the Bronze Databricks Access Connector."
     default: ""
 
   silver_access_connector_id:
-    description: "Full Azure resource ID of the Silver Databricks Access Connector."
+    description: "Resource ID of the Silver Databricks Access Connector."
     default: ""
 
   gold_access_connector_id:
-    description: "Full Azure resource ID of the Gold Databricks Access Connector."
+    description: "Resource ID of the Gold Databricks Access Connector."
     default: ""
 
 targets:

@@ -1,40 +1,40 @@
 """
-Setup entrypoint — registers Unity Catalog objects (External Locations,
-catalogs, schemas) for all three medallion layers.
+setup/main.py — Unity Catalog setup entrypoint.
 
-This script is executed as a Databricks Lakeflow job task before any
-layer job runs.
+Creates the per-layer catalogs, schemas, and storage credentials in Unity Catalog.
+Runs as the deployment service principal via the orchestrator job.
+Called by the setup task in the orchestrator job before layer jobs execute.
+
+All catalog/schema names and storage references come from job task parameters —
+never hardcoded here. See SPEC.md § Databricks / Unity Catalog for names.
 """
+
 import argparse
 import sys
 
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
-        description="Register Unity Catalog objects for the medallion layers."
+        description="Unity Catalog setup: create catalogs, schemas, and storage credentials."
     )
 
-    for layer in ("bronze", "silver", "gold"):
-        parser.add_argument(
-            f"--{layer}-catalog",
-            required=True,
-            help=f"Unity Catalog catalog name for the {layer.capitalize()} layer.",
-        )
-        parser.add_argument(
-            f"--{layer}-schema",
-            required=True,
-            help=f"Unity Catalog schema name for the {layer.capitalize()} layer.",
-        )
-        parser.add_argument(
-            f"--{layer}-storage-account",
-            required=True,
-            help=f"ADLS Gen2 storage account name for the {layer.capitalize()} layer.",
-        )
-        parser.add_argument(
-            f"--{layer}-access-connector-id",
-            required=True,
-            help=f"Databricks Access Connector resource ID for the {layer.capitalize()} layer.",
-        )
+    # Bronze layer
+    parser.add_argument("--bronze-catalog", required=True, help="Bronze Unity Catalog catalog name.")
+    parser.add_argument("--bronze-schema", required=True, help="Bronze Unity Catalog schema name.")
+    parser.add_argument("--bronze-storage-account", required=True, help="Bronze ADLS Gen2 storage account name.")
+    parser.add_argument("--bronze-access-connector-id", required=True, help="Bronze Access Connector resource ID.")
+
+    # Silver layer
+    parser.add_argument("--silver-catalog", required=True, help="Silver Unity Catalog catalog name.")
+    parser.add_argument("--silver-schema", required=True, help="Silver Unity Catalog schema name.")
+    parser.add_argument("--silver-storage-account", required=True, help="Silver ADLS Gen2 storage account name.")
+    parser.add_argument("--silver-access-connector-id", required=True, help="Silver Access Connector resource ID.")
+
+    # Gold layer
+    parser.add_argument("--gold-catalog", required=True, help="Gold Unity Catalog catalog name.")
+    parser.add_argument("--gold-schema", required=True, help="Gold Unity Catalog schema name.")
+    parser.add_argument("--gold-storage-account", required=True, help="Gold ADLS Gen2 storage account name.")
+    parser.add_argument("--gold-access-connector-id", required=True, help="Gold Access Connector resource ID.")
 
     return parser.parse_args(argv)
 
@@ -42,21 +42,42 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
 
-    for layer in ("bronze", "silver", "gold"):
-        catalog = getattr(args, f"{layer}_catalog")
-        schema = getattr(args, f"{layer}_schema")
-        storage_account = getattr(args, f"{layer}_storage_account")
-        access_connector_id = getattr(args, f"{layer}_access_connector_id")
-        print(
-            f"[setup] {layer}: catalog={catalog}, schema={schema}, "
-            f"storage_account={storage_account}, "
-            f"access_connector_id={access_connector_id}"
-        )
+    layer_config = {
+        "bronze": {
+            "catalog": args.bronze_catalog,
+            "schema": args.bronze_schema,
+            "storage_account": args.bronze_storage_account,
+            "access_connector_id": args.bronze_access_connector_id,
+        },
+        "silver": {
+            "catalog": args.silver_catalog,
+            "schema": args.silver_schema,
+            "storage_account": args.silver_storage_account,
+            "access_connector_id": args.silver_access_connector_id,
+        },
+        "gold": {
+            "catalog": args.gold_catalog,
+            "schema": args.gold_schema,
+            "storage_account": args.gold_storage_account,
+            "access_connector_id": args.gold_access_connector_id,
+        },
+    }
 
-    # TODO: implement Unity Catalog External Location registration,
-    # catalog creation, and schema creation for each layer.
-    print("[setup] Setup stub complete — replace with Unity Catalog API calls.")
+    print("Unity Catalog setup — resolved configuration:")
+    for layer, cfg in layer_config.items():
+        print(f"  {layer}:")
+        for key, value in cfg.items():
+            print(f"    {key}: {value}")
+
+    # TODO: Implement Unity Catalog setup:
+    #   1. Create storage credential per layer using the access connector resource ID.
+    #   2. Create external location per layer pointing at the storage account container.
+    #   3. Create catalog per layer bound to the external location.
+    #   4. Create schema inside each catalog.
+    #   5. Grant USE CATALOG and USE SCHEMA to the layer service principal.
+    # See SPEC.md § Security and identity for the privilege model.
+    print("TODO: Unity Catalog setup logic not yet implemented.")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main())

@@ -4,7 +4,7 @@ This repository implements the Azure Databricks architecture pattern described i
 
 ## What this repository deploys
 
-A security-first medallion data platform on Azure Databricks with per-layer identity isolation: three ADLS Gen2 storage accounts (one per Bronze/Silver/Gold layer), three Databricks Access Connectors (System-Assigned Managed Identity), three Entra ID Service Principals (pre-created by the operator when using `layer_sp_mode=existing`), an Azure Key Vault-backed Databricks secret scope, Unity Catalog with per-layer catalogs and schemas, and a Secure Cluster Connectivity (No Public IP) Premium Databricks workspace.
+A security-first medallion data platform on Azure Databricks with per-layer identity isolation: three ADLS Gen2 storage accounts (one per Bronze/Silver/Gold layer), three Databricks Access Connectors (System-Assigned Managed Identity), three Entra ID Service Principals (one per layer, created by Terraform when `layer_sp_mode=create`), an Azure Key Vault-backed Databricks secret scope, Unity Catalog with per-layer catalogs and schemas, and a Secure Cluster Connectivity (No Public IP) Premium Databricks workspace.
 
 Infrastructure is provisioned with Terraform under [`infra/terraform/`](infra/terraform/). Databricks workloads (jobs, entry points, environment configuration) are deployed via a Databricks Asset Bundle under [`databricks-bundle/`](databricks-bundle/). CI/CD is split across three GitHub Actions workflows, each with a single responsibility.
 
@@ -38,7 +38,7 @@ For anything the source article did not specify and which the operator must deci
 The deployment principal needs the following identities provisioned **before** the workflows can run:
 
 - **A deployment Service Principal.** This is the identity GitHub Actions uses to authenticate to Azure. It needs its tenant ID, subscription ID, client ID, client secret, and Service Principal object ID (the object ID from *Enterprise Applications*, not from *App Registrations* — these are two different objects with two different IDs).
-- **One or more layer Service Principals** because this repository is configured with `layer_sp_mode=existing`. The bundle uses these principals at runtime to access storage and Key Vault. You must create them before the first deploy and supply their client IDs and object IDs as GitHub Secrets. The deployment principal needs no Entra ID Graph permissions in this mode.
+- **Optionally, one layer principal per Databricks data layer** when running with `layer_sp_mode=existing`. The bundle uses these principals at runtime to access storage and Key Vault. When running with `layer_sp_mode=create`, the workflow creates them on your behalf and you do not need to provide them.
 
 This repository is designed to work in **restricted tenants**, meaning tenants where the deployment principal cannot read Microsoft Graph. All object IDs are passed in as secrets, never resolved from names at plan time. If your tenant does allow Graph reads, the workflows still work — they just don't take advantage of that.
 
@@ -64,7 +64,7 @@ All secrets and variables live in the GitHub Environment named `BLG2CODEDEV`. Th
 | `AZURE_CLIENT_SECRET` | Secret | Deployment Service Principal client secret |
 | `AZURE_SP_OBJECT_ID` | Secret | Deployment Service Principal **object ID** from *Enterprise Applications* |
 
-### Conditional — required because `layer_sp_mode=existing`
+### Conditional — required only when `layer_sp_mode=existing`
 
 | Name | Type | Description |
 |---|---|---|
@@ -95,19 +95,18 @@ The deployment Service Principal needs Azure RBAC roles on the target scope. The
 
 If your security policy does not allow `User Access Administrator` on a Service Principal, you have two options. You can pre-create the role assignments manually and skip the relevant Terraform resources (the skill supports this via a flag in [SPEC.md](SPEC.md)). Or you can have a human approver run the relevant `az role assignment create` commands as a separate workflow step.
 
-### Step 3: Create the layer Service Principals
+### Step 3: Decide on identity mode
 
-Because `layer_sp_mode=existing` is used, you must create the layer Service Principals before the first deploy. The architecture calls for one SP per data layer (Bronze, Silver, Gold), but in restricted tenants you can reuse the deployment principal for all three layers.
+Choose between:
 
-For each SP (or the shared one), note down:
-- The **Application (client) ID**.
-- The **Service Principal object ID** from *Microsoft Entra ID → Enterprise applications → Object ID*.
+- `layer_sp_mode=create` — the workflow creates a fresh Service Principal per data layer. The deployment principal needs `Application.ReadWrite.All` in Entra ID to do this.
+- `layer_sp_mode=existing` — the workflow reuses one or more Service Principals you have already created. You must provide their client IDs and object IDs as secrets. The deployment principal needs no Entra permissions.
 
-Terraform will assign these principals `Storage Blob Data Contributor` on their respective storage accounts, and `Get`/`List` on the Key Vault. No Entra ID directory permissions are required from the deployment principal in `existing` mode.
+If you are unsure, `existing` is the safer default. It works in any tenant, restricted or not. `create` is useful in lab subscriptions where you want fully ephemeral identities.
 
 ### Step 4: Populate the GitHub Environment
 
-In the GitHub repository: *Settings → Environments → New environment* (or select the existing one named `BLG2CODEDEV`). Add every secret listed in the *Always required* table above, plus `EXISTING_LAYER_SP_CLIENT_ID` and `EXISTING_LAYER_SP_OBJECT_ID`.
+In the GitHub repository: *Settings → Environments → New environment* (or select the existing one named `BLG2CODEDEV`). Add every secret listed in the *Always required* table above, plus the *Conditional* secrets if you chose `layer_sp_mode=existing`.
 
 If you want to add a protection rule (required reviewers, deployment branch restrictions), this is the place to do it. The workflows respect environment protection.
 
@@ -134,7 +133,7 @@ Runs `terraform init -backend=false` and `terraform validate`. This is a syntax 
 |---|---|
 | File | [`.github/workflows/deploy-infrastructure.yml`](.github/workflows/deploy-infrastructure.yml) |
 | Trigger | `workflow_dispatch` |
-| Auth required | All *Always required* secrets, plus `EXISTING_LAYER_SP_CLIENT_ID` and `EXISTING_LAYER_SP_OBJECT_ID` |
+| Auth required | All *Always required* secrets, plus conditional ones based on dispatch inputs |
 | Outputs | `terraform-outputs` artifact, `deploy-context` artifact (consumed by the DAB workflow) |
 
 Dispatch inputs:
@@ -144,7 +143,7 @@ Dispatch inputs:
 | `target` | choice | Target Azure region. Defaults to `uksouth`. |
 | `workload` | string | Workload identifier used in resource naming. Defaults to `blg`. |
 | `environment` | choice | One of `dev`, `prd`. |
-| `layer_sp_mode` | choice | `create` or `existing`. Defaults to `existing`. |
+| `layer_sp_mode` | choice | `create` or `existing`. Defaults to `create`. See *One-time setup, Step 3*. |
 | `key_vault_recovery_mode` | choice | `auto`, `recover`, or `fresh`. See *State strategy and recovery* below. |
 | `state_strategy` | choice | `fail` (default) or `recreate_rg`. See *State strategy and recovery* below. |
 
@@ -211,11 +210,10 @@ The [TODO.md](TODO.md) file walks through each of these in detail and tracks whi
 | Deploy succeeds but bundle deploy fails on auth | DAB CLI env vars not aligned with workflow secrets | Check that `ARM_*` and `DATABRICKS_AZURE_RESOURCE_ID` are exported explicitly in the deploy-dab workflow. |
 | Workflow run hangs at `terraform plan` | A required variable was added to `variables.tf` without a matching `TF_VAR_*` in the workflow | Run `validate_workflow_parity.sh` locally. It detects this case before the workflow runs. |
 | Key Vault create fails with `ConflictError: vault already exists` | Soft-deleted vault with the same name in the subscription | Set `key_vault_recovery_mode=auto` and re-dispatch. |
-| `EXISTING_LAYER_SP_CLIENT_ID` not found | Secret missing from `BLG2CODEDEV` environment | Add `EXISTING_LAYER_SP_CLIENT_ID` and `EXISTING_LAYER_SP_OBJECT_ID` to the GitHub Environment. |
+| Layer SP creation fails with `Authorization_RequestDenied` | Deployment principal lacks Entra ID app-registration permission | Grant `Application.ReadWrite.All` in Entra ID, or switch to `layer_sp_mode=existing`. |
 
 ## Documentation index
 
 - [SPEC.md](SPEC.md) — every architectural decision read from the source article, plus what was inferred from code snippets and what was explicitly *not stated*.
 - [TODO.md](TODO.md) — the operator checklist, organised by deployment phase. Worked through sequentially.
 - [`REPO_CONTEXT.md`](.github/skills/blog-to-databricks-iac/REPO_CONTEXT.md) — this repository's defaults (region, naming, environment names) for everything the source article does not specify.
-- [`.github/skills/blog-to-databricks-iac/SKILL.md`](.github/skills/blog-to-databricks-iac/SKILL.md) — the orchestrator skill that generated this repository.

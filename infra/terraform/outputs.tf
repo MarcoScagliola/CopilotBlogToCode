@@ -1,53 +1,55 @@
 # ---------------------------------------------------------------------------
-# Workspace connectivity
+# Workspace
 # ---------------------------------------------------------------------------
 
 output "databricks_workspace_url" {
-  description = "HTTPS URL of the Databricks workspace. Used by the DAB deploy workflow to set DATABRICKS_HOST."
-  value       = "https://${azurerm_databricks_workspace.main.workspace_url}"
+  description = "Databricks workspace URL. Used by deploy-dab.yml to set DATABRICKS_HOST."
+  value       = azurerm_databricks_workspace.main.workspace_url
 }
 
 output "databricks_workspace_resource_id" {
-  description = "Full Azure resource ID of the Databricks workspace. Required by the DAB deploy bridge for Azure SP authentication (DATABRICKS_AZURE_RESOURCE_ID)."
+  description = "Full Azure resource ID of the Databricks workspace. Required for Azure SP auth in DAB."
   value       = azurerm_databricks_workspace.main.id
 }
 
 # ---------------------------------------------------------------------------
-# Per-layer catalog and schema identifiers
+# Per-layer catalog and schema (names — not provisioned by Terraform)
+# The bundle's setup job creates the UC objects; Terraform exports the names
+# so the bundle doesn't need to recompute them.
 # ---------------------------------------------------------------------------
 
 output "bronze_catalog" {
   description = "Unity Catalog catalog name for the Bronze layer."
-  value       = local.catalogs["bronze"]
+  value       = "bronze"
 }
 
 output "silver_catalog" {
   description = "Unity Catalog catalog name for the Silver layer."
-  value       = local.catalogs["silver"]
+  value       = "silver"
 }
 
 output "gold_catalog" {
   description = "Unity Catalog catalog name for the Gold layer."
-  value       = local.catalogs["gold"]
+  value       = "gold"
 }
 
 output "bronze_schema" {
   description = "Unity Catalog schema name for the Bronze layer."
-  value       = local.schemas["bronze"]
+  value       = "main"
 }
 
 output "silver_schema" {
   description = "Unity Catalog schema name for the Silver layer."
-  value       = local.schemas["silver"]
+  value       = "main"
 }
 
 output "gold_schema" {
   description = "Unity Catalog schema name for the Gold layer."
-  value       = local.schemas["gold"]
+  value       = "main"
 }
 
 # ---------------------------------------------------------------------------
-# Per-layer storage account names
+# Per-layer storage
 # ---------------------------------------------------------------------------
 
 output "bronze_storage_account" {
@@ -65,113 +67,91 @@ output "gold_storage_account" {
   value       = azurerm_storage_account.layer["gold"].name
 }
 
+output "layer_storage_account_names" {
+  description = "Map of layer → storage account name."
+  value = {
+    for layer in local.layers :
+    layer => azurerm_storage_account.layer[layer].name
+  }
+}
+
 # ---------------------------------------------------------------------------
-# Per-layer Access Connector resource IDs
+# Per-layer access connectors
 # ---------------------------------------------------------------------------
 
 output "bronze_access_connector_id" {
-  description = "Full Azure resource ID of the Bronze Databricks Access Connector."
+  description = "Resource ID of the Bronze Access Connector."
   value       = azurerm_databricks_access_connector.layer["bronze"].id
 }
 
 output "silver_access_connector_id" {
-  description = "Full Azure resource ID of the Silver Databricks Access Connector."
+  description = "Resource ID of the Silver Access Connector."
   value       = azurerm_databricks_access_connector.layer["silver"].id
 }
 
 output "gold_access_connector_id" {
-  description = "Full Azure resource ID of the Gold Databricks Access Connector."
+  description = "Resource ID of the Gold Access Connector."
   value       = azurerm_databricks_access_connector.layer["gold"].id
 }
 
+output "layer_access_connector_ids" {
+  description = "Map of layer → access connector resource ID."
+  value = {
+    for layer in local.layers :
+    layer => azurerm_databricks_access_connector.layer[layer].id
+  }
+}
+
 # ---------------------------------------------------------------------------
-# Per-layer service principal client IDs (sensitive — resolve from Entra ID)
+# Per-layer principal client IDs (sensitive — used by bundle for auth context)
 # ---------------------------------------------------------------------------
 
 output "bronze_principal_client_id" {
-  description = "Application (client) ID of the Bronze layer service principal."
+  description = "Client ID of the Bronze layer service principal."
   value       = local.resolved_layer_client_ids["bronze"]
   sensitive   = true
 }
 
 output "silver_principal_client_id" {
-  description = "Application (client) ID of the Silver layer service principal."
+  description = "Client ID of the Silver layer service principal."
   value       = local.resolved_layer_client_ids["silver"]
   sensitive   = true
 }
 
 output "gold_principal_client_id" {
-  description = "Application (client) ID of the Gold layer service principal."
+  description = "Client ID of the Gold layer service principal."
   value       = local.resolved_layer_client_ids["gold"]
   sensitive   = true
 }
 
+output "layer_principal_client_ids" {
+  description = "Map of layer → service principal client ID. Sensitive."
+  value = {
+    for layer in local.layers :
+    layer => local.resolved_layer_client_ids[layer]
+  }
+  sensitive = true
+}
+
 # ---------------------------------------------------------------------------
-# Secret scope name
+# Key Vault / secret scope
 # ---------------------------------------------------------------------------
 
 output "secret_scope" {
-  description = "Databricks secret scope name backed by the Azure Key Vault."
+  description = "Name of the Key Vault-backed Databricks secret scope."
   value       = local.secret_scope_name
-}
-
-# ---------------------------------------------------------------------------
-# Resource group
-# ---------------------------------------------------------------------------
-
-output "resource_group_name" {
-  description = "Name of the Azure resource group containing all workload resources."
-  value       = azurerm_resource_group.main.name
-}
-
-# ---------------------------------------------------------------------------
-# Bridge-compatible map outputs
-# The deploy bridge (deploy_dab.py) resolves optional per-layer values via
-# OPTIONAL_MAP_KEYS which expect a map output keyed by layer name.
-# ---------------------------------------------------------------------------
-
-output "layer_principal_client_ids" {
-  description = "Map of layer name to service principal client ID. Used by the deploy bridge OPTIONAL_MAP_KEYS resolution."
-  sensitive   = true
-  value = {
-    for layer in toset(["bronze", "silver", "gold"]) :
-    layer => local.resolved_layer_client_ids[layer]
-  }
-}
-
-output "layer_storage_account_names" {
-  description = "Map of layer name to storage account name. Used by the deploy bridge OPTIONAL_MAP_KEYS resolution."
-  value = {
-    for layer in toset(["bronze", "silver", "gold"]) :
-    layer => local.storage_accounts[layer]
-  }
-}
-
-output "layer_access_connector_ids" {
-  description = "Map of layer name to Databricks Access Connector resource ID. Used by the deploy bridge OPTIONAL_MAP_KEYS resolution."
-  value = {
-    for layer in toset(["bronze", "silver", "gold"]) :
-    layer => azurerm_databricks_access_connector.layer[layer].id
-  }
-}
-
-# Bridge-compatible flat aliases for catalog and scope names.
-output "bronze_catalog_name" {
-  description = "Alias for bronze_catalog — searched by the deploy bridge OPTIONAL_FLAT_KEYS."
-  value       = local.catalogs["bronze"]
-}
-
-output "silver_catalog_name" {
-  description = "Alias for silver_catalog — searched by the deploy bridge OPTIONAL_FLAT_KEYS."
-  value       = local.catalogs["silver"]
-}
-
-output "gold_catalog_name" {
-  description = "Alias for gold_catalog — searched by the deploy bridge OPTIONAL_FLAT_KEYS."
-  value       = local.catalogs["gold"]
 }
 
 output "secret_scope_name" {
-  description = "Alias for secret_scope — searched by the deploy bridge OPTIONAL_FLAT_KEYS."
+  description = "Alias for secret_scope — used by the deploy bridge."
   value       = local.secret_scope_name
+}
+
+# ---------------------------------------------------------------------------
+# Infrastructure metadata
+# ---------------------------------------------------------------------------
+
+output "resource_group_name" {
+  description = "Name of the resource group containing all workload resources."
+  value       = azurerm_resource_group.main.name
 }
