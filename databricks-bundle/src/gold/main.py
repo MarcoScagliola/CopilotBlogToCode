@@ -1,51 +1,48 @@
 """
-gold/main.py — Gold layer aggregation entrypoint.
+Gold layer entrypoint — gold-layer job.
 
-Reads conformed records from the Silver catalog layer and produces
-business-level aggregates in the Gold catalog layer. Runs as the Gold
-service principal with read access to Silver and write access to Gold only.
-Reads runtime credentials from the Key Vault-backed secret scope.
+Reads enriched data from the Silver catalog/schema, applies aggregations and
+business logic, and writes to the Gold catalog/schema using managed tables in
+Unity Catalog. Credentials are read at runtime from the AKV-backed secret scope.
 
-All catalog/schema names and the secret scope name come from job task parameters
-— never hardcoded here. See SPEC.md § Data model and § Security and identity.
+TODO: Implement aggregation logic once Silver table names and Gold target tables
+      are confirmed. See SPEC.md § Data model and TODO.md § Post-infrastructure.
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Gold aggregate: read from Silver, write business aggregates to Gold."
+        description="Gold layer: aggregate Silver data into Gold serving layer."
     )
-    # Silver source
+    # Source (Silver)
     parser.add_argument("--silver-catalog", required=True, help="Unity Catalog catalog name for Silver (source).")
     parser.add_argument("--silver-schema", required=True, help="Unity Catalog schema name for Silver (source).")
-    # Gold target
+    # Target (Gold)
     parser.add_argument("--catalog", required=True, help="Unity Catalog catalog name for Gold (target).")
     parser.add_argument("--schema", required=True, help="Unity Catalog schema name for Gold (target).")
-    parser.add_argument("--storage-account", required=True, help="Gold ADLS Gen2 storage account name.")
-    parser.add_argument("--secret-scope", required=True, help="Key Vault-backed Databricks secret scope name.")
+    parser.add_argument("--storage-account", required=True, help="Storage account name for Gold.")
+    parser.add_argument("--secret-scope", required=True, help="AKV-backed Databricks secret scope name.")
     return parser.parse_args(argv)
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    print("Gold aggregate — resolved configuration:")
-    print(f"  silver_catalog:  {args.silver_catalog}")
-    print(f"  silver_schema:   {args.silver_schema}")
-    print(f"  catalog:         {args.catalog}")
-    print(f"  schema:          {args.schema}")
+    print("=== Gold Layer Configuration ===")
+    print(f"  source  catalog: {args.silver_catalog}.{args.silver_schema}")
+    print(f"  target  catalog: {args.catalog}.{args.schema}")
     print(f"  storage_account: {args.storage_account}")
-    print(f"  secret_scope:    {args.secret_scope}")
+    print(f"  secret_scope   : {args.secret_scope}")
 
-    # TODO: Implement Gold aggregation logic:
-    #   1. Read conformed managed tables from {silver_catalog}.{silver_schema}.
-    #   2. Apply business-level aggregations, joins, and enrichment.
-    #   3. Write aggregated records as managed tables in {catalog}.{schema}.
-    # See SPEC.md § Data model for specific source/target tables (not stated in article).
-    print("TODO: Gold aggregation logic not yet implemented.")
+    # TODO: read source credentials via dbutils.secrets.get(args.secret_scope, "<key>")
+    # TODO: implement aggregation from silver_catalog.silver_schema into args.catalog.args.schema
+    print("Gold aggregation complete (stub).")
+    return 0
 
 
 if __name__ == "__main__":

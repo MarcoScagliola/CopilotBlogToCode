@@ -1,67 +1,64 @@
 """
-smoke_test/main.py — End-to-end smoke test entrypoint.
+Smoke test entrypoint — smoke-test job.
 
-Verifies that identity, networking, storage, secret scope, and Unity Catalog
-objects are all correctly wired after a fresh deployment. Runs as the
-deployment service principal. Exits 1 if any check fails.
+Runs a minimal end-to-end check after deployment: verifies that the secret
+scope is reachable and that the expected catalogs/schemas exist in Unity Catalog.
+Exits non-zero if any check fails, causing the Databricks job to fail visibly.
 
-All layer catalog/schema names and the secret scope come from job task parameters.
+TODO: Expand checks to include table-level reads and write probes once Bronze
+      table names are confirmed. See TODO.md § Post-DAB.
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Smoke test: verify identity, storage, secrets, and UC objects are reachable."
+        description="Smoke test: verify deployment health across all medallion layers."
     )
-    parser.add_argument("--bronze-catalog", required=True, help="Bronze Unity Catalog catalog name.")
-    parser.add_argument("--bronze-schema", required=True, help="Bronze Unity Catalog schema name.")
-    parser.add_argument("--silver-catalog", required=True, help="Silver Unity Catalog catalog name.")
-    parser.add_argument("--silver-schema", required=True, help="Silver Unity Catalog schema name.")
-    parser.add_argument("--gold-catalog", required=True, help="Gold Unity Catalog catalog name.")
-    parser.add_argument("--gold-schema", required=True, help="Gold Unity Catalog schema name.")
-    parser.add_argument("--secret-scope", required=True, help="Key Vault-backed Databricks secret scope name.")
+    parser.add_argument("--bronze-catalog", required=True, help="Unity Catalog catalog name for Bronze.")
+    parser.add_argument("--bronze-schema", required=True, help="Unity Catalog schema name for Bronze.")
+    parser.add_argument("--silver-catalog", required=True, help="Unity Catalog catalog name for Silver.")
+    parser.add_argument("--silver-schema", required=True, help="Unity Catalog schema name for Silver.")
+    parser.add_argument("--gold-catalog", required=True, help="Unity Catalog catalog name for Gold.")
+    parser.add_argument("--gold-schema", required=True, help="Unity Catalog schema name for Gold.")
+    parser.add_argument("--secret-scope", required=True, help="AKV-backed Databricks secret scope name.")
     return parser.parse_args(argv)
 
 
-def run_checks(args):
-    """
-    Execute smoke-test assertions. Returns a list of failure messages.
-    An empty list means all checks passed.
-    """
-    failures = []
+def run_checks(args: argparse.Namespace) -> list[str]:
+    """Return a list of failure messages. Empty list = all checks passed."""
+    failures: list[str] = []
 
-    print("Smoke test — resolved configuration:")
-    print(f"  bronze: {args.bronze_catalog}.{args.bronze_schema}")
-    print(f"  silver: {args.silver_catalog}.{args.silver_schema}")
-    print(f"  gold:   {args.gold_catalog}.{args.gold_schema}")
+    # TODO: verify secret scope is reachable via dbutils.secrets.listScopes()
+    # TODO: verify bronze, silver, gold catalogs exist via spark.sql("SHOW CATALOGS")
+    # TODO: verify schemas exist via spark.sql(f"SHOW SCHEMAS IN {catalog}")
+    # TODO: verify access connector RBAC by attempting a minimal read on each storage account
+
+    print("=== Smoke Test Configuration ===")
+    for layer in ("bronze", "silver", "gold"):
+        cat = getattr(args, f"{layer}_catalog")
+        sch = getattr(args, f"{layer}_schema")
+        print(f"  [{layer}] catalog={cat} schema={sch}")
     print(f"  secret_scope: {args.secret_scope}")
-
-    # TODO: Implement smoke-test checks. Examples:
-    #   1. Verify catalogs exist: spark.sql(f"SHOW CATALOGS LIKE '{catalog}'")
-    #   2. Verify schemas exist: spark.sql(f"SHOW SCHEMAS IN {catalog} LIKE '{schema}'")
-    #   3. Verify secret scope is reachable: dbutils.secrets.list(scope)
-    #   4. Verify storage access: spark read from a known path in each storage account.
-    #   5. Check that each layer's service principal has the expected UC privileges.
-    # If any check fails, append a descriptive message to `failures`.
-    print("TODO: Smoke test checks not yet implemented.")
+    print("Smoke test checks: stub (no assertions implemented yet).")
 
     return failures
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     failures = run_checks(args)
 
     if failures:
-        print(f"\nSmoke test FAILED — {len(failures)} check(s) did not pass:")
         for msg in failures:
-            print(f"  FAIL: {msg}")
+            print(f"FAIL: {msg}", file=sys.stderr)
         return 1
 
-    print("\nSmoke test PASSED.")
+    print("All smoke test checks passed.")
     return 0
 
 

@@ -1,46 +1,45 @@
 """
-bronze/main.py — Bronze layer ingestion entrypoint.
+Bronze layer entrypoint — bronze-layer job.
 
-Ingests raw data from source systems into the Bronze Unity Catalog layer.
-Runs as the Bronze service principal with least-privilege access to Bronze
-storage only. Reads runtime credentials from the Key Vault-backed secret scope.
+Reads from source systems and writes raw data to the Bronze catalog/schema
+using managed tables in Unity Catalog. Credentials are read at runtime from
+the AKV-backed secret scope — never hardcoded.
 
-All catalog/schema names and the secret scope name come from job task parameters
-— never hardcoded here. See SPEC.md § Data model and § Security and identity.
+TODO: Implement ingestion logic once source systems and formats are confirmed.
+      See SPEC.md § Data model (source systems: not stated in article) and
+      TODO.md § Post-infrastructure for the runtime-secrets key list.
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
 
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Bronze ingestion: ingest raw data into the Bronze catalog layer."
+        description="Bronze layer: ingest raw data into the Bronze catalog."
     )
     parser.add_argument("--catalog", required=True, help="Unity Catalog catalog name for Bronze.")
     parser.add_argument("--schema", required=True, help="Unity Catalog schema name for Bronze.")
-    parser.add_argument("--storage-account", required=True, help="Bronze ADLS Gen2 storage account name.")
-    parser.add_argument("--secret-scope", required=True, help="Key Vault-backed Databricks secret scope name.")
+    parser.add_argument("--storage-account", required=True, help="Storage account name for Bronze.")
+    parser.add_argument("--secret-scope", required=True, help="AKV-backed Databricks secret scope name.")
     return parser.parse_args(argv)
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
 
-    print("Bronze ingestion — resolved configuration:")
-    print(f"  catalog:         {args.catalog}")
-    print(f"  schema:          {args.schema}")
+    print("=== Bronze Layer Configuration ===")
+    print(f"  catalog        : {args.catalog}")
+    print(f"  schema         : {args.schema}")
     print(f"  storage_account: {args.storage_account}")
-    print(f"  secret_scope:    {args.secret_scope}")
+    print(f"  secret_scope   : {args.secret_scope}")
 
-    # TODO: Implement Bronze ingestion logic:
-    #   1. Read source credentials at runtime via dbutils.secrets.get(scope, key).
-    #      Never print or log secret values.
-    #   2. Connect to source system(s) — see SPEC.md § Data model / Source systems.
-    #   3. Ingest raw data as managed tables in {catalog}.{schema}.
-    #   4. Apply schema enforcement and basic data quality checks if required.
-    # See SPEC.md § Data model for specific source systems (not stated in article).
-    print("TODO: Bronze ingestion logic not yet implemented.")
+    # TODO: read source credentials via dbutils.secrets.get(args.secret_scope, "<key>")
+    # TODO: implement ingestion from source systems into args.catalog.args.schema
+    print("Bronze ingestion complete (stub).")
+    return 0
 
 
 if __name__ == "__main__":

@@ -19,6 +19,19 @@ When generating code for cloud providers (AWS, Azure, GCP, etc.), prioritize dep
 - **Post-deployment hardening**: When stricter settings are desirable, make them configurable via input variables or document them as post-deployment hardening steps (e.g., "disable shared access keys after initial deployment").
 - **Include comments**: Explain why a property is set to a particular value if it reflects a provider compatibility decision or limitation.
 - **Example pattern**: Enable authentication method by default, provide variable to disable it post-deployment; include comment explaining the provider behavior that necessitates this approach.
+- **One-way properties are special.** Some resource properties are *immutable
+  once enabled* at the cloud provider — once set to a particular value, they
+  cannot be reverted. For these properties, "deployment-safe default" means
+  *the value the resource will permanently carry from creation onward*, not
+  *the value that makes the first deploy easiest to undo*. The latter framing
+  is a trap: it produces code that works on the first deploy and fails on
+  every subsequent modify. When generating code for such a property, set the
+  permanent value explicitly and never offer the reversible-looking alternative.
+  See *Key Vault Purge Protection* in Common Error Prevention for the canonical
+  example. Other Azure properties in the same category include
+  `enable_purge_protection` on Recovery Services Vaults, `enable_soft_delete`
+  on Cognitive Services accounts, and immutability policies on Storage
+  containers.
 
 ### 2. Current vs. Deprecated Properties
 Terraform providers introduce new properties and deprecate old ones over time. During code generation:
@@ -264,6 +277,14 @@ not just the changed fields. If `purge_protection_enabled` is omitted from the T
 resource, the provider serializes the implicit default (`false`) into the update request. Azure
 rejects the request as an attempt to disable purge protection, regardless of what the operator
 intended to change.
+
+A deeper trap: "deployment-safe default" thinking can mislead the generator into setting
+`false` to make the *first* deploy easier to undo (no 7-90 day soft-delete wait on destroy).
+This convenience is available on the first deploy only. From the second deploy onward, the
+same value becomes a deploy blocker because Azure will not let the modify proceed. The
+property's true deployment-safe value is the value the resource will *permanently* carry
+from creation onward — which is `true`.
+
 **Prevention**:
 - Always set `purge_protection_enabled = true` explicitly in the generated `azurerm_key_vault`
   resource. Treat it as mandatory, not optional, regardless of deployment scenario.

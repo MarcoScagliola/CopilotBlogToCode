@@ -1,111 +1,87 @@
 locals {
-  # ---------------------------------------------------------------------------
-  # Region abbreviation
-  # Must match the mapping table in generate_deploy_workflow.py exactly.
-  # Both sides are updated atomically; validate_workflow_parity.sh catches drift.
-  # ---------------------------------------------------------------------------
+  # ── Region abbreviation ──────────────────────────────────────────────────────
+  # Extend this map when adding support for new regions.
+  # Both locals.tf and generate_deploy_workflow.py must reference the same mapping.
   region_abbreviation = {
-    "australiaeast"   = "aue"
-    "australiasouth"  = "aus"
-    "brazilsouth"     = "brs"
-    "canadacentral"   = "cac"
-    "canadaeast"      = "cae"
-    "centralus"       = "cus"
-    "eastasia"        = "eas"
-    "eastus"          = "eus"
-    "eastus2"         = "eu2"
-    "francecentral"   = "frc"
-    "germanywestcentral" = "gwc"
-    "japaneast"       = "jae"
-    "koreacentral"    = "koc"
-    "northeurope"     = "neu"
-    "norwayeast"      = "noe"
-    "southafricanorth" = "san"
-    "southcentralus"  = "scu"
-    "southeastasia"   = "sea"
-    "swedencentral"   = "swc"
-    "switzerlandnorth" = "swn"
-    "uaenorth"        = "uan"
-    "uksouth"         = "uks"
-    "ukwest"          = "ukw"
-    "westeurope"      = "weu"
-    "westus"          = "wus"
-    "westus2"         = "wu2"
-    "westus3"         = "wu3"
+    "uksouth"        = "uks"
+    "ukwest"         = "ukw"
+    "eastus"         = "eus"
+    "eastus2"        = "eu2"
+    "westus"         = "wus"
+    "westus2"        = "wu2"
+    "westeurope"     = "weu"
+    "northeurope"    = "neu"
+    "australiaeast"  = "aue"
+    "southeastasia"  = "sea"
   }
 
-  abbrev = local.region_abbreviation[var.azure_region]
+  region_abbrev = local.region_abbreviation[var.azure_region]
 
-  # ---------------------------------------------------------------------------
-  # Canonical resource names — Section 5 of the terraform skill.
-  # Pattern: <prefix>-{workload}-{environment}-{abbrev}
-  # Storage accounts: no hyphens, all lowercase, truncated to 24 chars.
-  # ---------------------------------------------------------------------------
-  rg_name        = "rg-${var.workload}-${var.environment}-${local.abbrev}"
-  kv_name        = substr("kv-${var.workload}-${var.environment}-${local.abbrev}", 0, 24)
-  workspace_name = "dbw-${var.workload}-${var.environment}-${local.abbrev}"
+  # ── Canonical resource names ────────────────────────────────────────────────
+  # Pattern: <prefix>-{workload}-{environment}-{region_abbrev}
+  # Storage accounts: no hyphens, lowercase, max 24 chars.
 
-  storage_names = {
-    bronze = substr("st${var.workload}${var.environment}bronze${local.abbrev}", 0, 24)
-    silver = substr("st${var.workload}${var.environment}silver${local.abbrev}", 0, 24)
-    gold   = substr("st${var.workload}${var.environment}gold${local.abbrev}", 0, 24)
+  rg_name        = "rg-${var.workload}-${var.environment}-${local.region_abbrev}"
+  kv_name        = "kv-${var.workload}-${var.environment}-${local.region_abbrev}"
+  workspace_name = "dbw-${var.workload}-${var.environment}-${local.region_abbrev}"
+
+  storage_name = {
+    bronze = substr("st${var.workload}${var.environment}bronze${local.region_abbrev}", 0, 24)
+    silver = substr("st${var.workload}${var.environment}silver${local.region_abbrev}", 0, 24)
+    gold   = substr("st${var.workload}${var.environment}gold${local.region_abbrev}", 0, 24)
   }
 
-  access_connector_names = {
-    bronze = "ac-${var.workload}-${var.environment}-bronze-${local.abbrev}"
-    silver = "ac-${var.workload}-${var.environment}-silver-${local.abbrev}"
-    gold   = "ac-${var.workload}-${var.environment}-gold-${local.abbrev}"
+  access_connector_name = {
+    bronze = "ac-${var.workload}-${var.environment}-bronze-${local.region_abbrev}"
+    silver = "ac-${var.workload}-${var.environment}-silver-${local.region_abbrev}"
+    gold   = "ac-${var.workload}-${var.environment}-gold-${local.region_abbrev}"
   }
 
-  # Used for Entra ID app display names when layer_sp_mode = "create".
-  sp_display_names = {
-    bronze = "sp-${var.workload}-${var.environment}-bronze-${local.abbrev}"
-    silver = "sp-${var.workload}-${var.environment}-silver-${local.abbrev}"
-    gold   = "sp-${var.workload}-${var.environment}-gold-${local.abbrev}"
+  sp_display_name = {
+    bronze = "sp-${var.workload}-${var.environment}-bronze-${local.region_abbrev}"
+    silver = "sp-${var.workload}-${var.environment}-silver-${local.region_abbrev}"
+    gold   = "sp-${var.workload}-${var.environment}-gold-${local.region_abbrev}"
   }
 
-  # ---------------------------------------------------------------------------
-  # Layer set — static keys so for_each on downstream resources is plan-time safe.
-  # ---------------------------------------------------------------------------
+  # ── Static layer set ─────────────────────────────────────────────────────────
+  # Keys must be statically known at plan time (terraform skill — Iteration Shape rule).
   layers = toset(["bronze", "silver", "gold"])
 
-  # ---------------------------------------------------------------------------
-  # Layer SP mode flag — drives conditional resource creation.
-  # ---------------------------------------------------------------------------
+  # ── Layer SP mode ─────────────────────────────────────────────────────────────
   create_layer_sps = var.layer_sp_mode == "create"
 
-  # ---------------------------------------------------------------------------
-  # Resolved layer principal identifiers.
-  # In "create" mode: read from the created azuread_service_principal resources.
-  # In "existing" mode: taken from operator-supplied variables.
-  # The ternary resolves at apply time; the for_each keys that drive iteration
-  # are always static (local.layers), so plan-time knowability is preserved.
-  # ---------------------------------------------------------------------------
-  resolved_layer_client_ids = {
-    for layer in local.layers :
-    layer => local.create_layer_sps
-      ? azuread_application.layer[layer].client_id
-      : var.existing_layer_sp_client_id
+  # ── Resolved layer principal identifiers ─────────────────────────────────────
+  # In create mode: sourced from the newly created azuread resources.
+  # In existing mode: sourced from variable inputs (no Graph reads — restricted-tenant safe).
+  resolved_layer_client_ids = local.create_layer_sps ? {
+    bronze = azuread_application.layer["bronze"].client_id
+    silver = azuread_application.layer["silver"].client_id
+    gold   = azuread_application.layer["gold"].client_id
+  } : {
+    bronze = var.existing_layer_sp_client_id
+    silver = var.existing_layer_sp_client_id
+    gold   = var.existing_layer_sp_client_id
   }
 
-  resolved_layer_object_ids = {
-    for layer in local.layers :
-    layer => local.create_layer_sps
-      ? azuread_service_principal.layer[layer].object_id
-      : var.existing_layer_sp_object_id
+  resolved_layer_object_ids = local.create_layer_sps ? {
+    bronze = azuread_service_principal.layer["bronze"].object_id
+    silver = azuread_service_principal.layer["silver"].object_id
+    gold   = azuread_service_principal.layer["gold"].object_id
+  } : {
+    bronze = var.existing_layer_sp_object_id
+    silver = var.existing_layer_sp_object_id
+    gold   = var.existing_layer_sp_object_id
   }
 
-  # ---------------------------------------------------------------------------
-  # Secret scope name — one per environment as recommended by the article.
-  # ---------------------------------------------------------------------------
+  # ── Secret scope name ────────────────────────────────────────────────────────
+  # Matches the scope name the bundle expects. One scope per environment.
   secret_scope_name = "kv-${var.environment}-scope"
 
-  # ---------------------------------------------------------------------------
-  # Common tags applied to all resources.
-  # ---------------------------------------------------------------------------
+  # ── Common tags ───────────────────────────────────────────────────────────────
   common_tags = {
     workload    = var.workload
     environment = var.environment
+    region      = var.azure_region
     managed_by  = "terraform"
   }
 }
