@@ -6,80 +6,75 @@ include:
 
 variables:
   workspace_host:
-    description: >
-      HTTPS URL of the target Databricks workspace. Supplied by the deploy
-      bridge at runtime from the `databricks_workspace_url` Terraform output.
-      NOT interpolated in the workspace: block; set via DATABRICKS_HOST env var.
+    description: "Databricks workspace host URL. Set via DATABRICKS_HOST env var by the deploy bridge."
     default: ""
 
   workspace_resource_id:
-    description: >
-      Full Azure resource ID of the Databricks workspace. Used by the Databricks
-      CLI for Azure SP authentication via DATABRICKS_AZURE_RESOURCE_ID.
+    description: "Full Azure resource ID of the Databricks workspace. Set by the deploy bridge."
     default: ""
 
   bronze_catalog:
-    description: Unity Catalog catalog name for the Bronze layer.
+    description: "Unity Catalog catalog name for the Bronze layer."
     default: bronze
 
   silver_catalog:
-    description: Unity Catalog catalog name for the Silver layer.
+    description: "Unity Catalog catalog name for the Silver layer."
     default: silver
 
   gold_catalog:
-    description: Unity Catalog catalog name for the Gold layer.
+    description: "Unity Catalog catalog name for the Gold layer."
     default: gold
 
   bronze_schema:
-    description: Unity Catalog schema name for the Bronze layer.
+    description: "Unity Catalog schema name for the Bronze layer."
     default: main
 
   silver_schema:
-    description: Unity Catalog schema name for the Silver layer.
+    description: "Unity Catalog schema name for the Silver layer."
     default: main
 
   gold_schema:
-    description: Unity Catalog schema name for the Gold layer.
+    description: "Unity Catalog schema name for the Gold layer."
     default: main
 
   secret_scope:
-    description: Name of the AKV-backed Databricks secret scope for this environment.
+    description: "Databricks secret scope name backed by the Azure Key Vault."
     default: kv-dev
 
   bronze_principal_client_id:
-    description: Application (client) ID of the Bronze layer service principal.
+    description: "Application (client) ID of the Bronze layer service principal."
     default: ""
 
   silver_principal_client_id:
-    description: Application (client) ID of the Silver layer service principal.
+    description: "Application (client) ID of the Silver layer service principal."
     default: ""
 
   gold_principal_client_id:
-    description: Application (client) ID of the Gold layer service principal.
+    description: "Application (client) ID of the Gold layer service principal."
     default: ""
 
   bronze_storage_account:
-    description: Storage account name for Bronze layer.
+    description: "Storage account name for the Bronze layer."
     default: ""
 
   silver_storage_account:
-    description: Storage account name for Silver layer.
+    description: "Storage account name for the Silver layer."
     default: ""
 
   gold_storage_account:
-    description: Storage account name for Gold layer.
+    description: "Storage account name for the Gold layer."
     default: ""
 
   bronze_access_connector_id:
-    description: Resource ID for Bronze Databricks access connector.
+    description: "Full Azure resource ID of the Bronze Databricks Access Connector."
     default: ""
 
   silver_access_connector_id:
-    description: Resource ID for Silver Databricks access connector.
+    description: "Full Azure resource ID of the Silver Databricks Access Connector."
     default: ""
 
   gold_access_connector_id:
-    description: Resource ID for Gold Databricks access connector.
+    description: "Full Azure resource ID of the Gold Databricks Access Connector."
     default: ""
 
 targets:

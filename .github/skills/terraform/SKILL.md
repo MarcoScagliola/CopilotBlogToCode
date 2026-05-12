@@ -255,6 +255,28 @@ Address these common Terraform deployment error categories in generated code:
 - In CI/CD workflows, detect whether a soft-deleted vault with the target name exists and set the Terraform variable per run.
 - This avoids both failure modes: recovery-disabled when a deleted vault exists, and `SoftDeletedVaultDoesNotExist` when recovery is forced but no deleted vault exists.
 
+### Key Vault Purge Protection (immutable once enabled; provider sends full state on update)
+**Error**: `once Purge Protection has been Enabled it's not possible to disable it`, even when
+the apparent change in the plan is unrelated (tags, SKU, network ACLs, access policies).
+**Root cause**: `purge_protection_enabled` is a one-way flag in Azure — once `true`, it cannot
+be reverted to `false`. The AzureRM provider sends the full vault property set on every update,
+not just the changed fields. If `purge_protection_enabled` is omitted from the Terraform
+resource, the provider serializes the implicit default (`false`) into the update request. Azure
+rejects the request as an attempt to disable purge protection, regardless of what the operator
+intended to change.
+**Prevention**:
+- Always set `purge_protection_enabled = true` explicitly in the generated `azurerm_key_vault`
+  resource. Treat it as mandatory, not optional, regardless of deployment scenario.
+- Never omit the argument. Omission causes the provider to send `false` on every update,
+  breaking any subsequent apply (tag change, SKU upgrade, network ACL update) against a vault
+  whose actual state has purge protection enabled.
+- Never set it to `false`. The argument has no `false` value in practice — once a vault
+  exists with it enabled, no operation can disable it, so emitting `false` only produces
+  errors.
+- Recovered vaults, vaults from previous deployments, and vaults created by other tooling
+  may all carry `purge_protection_enabled = true` regardless of how they were provisioned.
+  Assume any existing vault has it enabled.
+
 ### State Management (Already Exists / Needs Import)
 **Error**: Resource already exists in cloud but not in Terraform state; on rerun, Terraform cannot find the resource it created.
 **Prevention**:
@@ -295,6 +317,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] RBAC/permission requirements documented in TODO.md and README.md
 - [ ] State persistence strategy documented (remote backend, local/ephemeral state, or other)
 - [ ] Cleanup/teardown strategy provided for ephemeral state scenarios
+- [ ] `purge_protection_enabled = true` is set explicitly on every `azurerm_key_vault` resource — never omitted, never `false` — to prevent modify-time failures from the provider serialising the implicit default.
 
 **Outputs and Documentation**
 - [ ] Critical resource identifiers (IDs, ARNs) exported as outputs
