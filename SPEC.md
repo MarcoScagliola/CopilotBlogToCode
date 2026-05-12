@@ -4,50 +4,56 @@ Source URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-med
 Inputs: workload=blg, environment=dev, azure_region=uksouth, layer_sp_mode=create
 
 ## Architecture
-- High-level pattern: medallion architecture (Bronze -> Silver -> Gold).
+- Pattern: Medallion architecture (Bronze -> Silver -> Gold).
 - Components and roles:
-  - ADLS Gen2 accounts per layer.
-  - Databricks workspace for compute and orchestration.
-  - Lakeflow jobs per layer plus orchestrator.
-  - Unity Catalog governance.
+  - ADLS Gen2 per layer for isolation.
+  - Azure Databricks workspace for jobs and compute.
+  - Lakeflow jobs: one per layer plus orchestrator.
+  - Unity Catalog governance model.
   - Azure Key Vault and AKV-backed secret scope.
-  - Access Connectors and per-layer Entra service principals.
-- Data flow triggers/schedules: not stated in article.
+  - Access Connectors + Entra service principals per layer.
+- Flow triggers/schedules: not stated in article.
 - Volume/frequency/latency: not stated in article.
 
 ## Azure services
-- Named services: Azure Databricks, ADLS Gen2, Key Vault, Entra ID, Access Connector.
-- Network posture: SCC/No Public IP for workspace stated; private endpoint/firewall details not stated in article.
-- Region and redundancy from article: not stated in article.
+- Azure Databricks, ADLS Gen2, Azure Key Vault, Entra ID, Databricks Access Connector.
+- Workspace SCC / No Public IP is stated.
+- Region/redundancy details in article: not stated in article.
 
 ## Databricks
-- Workspace tier: Premium (inferred from Unity Catalog requirement).
-- SCC/No Public IP: stated.
-- Unity Catalog usage: stated; exact catalog/schema names not stated in article.
+- Workspace tier: Premium (inferred from Unity Catalog usage).
+- SCC / No Public IP: stated.
+- Unity Catalog: stated; exact catalog/schema names not stated in article.
 - Compute model: dedicated cluster per layer stated; exact sizing not stated in article.
-- Jobs: three layer jobs plus orchestrator stated.
-- Runtime/libs/init scripts: not stated in article.
+- Jobs: Bronze, Silver, Gold + orchestrator stated.
+- Runtime/library/init-script specifics: not stated in article.
 
 ## Data model
 - Source systems and formats: not stated in article.
-- Target table names per layer: not stated in article.
-- Partitioning/liquid clustering/z-order details: not stated in article.
+- Exact target table names by layer: not stated in article.
+- Partitioning/Liquid clustering/Z-order specifics: not stated in article.
 - Schema evolution/data quality rules: not stated in article.
 
 ## Security and identity
-- Identities used: per-layer Entra service principals, Access Connector SAMIs.
-- Secrets: Key Vault + AKV-backed secret scope at runtime.
-- RBAC and UC grant specifics: not stated in article.
+- Identities: per-layer Entra service principals and access connector managed identities.
+- Secrets: Key Vault, consumed via AKV-backed secret scope.
+- Detailed RBAC and Unity Catalog grants: not stated in article.
 
 ## Operational concerns
-- Monitoring/system tables/jobs UI mentioned.
-- Cost controls details not stated in article.
+- Monitoring mentions: jobs UI and system tables.
+- Detailed cost controls: not stated in article.
 - CI/CD implementation deferred to Part II.
-- Backup/retention/DR not stated in article.
+- Backup/retention/DR: not stated in article.
 
 ## Out-of-scope markers
-- CI/CD code and some operational topics deferred to Part II.
+- CI/CD code details deferred to Part II.
+- Cluster reuse/environment promotion challenges deferred to Part II.
 
-## Other observations
-- Managed tables preferred in the article.
-- One secret scope per environment recommended.
+## Canonical naming for this run
+- Resource group: rg-blg-dev-uks
+- Key Vault: kv-blg-dev-uks
+- Databricks workspace: dbw-blg-dev-uks
+- Storage: stblgdevbronzeuks, stblgdevsilveruks, stblgdevgolduks
+- Access connectors: ac-blg-dev-bronze-uks, ac-blg-dev-silver-uks, ac-blg-dev-gold-uks
+- Layer SP display names: sp-blg-dev-bronze-uks, sp-blg-dev-silver-uks, sp-blg-dev-gold-uks
+- Secret scope name: kv-dev-scope

@@ -298,6 +298,73 @@ from creation onward — which is `true`.
   may all carry `purge_protection_enabled = true` regardless of how they were provisioned.
   Assume any existing vault has it enabled.
 
+### Key Vault authorisation model: RBAC only, no access policies
+
+**Rule.** Generated `azurerm_key_vault` resources MUST set
+`enable_rbac_authorization = true`. The `azurerm_key_vault_access_policy`
+resource type is forbidden in generated code. All grants on a Key Vault MUST
+be expressed as `azurerm_role_assignment` resources scoped to the vault,
+using Key Vault data-plane RBAC roles (`Key Vault Secrets Officer` for
+principals that manage secrets, `Key Vault Secrets User` for principals that
+only read them).
+
+**Why.** Access policies are a legacy authorisation model on Azure Key Vault.
+They have three concrete problems that RBAC does not:
+
+1. **Recovery conflicts.** A vault recovered from soft-delete retains every
+   `azurerm_key_vault_access_policy` it had at deletion time, identified by
+   `(vault, objectId)` pair. Terraform's state, fresh on the new run, knows
+   nothing about these preserved policies and tries to create them again.
+   Azure rejects with `already exists - to be managed via Terraform this
+   resource needs to be imported`. The conflict recurs on every redeploy
+   against a recovered vault.
+
+2. **RBAC role assignments survive recovery cleanly.** Role assignments are
+   identified by GUID. When a vault is recovered, prior role assignments do
+   not survive in a way that conflicts with new assignments. Terraform creates
+   fresh assignments cleanly. Recovery scenarios are transparent.
+
+3. **Access policies and RBAC mode are mutually exclusive.** A vault with
+   `enable_rbac_authorization = true` ignores access policy resources, which
+   means access policy resources in `main.tf` are dead code at best and
+   import conflicts at worst.
+
+**What to emit instead.**
+
+The generated `azurerm_key_vault` resource must contain:
+
+    enable_rbac_authorization = true
+
+For every principal that needs vault access, emit an `azurerm_role_assignment`
+block scoped to the vault:
+
+    resource "azurerm_role_assignment" "kv_<role-name>" {
+      scope                = azurerm_key_vault.main.id
+      role_definition_name = "Key Vault Secrets Officer"   # or "Key Vault Secrets User"
+      principal_id         = <principal_object_id>
+    }
+
+The deployment principal typically gets `Key Vault Secrets Officer` (read,
+write, delete, recover, purge on secrets). Workload principals that only
+read secrets get `Key Vault Secrets User`.
+
+**What is forbidden.**
+
+- `azurerm_key_vault_access_policy` as a resource type, anywhere.
+- `enable_rbac_authorization = false` on a Key Vault.
+- Omitting `enable_rbac_authorization` entirely, since the AzureRM provider
+  default is `false` and omission has the same effect as explicitly setting
+  the legacy mode.
+- Mixing access policies and RBAC role assignments on the same vault.
+
+**Source article handling.** If the source article describes access policies
+explicitly (e.g. "the deployment principal needs Get, List, Set on the
+vault"), translate those permissions into the equivalent RBAC role and emit
+the role assignment. Do not preserve the access-policy vocabulary in the
+generated code. SPEC.md should record the article's wording faithfully;
+`main.tf` follows this skill, not the article.
+
+
 ### State Management (already exists / needs import)
 
 **Error**: `A resource with the ID "..." already exists - to be managed via
