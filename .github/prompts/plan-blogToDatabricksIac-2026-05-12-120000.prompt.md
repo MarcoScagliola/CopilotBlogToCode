@@ -18,4 +18,4 @@ Inputs:
 - workload: blg
 - environment: dev
 - azure_region: uksouth
-- layer_sp_mode: create
+- layer_sp_mode: existing
