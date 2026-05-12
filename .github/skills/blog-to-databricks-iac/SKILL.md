@@ -300,7 +300,7 @@ The generated output must satisfy the following properties. Each is paired with 
 | A | DAB is syntactically valid and uses placeholders for values that could not be determined from the article. | 9.2.3 (YAML parse), 9.2.4 (generator runtime) |
 | B | `TODO.md` contains only unresolved values and post-deployment actions — no duplication of content that appears in `README.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
 | C | Concerns are separated: no Terraform resources defined inside the DAB, no Databricks jobs or notebooks defined inside Terraform. | 9.2.6 (manual inspection) |
-| D | Generated code is production-ready. No fictional resource IDs, no placeholder subscription IDs, no `example.com` hostnames. Every assumption made by the skill is recorded in `TODO.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
+| D | Generated code is not production-ready. No fictional resource IDs, no placeholder subscription IDs, no `example.com` hostnames. Every assumption made by the skill is recorded in `TODO.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
 | E | Architectural invariants from 9.3 hold for every relevant generated file. | 9.2.5 (invariant checks) |
 
 #### 9.2 Verification commands

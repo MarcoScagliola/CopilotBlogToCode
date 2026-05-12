@@ -1,132 +1,117 @@
-# SPEC — Secure Medallion Architecture Pattern on Azure Databricks (Part I)
+# SPEC — blg dev (Secure Medallion Architecture on Azure Databricks)
 
-Source article: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+Source article: [Secure Medallion Architecture Pattern on Azure Databricks (Part I)](https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268)
 
-Run inputs:
-- workload: blg
-- environment: dev
-- azure_region: uksouth
-- layer_sp_mode: create
+Generated: 2026-05-12
+
+---
 
 ## Architecture
 
-- High-level architecture pattern:
-  - Secure Medallion architecture (Bronze -> Silver -> Gold) with an orchestrator Lakeflow job driving per-layer jobs.
-  - Least-privilege design is the central architectural goal (stated in prose).
-- Named components and roles:
-  - Source systems: not stated in article.
-  - Bronze layer: raw ingestion and initial landing (stated in prose).
-  - Silver layer: cleansed/integrated data (stated in prose).
-  - Gold layer: curated/consumption-ready outputs (stated in prose).
-  - Orchestrator Lakeflow job: sequences the three layer jobs (stated in prose).
-  - BI consumers: implied but not explicitly named in article.
-- Data flow direction and triggers:
-  - Direction is Bronze -> Silver -> Gold (stated in prose).
-  - Trigger model (scheduled vs event-driven vs on-demand) is not stated in article.
-- Stated or implied data volume, frequency, latency:
-  - Data volume is not stated in article.
-  - Frequency is not stated in article.
-  - Latency/SLA targets are not stated in article.
+- **High-level pattern**: Medallion (Bronze → Silver → Gold), security-first variant with per-layer identity isolation.
+- **Named components and roles**:
+  - Bronze layer: raw ingestion, append-only Delta managed tables, source data landing zone.
+  - Silver layer: cleansing, transformation, integration into consistent business models (3NF / Data Vault).
+  - Gold layer: curated analytics-ready datasets (dimensional/semantic model), BI/reporting output.
+  - Orchestrator job: a fourth Lakeflow job that triggers the three layer jobs in sequence.
+  - Unity Catalog: governance backbone — External Locations, storage credentials, managed tables, system-table observability.
+- **Data flow direction and triggers**: batch, scheduled via Lakeflow Jobs. Bronze → Silver → Gold. Orchestrator job schedules and sequences the three layer Lakeflow jobs.
+- **Data volume, frequency, latency requirements**: not stated in article.
+
+---
 
 ## Azure services
 
-- Azure services named in the article and roles:
-  - Azure Databricks: compute/orchestration platform for medallion jobs.
-  - Azure Data Lake Storage Gen2 (ADLS Gen2): per-layer storage accounts for isolation.
-  - Microsoft Entra ID service principals / managed identities: per-layer execution identities and auth.
-  - Azure Databricks Access Connector: workspace-linked system-assigned managed identity for UC storage access.
-  - Azure Key Vault (AKV): secret storage with runtime retrieval via Databricks secret scopes.
-  - Unity Catalog: governance, catalogs/schemas/tables, external locations, system tables.
-- Stated SKU/tier/configuration:
-  - Databricks workspace tier is not stated in article.
-  - Storage redundancy type (LRS/ZRS/GRS/RA-GRS) is not stated in article.
-  - Key Vault SKU/tier is not stated in article.
-- Networking posture:
-  - Public endpoints / private endpoints / VNet injection / firewall posture are not stated in article.
-- Region and redundancy:
-  - Azure region is not stated in article.
-  - Redundancy strategy is not stated in article.
+- **ADLS Gen2 storage accounts**: 3, one per layer (Bronze, Silver, Gold). Role: backing store for Unity Catalog managed tables. SKU/tier: not stated in article. Transformed names: `stblgdevbronzeuks`, `stblgdevsilveruks`, `stblgdevgolduks`.
+- **Azure Key Vault**: 1 per environment. Role: secret store for API keys, DB passwords, webhooks; backing AKV-backed secret scope in Databricks. Example names cited: `kv-dev`, `kv-prod`. Transformed canonical name: `kv-blg-dev-uks`.
+- **Azure Databricks workspace**: 1. Tier: not stated explicitly; Unity Catalog requires Premium — inferred from architecture diagram. Canonical name: `dbw-blg-dev-uks`.
+- **Databricks Access Connectors**: 3, one per layer. Role: system-assigned managed identity (SAMI) that enables Unity Catalog external location storage credentials. Names: `ac-blg-dev-bronze-uks`, `ac-blg-dev-silver-uks`, `ac-blg-dev-gold-uks`.
+- **Microsoft Entra ID service principals**: 3, one per layer (Bronze SP, Silver SP, Gold SP). Created by Terraform when `layer_sp_mode=create`. Used as the runtime identity for each Lakeflow job.
+- **Networking posture**: Secure Cluster Connectivity (No Public IP / SCC) stated. Private endpoints, VNet injection, NSG rules: not stated in article. Allow Public Network Access: not stated in article.
+- **Region and redundancy**: region not stated in article (using `uksouth` from run input). Redundancy tier: not stated in article.
+
+---
 
 ## Databricks
 
-- Workspace tier (Standard/Premium): not stated in article.
-- Workspace type Hybrid: not stated in article.
-- Deploy workspace with Secure Cluster Connectivity (No Public IP): not stated in article.
-- Unity Catalog usage:
-  - Unity Catalog usage: yes (stated in prose).
-  - Separate catalogs for Bronze, Silver, Gold: yes (stated in prose).
-  - Specific catalog names: not stated in article.
-  - Schema names: not stated in article.
-  - Metastore reference/name: not stated in article.
-- Compute model:
-  - Dedicated per-layer clusters (three clusters, one per layer) is stated in prose.
-  - Cluster policy characteristics are discussed conceptually; concrete policy JSON/parameters are not stated in article.
-  - Runtime version is not stated in article.
-- Jobs and orchestration:
-  - Three per-layer Lakeflow jobs plus one orchestrator job is stated in prose.
-  - Job dependency chain exists (orchestrator drives layer jobs), inferred from architecture description.
-  - Exact schedule/trigger/concurrency settings are not stated in article.
-- Lakeflow Spark Declarative Pipelines usage and mode:
-  - Lakeflow Jobs are used; Lakeflow Spark Declarative Pipelines mode (triggered/continuous) is not stated in article.
-- Task source format:
-  - Notebooks are referenced for runtime secret reads (`dbutils.secrets.get(...)`), inferred from code-style guidance.
-  - Python files / SQL files / JAR / wheel usage is not stated in article.
-- Libraries, runtime, init scripts:
-  - Not stated in article.
+- **Workspace tier**: not stated in article — inferred Premium (Unity Catalog requires it).
+- **Workspace type Hybrid**: not stated in article.
+- **Secure Cluster Connectivity (No Public IP)**: stated — deploy with SCC enabled.
+- **Unity Catalog**: yes.
+  - Separate catalogs per layer: article names the pattern `bronze`, `silver`, `gold` — exact catalog names not stated in article.
+  - Schema names: not stated in article. One schema per catalog implied.
+  - Metastore reference: not stated in article (uses account-level default metastore).
+- **Compute model**: 3 dedicated job clusters, one per layer (Bronze cluster, Silver cluster, Gold cluster) plus an orchestrator. Cluster characteristics:
+  - Bronze: general-purpose / compute-optimised; Photon optional (disabled for most workloads).
+  - Silver: general-purpose / compute-optimised; Photon enabled.
+  - Gold: general-purpose / compute-optimised; Photon optional (disabled for most workloads).
+  - Auto-termination, autoscaling, cluster policies: stated as recommended but not quantified.
+- **Jobs and orchestration**: 4 Lakeflow jobs — Bronze, Silver, Gold, and Orchestrator. Orchestrator uses `run_job_task` to trigger the three layer jobs. Schedules: not stated in article. Concurrency: not stated in article.
+- **Lakeflow Spark Declarative Pipelines**: not used — standard Lakeflow Jobs (not DLT pipelines).
+- **Task source format**: Python files (entrypoints under `databricks-bundle/src/<layer>/main.py`).
+- **Libraries, runtime version, init scripts**: not stated in article.
+
+---
 
 ## Data model
 
-- Source systems and formats:
-  - Source systems are not stated in article.
-  - Data formats (CSV/JSON/Parquet/Avro/CDC/JDBC/REST) are not stated in article.
-- Target tables/datasets by layer:
-  - Layer intent is described (Bronze raw, Silver integrated, Gold serving).
-  - Explicit table names and dataset inventory are not stated in article.
-- Partitioning / Liquid Clustering / Z-order:
-  - Partitioning guidance is not stated in article.
-  - Liquid Clustering or Z-order usage is not stated in article.
-- Schema evolution / enforcement:
-  - Not stated in article.
-- Data quality expectations / rules:
-  - Progressive quality checks are mentioned conceptually.
-  - Explicit quality gates/rules/thresholds are not stated in article.
+- **Source systems and formats**: not stated in article.
+- **Target tables by layer**:
+  - Bronze: managed Delta tables, append-only, optionally enriched with technical metadata fields. Table names: not stated in article.
+  - Silver: managed Delta tables, cleaned/transformed to consistent business model (3NF or Data Vault). Table names: not stated in article.
+  - Gold: managed Delta tables, analytics-ready (dimensional or semantic layer). Table names: not stated in article.
+- **Table type**: managed tables — explicitly chosen. Unity Catalog manages both metadata and data; GUID-based paths in ADLS Gen2.
+- **Liquid clustering**: stated — Automatic liquid clustering (CLUSTER BY AUTO) for managed tables on DBR 15.4 LTS+. Predictive Optimization and Automatic statistics also enabled.
+- **Partitioning / Z-ordering**: not stated in article — not applied.
+- **Schema evolution or enforcement rules**: not stated in article.
+- **Data quality expectations or test rules**: not stated in article.
+
+---
 
 ## Security and identity
 
-- Identities used:
-  - Dedicated Microsoft Entra ID service principals per layer are stated in prose.
-  - Managed identities are emphasized; Access Connector SAMI is stated in prose.
-- Secrets and secret storage:
-  - Store secrets in Azure Key Vault and read at runtime through AKV-backed Databricks secret scopes (stated in prose).
-  - Example key names (`api-token`, `db-password`) are stated in prose.
-- RBAC assignments and Unity Catalog grants:
-  - Principle of least privilege and layer isolation are stated.
-  - Exact RBAC role names and exact UC GRANT statements are not stated in article.
-- Network boundaries:
-  - Isolation requirement between layers is stated conceptually.
-  - Explicit network topology and allowed paths are not stated in article.
+- **Identities used**:
+  - 3 Microsoft Entra ID service principals (one per layer: Bronze SP, Silver SP, Gold SP). Entra-managed, authenticating via Entra ID tokens (not PATs).
+  - 3 Databricks Access Connectors with SAMI (system-assigned managed identity), one per layer. Used as Unity Catalog storage credentials.
+  - Deployment service principal: used by Terraform to provision all resources.
+- **Secrets storage**: Azure Key Vault (one per environment) + AKV-backed Databricks secret scope (one per environment, e.g. `kv-dev`). Secret scope name: not stated in article.
+- **Key Vault secrets expected** (inferred from architecture): API keys, DB passwords, webhooks. Exact secret key names: not stated in article.
+- **RBAC assignments**:
+  - Each layer SP: Storage Blob Data Contributor (or least-privilege equivalent) on its own storage account only.
+  - Each Access Connector SAMI: Storage Blob Data Contributor on its layer's storage account (for Unity Catalog External Location).
+  - Layer SPs are granted `Can Run` on their Lakeflow job; `Can Manage` as needed (inferred from article).
+  - Unity Catalog External Location grants: Browse, Read File on source; Browse, Read File, Write File on target (per layer).
+  - Unity Catalog privilege model: not fully specified in article — see TODO.md.
+- **Network boundaries**: SCC (No Public IP) for Databricks. Each layer SP/cluster can only reach its own storage and External Location. Cross-layer access blocked by permission design.
+
+---
 
 ## Operational concerns
 
-- Monitoring, logging, alerting:
-  - Enable Unity Catalog system tables and monitor Jobs UI (stated in prose).
-  - Enable AKV diagnostic logs (stated in prose).
-  - Exact alert rules/KPIs are not stated in article.
-- Cost controls:
-  - Track spend by layer via system tables / observability guidance.
-  - Concrete cost guardrails (budgets, reserved capacity, spot policy, hard limits) are not stated in article.
-- CI/CD or deployment approach in article:
-  - Article says Part II will publish CI/CD code; concrete CI/CD implementation is deferred.
-- Backup/retention/DR:
-  - Not stated in article.
+- **Monitoring**: system tables enabled — `system.lakeflow/*` (runs, tasks, timelines) and `system.billing/*`. Jobs monitoring UI for run history, task details, and notifications.
+- **Cost controls**: right-size clusters per layer; autoscaling and auto-termination stated as recommended; cluster policies per layer. Reserved capacity / budgets: not stated in article.
+- **CI/CD**: explicitly deferred to Part II of the article series. This orchestrator generates its own workflows independently of Part II.
+- **Backup, retention, DR**: not stated in article.
+
+---
 
 ## Out-of-scope markers
 
-- Article explicitly positions this as Part I and defers detailed CI/CD implementation to Part II.
-- Some implementation specifics (for example, concrete cluster policy definitions) are high-level only and left for follow-up detail.
+- CI/CD deployment tooling explicitly deferred to Part II of the article.
+- Cluster reusability across Lakeflow jobs deferred to Part II.
+- Environment promotion strategy deferred to Part II.
+
+---
 
 ## Other observations
 
-- Core security claim: compromise in one layer should not permit read/write access across other layers.
-- Separation of duties is applied across identities, storage accounts, clusters, and jobs (multi-dimensional isolation).
-- Managed tables are recommended; article notes GUID-based storage paths under Unity Catalog managed storage.
+- Article uses "Lakeflow" as the current name for Databricks Workflows/Jobs (previously called "Workflows").
+- The pattern strongly advocates for External Locations in Unity Catalog per layer (not managed external tables — managed tables are used, but storage is accessed via External Locations backed by Access Connector SAMIs).
+- Article prescribes one secret scope per environment with consistent key names across environments (e.g., `api-token`, `db-password`).
+- AKV diagnostic logs recommended for audit; secret access should be validated in non-production before promoting.
+- Article explicitly recommends against sharing a single cluster or single service principal across layers.
+- Naming transformations applied:
+  - Article examples `kv-dev` / `kv-prod` → canonical `kv-blg-dev-uks` (terraform skill Section 5 naming).
+  - Storage account names use no hyphens and are lowercase: `stblgdevbronzeuks`, `stblgdevsilveruks`, `stblgdevgolduks`.
+  - Workspace: `dbw-blg-dev-uks`.
+  - Resource group: `rg-blg-dev-uks`.

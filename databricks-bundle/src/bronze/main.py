@@ -1,39 +1,53 @@
-"""Bronze layer scaffold that validates runtime parameter and secret-scope wiring."""
+"""
+bronze/main.py — Bronze layer ingestion entrypoint.
+
+Ingests raw data from source systems into the Bronze Unity Catalog layer.
+Data is stored as append-only Delta managed tables with technical metadata
+fields (ingestion timestamp, source system identifier, record hash).
+
+Runs under the Bronze service principal identity with least-privilege access
+scoped to the Bronze storage account and Bronze catalog only.
+Secrets are read at runtime from the AKV-backed secret scope via
+dbutils.secrets.get() — never passed as job parameters or hardcoded.
+
+Arguments are injected by the Databricks job runner via spark_python_task
+parameters. See databricks-bundle/resources/jobs.yml for the parameter list.
+"""
+from __future__ import annotations
 
 import argparse
-import logging
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
-def _probe_secret(scope: str, key: str) -> bool:
-    try:
-        from pyspark.dbutils import DBUtils  # type: ignore
-        from pyspark.sql import SparkSession
-
-        spark = SparkSession.builder.getOrCreate()
-        dbutils = DBUtils(spark)
-        value = dbutils.secrets.get(scope=scope, key=key)
-        return bool(value)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("secret probe failed for %s/%s: %s", scope, key, type(exc).__name__)
-        return False
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Bronze layer: raw ingestion into Delta managed tables.")
+    parser.add_argument("--catalog", required=True, help="Bronze Unity Catalog catalog name.")
+    parser.add_argument("--schema", required=True, help="Bronze Unity Catalog schema name.")
+    parser.add_argument("--storage-account", required=True, help="Bronze ADLS Gen2 storage account name.")
+    parser.add_argument("--secret-scope", required=True, help="AKV-backed Databricks secret scope name.")
+    return parser.parse_args()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Bronze ingestion.")
-    parser.add_argument("--catalog", required=True)
-    parser.add_argument("--schema", required=True)
-    parser.add_argument("--secret-scope", required=True)
-    parser.add_argument("--probe-secret-key", default="api-token")
-    args = parser.parse_args()
+    args = parse_args()
 
-    namespace = f"`{args.catalog}`.`{args.schema}`"
-    log.info("bronze start namespace=%s", namespace)
-    has_secret = _probe_secret(args.secret_scope, args.probe_secret_key)
-    log.info("secret key %s present=%s", args.probe_secret_key, has_secret)
-    log.info("bronze complete (scaffold)")
+    print(
+        f"[bronze] catalog={args.catalog}, schema={args.schema}, "
+        f"storage={args.storage_account}, scope={args.secret_scope}"
+    )
+
+    # TODO: implement source ingestion.
+    # Resolution:
+    #   1. Read source credentials from the secret scope at runtime using
+    #      dbutils.secrets.get(scope=args.secret_scope, key="<key-name>").
+    #      Never log or print secret values.
+    #   2. Ingest raw data from the source system into Delta managed tables
+    #      under {catalog}.{schema}.
+    #   3. Append technical metadata: _ingestion_ts (current_timestamp()),
+    #      _source_system (string literal), _row_hash (sha2 of all source cols).
+    #   4. Apply Automatic Liquid Clustering (CLUSTER BY AUTO) on new tables
+    #      on DBR 15.4 LTS+ — do not use manual partitioning or Z-ordering.
+    #   5. Source system type and format: not stated in article. See SPEC.md §
+    #      Data model for the outstanding decision.
 
 
 if __name__ == "__main__":

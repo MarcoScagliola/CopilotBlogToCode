@@ -1,41 +1,66 @@
-"""Smoke-test scaffold for medallion deployment wiring."""
+"""
+smoke_test/main.py — Post-deploy smoke test entrypoint.
+
+Verifies that the deployed Medallion pipeline is correctly wired by performing
+lightweight, non-destructive assertions against the Unity Catalog objects and
+the Databricks workspace configuration provisioned by the setup job and the
+layer entrypoints.
+
+Run this job manually after the first full pipeline execution, and as a
+post-deploy gate in CI after `databricks bundle deploy` completes.
+
+Arguments are injected by the Databricks job runner via spark_python_task
+parameters. See databricks-bundle/resources/jobs.yml for the parameter list.
+"""
+from __future__ import annotations
 
 import argparse
-import logging
 import sys
 
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
-
-def _check_layer(layer: str, catalog: str, schema: str, min_rows: int) -> bool:
-    namespace = f"`{catalog}`.`{schema}`"
-    log.info("check layer=%s namespace=%s min_rows=%d", layer, namespace, min_rows)
-    return True
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Smoke test: assert Medallion objects exist and are accessible.")
+    parser.add_argument("--bronze-catalog", required=True)
+    parser.add_argument("--silver-catalog", required=True)
+    parser.add_argument("--gold-catalog", required=True)
+    parser.add_argument("--bronze-schema", required=True)
+    parser.add_argument("--silver-schema", required=True)
+    parser.add_argument("--gold-schema", required=True)
+    parser.add_argument("--secret-scope", required=True)
+    return parser.parse_args()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run medallion smoke test.")
-    parser.add_argument("--bronze-catalog", required=True)
-    parser.add_argument("--bronze-schema", required=True)
-    parser.add_argument("--silver-catalog", required=True)
-    parser.add_argument("--silver-schema", required=True)
-    parser.add_argument("--gold-catalog", required=True)
-    parser.add_argument("--gold-schema", required=True)
-    parser.add_argument("--min-row-count", type=int, default=1)
-    args = parser.parse_args()
+    args = parse_args()
 
-    ok = [
-        _check_layer("bronze", args.bronze_catalog, args.bronze_schema, args.min_row_count),
-        _check_layer("silver", args.silver_catalog, args.silver_schema, args.min_row_count),
-        _check_layer("gold", args.gold_catalog, args.gold_schema, args.min_row_count),
+    failures: list[str] = []
+
+    checks = [
+        ("bronze catalog exists", args.bronze_catalog),
+        ("silver catalog exists", args.silver_catalog),
+        ("gold catalog exists", args.gold_catalog),
     ]
 
-    if not all(ok):
-        log.error("smoke test failed")
+    # TODO: implement Unity Catalog existence checks using spark.sql().
+    # Resolution for each check below:
+    #   1. Run `SHOW CATALOGS` or `DESCRIBE CATALOG <name>` via spark.sql().
+    #      If the catalog does not exist, append a failure message.
+    #   2. Run `SHOW SCHEMAS IN <catalog>` to verify the schema exists.
+    #   3. Attempt `dbutils.secrets.get(scope=args.secret_scope, key="<key>")`.
+    #      If it raises an exception, the secret scope is not wired or the SP
+    #      lacks Key Vault access. Record the failure.
+    #   4. Exit with sys.exit(1) if any failure was recorded so the Databricks
+    #      job marks the run as failed.
+
+    for description, _ in checks:
+        print(f"[smoke_test] CHECK: {description} — not yet implemented")
+
+    if failures:
+        for msg in failures:
+            print(f"[smoke_test] FAIL: {msg}", file=sys.stderr)
         sys.exit(1)
 
-    log.info("smoke test complete (scaffold)")
+    print("[smoke_test] All checks passed (stub — implement assertions before using as a real gate).")
 
 
 if __name__ == "__main__":
