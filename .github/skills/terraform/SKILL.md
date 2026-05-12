@@ -298,13 +298,64 @@ from creation onward — which is `true`.
   may all carry `purge_protection_enabled = true` regardless of how they were provisioned.
   Assume any existing vault has it enabled.
 
-### State Management (Already Exists / Needs Import)
-**Error**: Resource already exists in cloud but not in Terraform state; on rerun, Terraform cannot find the resource it created.
+### State Management (already exists / needs import)
+
+**Error**: `A resource with the ID "..." already exists - to be managed via
+Terraform this resource needs to be imported into the State.`
+
+**Root cause**: Terraform tries to create an Azure resource whose ID is already
+present in Azure. The resource is not in Terraform's state, so Terraform doesn't
+know it exists; Azure rejects the create because the ID is taken.
+
+This commonly fires for two distinct reasons:
+
+1. **The parent resource is leftover from a prior deploy.** The Key Vault, the
+   resource group, or the workspace was created in a previous run that left no
+   state. Terraform sees the absence in state and tries to recreate. Importing
+   the parent resource into state resolves this case.
+
+2. **A child resource preserved itself across a parent recreate.** This is the
+   subtler case. The parent (e.g. a Key Vault) is recovered from soft-delete or
+   imported, and the recovery brings back *child* resources that were attached
+   when the parent was deleted — Key Vault access policies, network ACL rules,
+   resource locks. Terraform creates the parent cleanly but then fails on the
+   first child it tries to create, because the recovered parent carries the
+   child as part of its own state.
+
+   Specifically: a Key Vault recovered from soft-delete retains every
+   `azurerm_key_vault_access_policy` it had at deletion time. The
+   `azurerm_key_vault.main` resource creates cleanly, but
+   `azurerm_key_vault_access_policy.<name>` fails because the policy already
+   exists in Azure.
+
 **Prevention**:
-- Explicitly document state persistence strategy in variables.tf comments and README.md
-- If using local state in CI/CD, document the limitation: "State is local and ephemeral; delete cloud resources before rerunning"
-- If using remote backend, include backend.tf in the repo and document backend setup in README.md
-- Provide a cleanup/teardown strategy in TODO.md (e.g., "Run `terraform destroy` or manually delete resource group before retrying")
+
+- Treat `already exists` errors as *resource-specific*, not Key-Vault-specific.
+  The error message names the resource address and the Azure resource ID — use
+  both. A recovery handler that imports only `azurerm_key_vault.main` will not
+  resolve the same error on `azurerm_key_vault_access_policy.deployment_sp`.
+
+- After recovering a Key Vault from soft-delete, the recovery handler MUST
+  expect access policy conflicts. The deployment SP access policy and every
+  layer SP access policy will fail on first apply if they were attached to the
+  vault before its deletion. The handler must enumerate and import each access
+  policy individually, by Terraform resource address and by Azure resource ID.
+
+- When recreating a resource group that contained a Key Vault with attached
+  access policies, the policies will survive into the recovered vault. The
+  deployer cannot prevent this on the Azure side — purge protection prevents
+  the policies from being permanently deleted along with the vault. The only
+  options are (a) wait out the soft-delete retention window before redeploying,
+  or (b) import each preserved access policy into the new state.
+
+**Resource-specific import patterns** (extend as new cases surface):
+
+| Azure error mentions | Terraform resource address | Azure resource ID shape |
+|---|---|---|
+| `Microsoft.KeyVault/vaults/<name>` | `azurerm_key_vault.main` | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/<name>` |
+| `Microsoft.KeyVault/vaults/<name>/objectId/<oid>` | `azurerm_key_vault_access_policy.deployment_sp` or `azurerm_key_vault_access_policy.layer_sp["<layer>"]` | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.KeyVault/vaults/<name>/objectId/<oid>` |
+| `Microsoft.Authorization/roleAssignments/<guid>` | `azurerm_role_assignment.<name>` | the full role assignment ID |
+| `Microsoft.Databricks/workspaces/<name>` | `azurerm_databricks_workspace.main` | the full workspace ID |
 
 ## Pre-Generation Validation
 Before writing Terraform code, validate the generation strategy:

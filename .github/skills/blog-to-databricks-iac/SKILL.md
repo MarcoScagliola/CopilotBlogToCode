@@ -305,8 +305,6 @@ The generated output must satisfy the following properties. Each is paired with 
 
 #### 9.2 Verification commands
 
-#### 9.2 Verification commands
-
 Report pass/fail for each. If any required check fails, stop and report the failures; do not archive until they are resolved.
 
 1. **Python compile.** Run `python -m py_compile` on every generator script, the DAB deploy bridge script, and every medallion Python script.
@@ -325,8 +323,25 @@ Report pass/fail for each. If any required check fails, stop and report the fail
    The first asserts every required variable in `variables.tf` has a matching `TF_VAR_*` export in `deploy-infrastructure.yml`, and that every `terraform apply` invocation uses `-input=false`. The second asserts every `--var name=value` flag emitted by `deploy_dab.py` has a matching declaration under `variables:` in `databricks-bundle/databricks.yml` or any file matched by its `include:` glob, and vice versa.
 
    Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, extend an existing script or add a new one and reference it here.
-6. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
-7. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
+   
+6. **Recovery handler completeness.** The deploy-infrastructure workflow's recovery handler must cover every `already exists - to be managed via Terraform` pattern documented in the Terraform skill's *State Management* subsection. This is a structural check, not a parity check: the handler does not have to import every possible Azure resource, but every documented pattern must either be handled by an explicit import branch or be acknowledged in a fallback branch that exits with a clear "manual intervention required" message.
+
+   Run:
+
+```bash
+   bash .github/skills/blog-to-databricks-iac/scripts/validate_handler_coverage.sh
+```
+
+   The script reads the resource-specific import patterns table from the Terraform skill and confirms that the generated `deploy-infrastructure.yml` either imports each documented resource type or contains an explicit fallback that names the pattern as out of scope. A handler that hardcodes a single import (e.g. `terraform import azurerm_key_vault.main`) and silently fails on any other resource type is rejected.
+
+   This check exists because the `already exists - to be managed via Terraform` error class can fire for any Azure resource — Key Vault access policies, role assignments, workspaces, and so on. A handler scoped to a single resource type is structurally incomplete and will surface as a partial-success deploy that the operator cannot resume without manual import. If the generated workflow uses a runtime-derived import strategy (parsing the failing resource address and Azure ID from the error log rather than hardcoding), the script verifies that strategy is present and exits zero.
+
+   If `scripts/validate_handler_coverage.sh` does not exist in the repository, the orchestrator MUST author it on the next regeneration. Treat its absence as a failed check.
+
+7. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
+8. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
+7. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
+8. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
 
 #### 9.3 Architectural invariants
 

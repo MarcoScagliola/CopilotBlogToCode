@@ -1,26 +1,14 @@
 locals {
-  # ── Region abbreviation ──────────────────────────────────────────────────────
-  # Extend this map when adding support for new regions.
-  # Both locals.tf and generate_deploy_workflow.py must reference the same mapping.
   region_abbreviation = {
-    "uksouth"        = "uks"
-    "ukwest"         = "ukw"
-    "eastus"         = "eus"
-    "eastus2"        = "eu2"
-    "westus"         = "wus"
-    "westus2"        = "wu2"
-    "westeurope"     = "weu"
-    "northeurope"    = "neu"
-    "australiaeast"  = "aue"
-    "southeastasia"  = "sea"
+    uksouth     = "uks"
+    ukwest      = "ukw"
+    eastus      = "eus"
+    eastus2     = "eu2"
+    westeurope  = "weu"
+    northeurope = "neu"
   }
 
-  region_abbrev = local.region_abbreviation[var.azure_region]
-
-  # ── Canonical resource names ────────────────────────────────────────────────
-  # Pattern: <prefix>-{workload}-{environment}-{region_abbrev}
-  # Storage accounts: no hyphens, lowercase, max 24 chars.
-
+  region_abbrev  = local.region_abbreviation[var.azure_region]
   rg_name        = "rg-${var.workload}-${var.environment}-${local.region_abbrev}"
   kv_name        = "kv-${var.workload}-${var.environment}-${local.region_abbrev}"
   workspace_name = "dbw-${var.workload}-${var.environment}-${local.region_abbrev}"
@@ -43,16 +31,9 @@ locals {
     gold   = "sp-${var.workload}-${var.environment}-gold-${local.region_abbrev}"
   }
 
-  # ── Static layer set ─────────────────────────────────────────────────────────
-  # Keys must be statically known at plan time (terraform skill — Iteration Shape rule).
-  layers = toset(["bronze", "silver", "gold"])
-
-  # ── Layer SP mode ─────────────────────────────────────────────────────────────
+  layers           = toset(["bronze", "silver", "gold"])
   create_layer_sps = var.layer_sp_mode == "create"
 
-  # ── Resolved layer principal identifiers ─────────────────────────────────────
-  # In create mode: sourced from the newly created azuread resources.
-  # In existing mode: sourced from variable inputs (no Graph reads — restricted-tenant safe).
   resolved_layer_client_ids = local.create_layer_sps ? {
     bronze = azuread_application.layer["bronze"].client_id
     silver = azuread_application.layer["silver"].client_id
@@ -73,11 +54,8 @@ locals {
     gold   = var.existing_layer_sp_object_id
   }
 
-  # ── Secret scope name ────────────────────────────────────────────────────────
-  # Matches the scope name the bundle expects. One scope per environment.
   secret_scope_name = "kv-${var.environment}-scope"
 
-  # ── Common tags ───────────────────────────────────────────────────────────────
   common_tags = {
     workload    = var.workload
     environment = var.environment

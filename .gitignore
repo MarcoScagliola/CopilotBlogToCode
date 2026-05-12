@@ -23,3 +23,8 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+__azurite_db_*.json
+.tmp-test/
+*.log
+.DS_Store

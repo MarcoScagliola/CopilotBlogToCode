@@ -6,77 +6,43 @@ include:
 
 variables:
   workspace_resource_id:
-    description: Azure resource ID of the Databricks workspace (from Terraform outputs).
     default: ""
-
   bronze_catalog:
-    description: Unity Catalog catalog name for the Bronze layer.
     default: bronze
-
   silver_catalog:
-    description: Unity Catalog catalog name for the Silver layer.
     default: silver
-
   gold_catalog:
-    description: Unity Catalog catalog name for the Gold layer.
     default: gold
-
   bronze_schema:
-    description: Unity Catalog schema name for the Bronze layer.
     default: main
-
   silver_schema:
-    description: Unity Catalog schema name for the Silver layer.
     default: main
-
   gold_schema:
-    description: Unity Catalog schema name for the Gold layer.
     default: main
-
-  bronze_storage_account:
-    description: Storage account name for the Bronze layer.
-    default: ""
-
-  silver_storage_account:
-    description: Storage account name for the Silver layer.
-    default: ""
-
-  gold_storage_account:
-    description: Storage account name for the Gold layer.
-    default: ""
-
-  bronze_access_connector_id:
-    description: Azure resource ID of the Bronze Access Connector.
-    default: ""
-
-  silver_access_connector_id:
-    description: Azure resource ID of the Silver Access Connector.
-    default: ""
-
-  gold_access_connector_id:
-    description: Azure resource ID of the Gold Access Connector.
-    default: ""
-
-  bronze_principal_client_id:
-    description: Application (client) ID of the Bronze layer service principal.
-    default: ""
-
-  silver_principal_client_id:
-    description: Application (client) ID of the Silver layer service principal.
-    default: ""
-
-  gold_principal_client_id:
-    description: Application (client) ID of the Gold layer service principal.
-    default: ""
-
   secret_scope:
-    description: Name of the AKV-backed Databricks secret scope.
     default: kv-dev-scope
+  bronze_principal_client_id:
+    default: ""
+  silver_principal_client_id:
+    default: ""
+  gold_principal_client_id:
+    default: ""
+  bronze_storage_account:
+    default: ""
+  silver_storage_account:
+    default: ""
+  gold_storage_account:
+    default: ""
+  bronze_access_connector_id:
+    default: ""
+  silver_access_connector_id:
+    default: ""
+  gold_access_connector_id:
+    default: ""
 
 targets:
   dev:
     mode: development
     default: true
-
   prd:
     mode: production
