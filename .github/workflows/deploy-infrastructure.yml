@@ -252,14 +252,14 @@ jobs:
                 fi
                 sleep 10
               done
-              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.platform 1>/dev/null 2>/dev/null; then
-                terraform -chdir=infra/terraform import azurerm_key_vault.platform "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
               terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var='key_vault_recover_soft_deleted=true'
             elif grep -Eqi "to be managed via Terraform this resource needs to be imported|already exists - to be managed via Terraform" /tmp/tf-apply.log; then
               echo "Detected existing active Key Vault not in state. Importing and retrying apply."
-              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.platform 1>/dev/null 2>/dev/null; then
-                terraform -chdir=infra/terraform import azurerm_key_vault.platform "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
+              if ! terraform -chdir=infra/terraform state show azurerm_key_vault.main 1>/dev/null 2>/dev/null; then
+                terraform -chdir=infra/terraform import azurerm_key_vault.main "/subscriptions/$ARM_SUBSCRIPTION_ID/resourceGroups/$rg_name/providers/Microsoft.KeyVault/vaults/$kv_name"
               fi
               terraform -chdir=infra/terraform apply -auto-approve -input=false -parallelism=1 -var="key_vault_recover_soft_deleted=$current_recover"
             else
