@@ -42,18 +42,4 @@ locals {
     silver = "silver"
     gold   = "gold"
   }
-
-  # In existing mode, all layers use the same principal (existing_layer_sp_*).
-  # In create mode, each layer gets its own principal.
-  layer_principal_client_ids = var.layer_sp_mode == "create" ? {
-    for layer in local.layers : layer => azuread_application.layer[layer].client_id
-  } : {
-    for layer in local.layers : layer => var.existing_layer_sp_client_id
-  }
-
-  layer_principal_object_ids = var.layer_sp_mode == "create" ? {
-    for layer in local.layers : layer => azuread_service_principal.layer[layer].object_id
-  } : {
-    for layer in local.layers : layer => var.existing_layer_sp_object_id
-  }
 }

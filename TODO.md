@@ -14,16 +14,15 @@ This file captures unresolved values and manual actions for the secure medallion
 1. Confirm the deployment principal has Contributor and User Access Administrator on the target scope.
 2. Confirm the object ID used is the Enterprise Application object ID.
 
-### Confirm Entra permissions for layer_sp_mode=existing
+### Confirm Entra permissions for layer_sp_mode=create
 
-**Why deferred.** In existing mode, no new service principals are created, so tenant policy does not block creation. However, the existing principal must already be created and accessible.
+**Why deferred.** Tenant policy controls whether app registrations can be created by the deployment principal.
 
 **Source.** SPEC.md Security And Identity; terraform skill - Identity Creation Restrictions.
 
 **Resolution.**
-1. Verify the existing layer service principal (referenced by EXISTING_LAYER_SP_CLIENT_ID and EXISTING_LAYER_SP_OBJECT_ID) has been created.
-2. Verify that both client ID and object ID point to the same principal.
-3. Confirm the object ID is from Enterprise Applications, not from App Registrations.
+1. Verify the deployment principal is allowed to create Entra app registrations and service principals.
+2. If tenant policy blocks creation, switch to existing mode and pre-provision principals.
 
 ### Create GitHub Environment BLG2CODEDEV and populate secrets
 
@@ -34,7 +33,6 @@ This file captures unresolved values and manual actions for the secure medallion
 **Resolution.**
 1. Create GitHub environment BLG2CODEDEV.
 2. Add AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_SP_OBJECT_ID.
-3. For layer_sp_mode=existing, also add EXISTING_LAYER_SP_CLIENT_ID and EXISTING_LAYER_SP_OBJECT_ID.
 
 ### Decide networking controls not stated in article
 
@@ -138,8 +136,8 @@ This file captures unresolved values and manual actions for the secure medallion
 **Source.** SPEC.md Security And Identity.
 
 **Resolution.**
-1. Verify the existing layer principal (in existing mode) can access intended resources.
-2. Verify cross-layer write attempts are blocked by RBAC.
+1. Verify each layer principal can access only its intended resources.
+2. Verify cross-layer write attempts are blocked.
 
 ### Configure monitoring sinks not stated in article
 
