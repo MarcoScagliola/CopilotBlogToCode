@@ -13,16 +13,13 @@ locals {
 
   azure_region_abbr = lookup(local.region_abbr_map, var.azure_region, replace(var.azure_region, " ", ""))
 
-  rg_name               = "rg-${var.workload}-${var.environment}-${local.azure_region_abbr}"
-  key_vault_name        = substr(replace(lower("kv-${var.workload}-${var.environment}-${local.azure_region_abbr}"), "_", ""), 0, 24)
-  databricks_name       = "dbw-${var.workload}-${var.environment}-${local.azure_region_abbr}"
-  secret_scope_name     = "kv-${var.environment}-scope"
-  bronze_catalog_name   = "${var.workload}_bronze"
-  silver_catalog_name   = "${var.workload}_silver"
-  gold_catalog_name     = "${var.workload}_gold"
-  bronze_schema_name    = "bronze"
-  silver_schema_name    = "silver"
-  gold_schema_name      = "gold"
+  rg_name             = "rg-${var.workload}-${var.environment}-${local.azure_region_abbr}"
+  key_vault_name      = substr(replace(lower("kv-${var.workload}-${var.environment}-${local.azure_region_abbr}"), "_", ""), 0, 24)
+  databricks_name     = "dbw-${var.workload}-${var.environment}-${local.azure_region_abbr}"
+  secret_scope_name   = "kv-${var.environment}-scope"
+  bronze_catalog_name = "${var.workload}_bronze"
+  silver_catalog_name = "${var.workload}_silver"
+  gold_catalog_name   = "${var.workload}_gold"
 
   layer_storage_names = {
     for layer in local.layers :
