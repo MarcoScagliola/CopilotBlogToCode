@@ -2,7 +2,7 @@
 
 ## Source
 - URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-- Title: Secure Medallion Architecture Pattern on Azure Databricks – Part I
+- Title: Secure Medallion Architecture Pattern on Azure Databricks - Part I
 
 ## Architecture Summary
 - Pattern: bronze, silver, and gold layers on Azure Databricks with Unity Catalog governance.
@@ -25,7 +25,7 @@
 - Monitoring baselines and alert thresholds: not stated in article.
 - Disaster recovery, backup, and retention policies: not stated in article.
 - Production remote Terraform state design and locking model: not stated in article.
-- Cost guardrails and budget controls for cluster/job execution: not stated in article.
+- Cost guardrails and budget controls for cluster and job execution: not stated in article.
 
 ## Decisions for This Generation Run
 - Workload code: blg

@@ -63,6 +63,6 @@ variable "existing_layer_sp_object_id" {
 
 variable "key_vault_recover_soft_deleted" {
   type        = bool
-  description = "Whether to recover soft deleted key vaults."
+  description = "Whether to recover soft-deleted key vaults."
   default     = true
 }

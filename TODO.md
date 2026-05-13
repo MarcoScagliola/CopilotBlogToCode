@@ -42,7 +42,7 @@ This file tracks deferred operator decisions and post-generation actions for the
 
 ### Create Databricks secret scope backed by Key Vault
 - What this is: Databricks runtime bridge to the generated Key Vault.
-- Why deferred: Workspace object creation occurs after infra exists.
+- Why deferred: Workspace object creation occurs after infrastructure exists.
 - Source: databricks-asset-bundle skill; SPEC.md security intent.
 - Resolution:
   1. Create scope kv-dev-scope in workspace.
@@ -50,7 +50,7 @@ This file tracks deferred operator decisions and post-generation actions for the
   3. Validate secret reads from Databricks.
 
 ### Populate runtime secrets in Key Vault
-- What this is: Secret values needed by runtime ingestion/transformation logic.
+- What this is: Secret values needed by runtime ingestion and transformation logic.
 - Why deferred: Secret values are operational data and must never be generated.
 - Source: SKILL.md runtime secret policy; SPEC.md Not Stated section.
 - Resolution:
@@ -62,7 +62,7 @@ This file tracks deferred operator decisions and post-generation actions for the
 - Why deferred: Consumer identities and access matrix are organization-specific.
 - Source: SPEC.md Not Stated section.
 - Resolution:
-  1. Grant use/read/write privileges per layer design.
+  1. Grant use and data privileges per layer design.
   2. Validate orchestrator run can read and write expected objects.
 
 ## Post-DAB
@@ -90,7 +90,7 @@ This file tracks deferred operator decisions and post-generation actions for the
 - Why deferred: Backend storage and lock design are platform choices beyond article scope.
 - Source: SKILL.md state management guidance; SPEC.md Not Stated section.
 - Resolution:
-  1. Define backend account/container and locking policy.
+  1. Define backend account, container, and locking policy.
   2. Migrate state before production-style reruns.
 
 ### Define monitoring, DR, and cost governance baseline

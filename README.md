@@ -54,11 +54,11 @@ For uksouth, region abbreviation is uks.
 2. Run Validate Terraform workflow.
 3. Run Deploy Infrastructure workflow with appropriate input strategy.
 4. Run Deploy DAB workflow using the infrastructure run id, or let it run from successful infra workflow completion.
-5. Trigger Databricks orchestrator job and confirm bronze/silver/gold flow.
+5. Trigger Databricks orchestrator job and confirm bronze, silver, and gold flow.
 
 ## Validation commands (local)
 
-- python -m py_compile .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py databricks-bundle/src/setup/main.py databricks-bundle/src/bronze/main.py databricks-bundle/src/silver/main.py databricks-bundle/src/gold/main.py databricks-bundle/src/smoke_test/main.py
+- python -c "import py_compile,glob; [py_compile.compile(f, doraise=True) for f in glob.glob('.github/skills/blog-to-databricks-iac/scripts/azure/*.py') + ['databricks-bundle/src/setup/main.py','databricks-bundle/src/bronze/main.py','databricks-bundle/src/silver/main.py','databricks-bundle/src/gold/main.py','databricks-bundle/src/smoke_test/main.py']]"
 - terraform -chdir=infra/terraform init -backend=false
 - terraform -chdir=infra/terraform validate
 - python -c "import yaml,glob; [yaml.safe_load(open(f,encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]; print('workflows yaml ok')"

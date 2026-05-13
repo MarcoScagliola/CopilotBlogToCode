@@ -19,8 +19,9 @@ resource "azurerm_key_vault" "main" {
   tenant_id           = var.tenant_id
   sku_name            = "standard"
 
-  purge_protection_enabled   = false
-  soft_delete_retention_days = 90
+  enable_rbac_authorization   = true
+  purge_protection_enabled    = true
+  soft_delete_retention_days  = 90
 }
 
 resource "azurerm_storage_account" "layer" {
@@ -95,6 +96,12 @@ resource "azurerm_role_assignment" "layer_key_vault_secrets_user" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = each.value
+}
+
+resource "azurerm_role_assignment" "deployment_key_vault_secrets_officer" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = var.sp_object_id
 }
 
 resource "azurerm_role_assignment" "access_connector_storage_contributor" {
