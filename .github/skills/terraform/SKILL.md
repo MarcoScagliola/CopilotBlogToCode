@@ -250,9 +250,60 @@ Address these common Terraform deployment error categories in generated code:
 - The `for_each` argument's *keys* must be derivable at plan time. Values can be apply-time; keys cannot.
 - Do not use one resource as the `for_each` source for another (`for_each = some_resource.layer`). Iterate both over the same static map and look up the upstream resource by key: `some_resource.layer[each.key]`.
 - If a `local` that drives iteration is computed from data sources or other resources, separate the static key dimension from the apply-time value dimension. Hoist keys into a `toset(...)` of literal strings, or into a static map whose keys are literal strings; apply-time fields appear only as map values or are looked up by key inside the resource body.
-- **Deduplication anti-pattern.** When deduplication is needed (e.g. multiple iterations would produce the same identity tuple), do not dedupe with `toset([<resource>.<attribute>, ...])`. Even though `toset` produces a set, the set's elements are apply-time values, and `for_each` over a set uses elements as keys. The result is the same plan-time-unknown-keys error as iterating directly over resource attributes. Dedupe instead at the static key level: emit one static key per intended distinct iteration, and let each key's value carry the apply-time principal or identity. If two iterations would produce the same identity, the generator should emit one static key, not two static keys with the same value.
-- Reach for `-target` only as a last resort. Two-phase apply usually masks a structural issue that's better fixed by making keys static.
-- Symptom to watch for: the error names a specific resource attribute as "known only after apply," and the failing `for_each` references another resource directly rather than a static local or variable.
+
+- **Deduplication anti-pattern.** When deduplication is needed (e.g. multiple iterations would produce the same identity tuple), do not dedupe with `toset` of resource attributes. The following pattern is FORBIDDEN in generated code:
+
+```hcl
+  # WRONG — produces "Invalid for_each argument: set includes values derived
+  # from resource attributes that cannot be determined until apply"
+  locals {
+    unique_principal_object_ids = toset([
+      azuread_service_principal.layer["bronze"].object_id,
+      azuread_service_principal.layer["silver"].object_id,
+      azuread_service_principal.layer["gold"].object_id,
+    ])
+  }
+
+  resource "azurerm_role_assignment" "..." {
+    for_each = local.unique_principal_object_ids   # ← apply-time keys
+  }
+```
+
+  Even though `toset` produces a set, the set's elements are resource attributes 
+  that are apply-time. `for_each` over a set treats elements as keys, so plan-time fails.
+
+  The CORRECT pattern dedupes at the static-key level. Emit one literal key per 
+  intended distinct iteration; let each key's value carry the apply-time identity:
+
+```hcl
+  # RIGHT — keys are static literals, values are apply-time, but Terraform
+  # can plan because it knows the keys in advance
+  locals {
+    layer_role_targets = {
+      bronze = azuread_service_principal.layer["bronze"].object_id
+      silver = azuread_service_principal.layer["silver"].object_id
+      gold   = azuread_service_principal.layer["gold"].object_id
+    }
+  }
+
+  resource "azurerm_role_assignment" "..." {
+    for_each     = local.layer_role_targets
+    principal_id = each.value
+  }
+```
+
+  If two iterations would produce the same identity (e.g. a shared principal 
+  serving multiple layers), the static map has ONE key, not multiple keys with 
+  the same value:
+
+```hcl
+  # RIGHT — shared-principal case dedupes at the static-key level
+  locals {
+    layer_role_targets = {
+      shared = var.existing_layer_sp_object_id
+    }
+  }
+```
 
 ### Provider Behavior Mismatches (Data Plane Auth, Polling)
 **Error**: Provider control-plane expects one auth method but data-plane uses another; provider still uses legacy auth during resource polling.
@@ -449,6 +500,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] Deprecated provider properties avoided
 - [ ] `for_each` and `count` iterations vary at least one component of the resulting resource's identity tuple
 - [ ] `for_each` keys come from static sources (input variables, hardcoded sets, locals not derived from resource attributes); apply-time data appears only in values
+- [ ] No `for_each` argument uses `toset([<resource>.<attr>, ...])`. Deduplication of iterations happens at the static-key level, not by deduplicating apply-time values. Verify with: `grep -nE 'for_each.*toset\(\[' infra/terraform/main.tf` returns no matches.
 
 **Error Prevention and Compatibility**
 - [ ] Deployment-safe defaults used for security-sensitive properties (with migration path to stricter settings)
