@@ -500,7 +500,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] Deprecated provider properties avoided
 - [ ] `for_each` and `count` iterations vary at least one component of the resulting resource's identity tuple
 - [ ] `for_each` keys come from static sources (input variables, hardcoded sets, locals not derived from resource attributes); apply-time data appears only in values
-- [ ] No `for_each` argument uses `toset([<resource>.<attr>, ...])`. Deduplication of iterations happens at the static-key level, not by deduplicating apply-time values. Verify with: `grep -nE 'for_each.*toset\(\[' infra/terraform/main.tf` returns no matches.
+- [ ] No `for_each` argument uses `toset([<resource>.<attr>, ...])`. Verify with: `grep -nE 'for_each.*toset\(\[' infra/terraform/main.tf` returns no matches.
 
 **Error Prevention and Compatibility**
 - [ ] Deployment-safe defaults used for security-sensitive properties (with migration path to stricter settings)
