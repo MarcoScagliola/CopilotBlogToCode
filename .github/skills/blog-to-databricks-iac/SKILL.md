@@ -109,7 +109,8 @@ Rules:
 Every `not stated in article` entry in `SPEC.md` must appear as a TODO.md item when step 8 generates TODO.md. Step 8 depends on this mapping; do not resolve `not stated` values here by guessing.
 
 ### 3. Apply Terraform code generation best practices
-Before generating or validating Terraform code, load and apply the `terraform` skill.
+Before generating or validating Terraform code, load and apply the `terraform` skill
+It can be found at `.github/skills/blog-to-databricks-iac/terraform`.
 
 ### 4. Generate validation workflow dynamically
 Before generating Terraform/DAB code, create (or refresh) `.github/workflows/validate-terraform.yml` by running:

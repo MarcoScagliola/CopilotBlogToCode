@@ -1,64 +1,49 @@
 bundle:
-  name: secure-medallion-blg
+  name: blg-medallion
 
 include:
   - resources/*.yml
 
 variables:
   workspace_host:
-    description: Databricks workspace host URL.
-    default: https://adb-placeholder.azuredatabricks.net
+    description: Databricks workspace host URL
   workspace_resource_id:
-    description: Databricks workspace Azure resource ID.
-    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/workspaces/dbw-placeholder
+    description: Azure resource ID of the Databricks workspace
   bronze_catalog:
-    description: Bronze catalog name.
-    default: blg_bronze
+    description: Bronze Unity Catalog catalog name
   silver_catalog:
-    description: Silver catalog name.
-    default: blg_silver
+    description: Silver Unity Catalog catalog name
   gold_catalog:
-    description: Gold catalog name.
-    default: blg_gold
-  bronze_schema:
-    description: Bronze schema name.
-    default: bronze
-  silver_schema:
-    description: Silver schema name.
-    default: silver
-  gold_schema:
-    description: Gold schema name.
-    default: gold
+    description: Gold Unity Catalog catalog name
   secret_scope:
-    description: Databricks secret scope backed by Azure Key Vault.
-    default: kv-dev-scope
+    description: Databricks secret scope name
   bronze_principal_client_id:
-    description: Application client ID of the bronze service principal.
-    default: 00000000-0000-0000-0000-000000000001
+    description: Application (client) ID of the bronze Service Principal
   silver_principal_client_id:
-    description: Application client ID of the silver service principal.
-    default: 00000000-0000-0000-0000-000000000002
+    description: Application (client) ID of the silver Service Principal
   gold_principal_client_id:
-    description: Application client ID of the gold service principal.
-    default: 00000000-0000-0000-0000-000000000003
+    description: Application (client) ID of the gold Service Principal
   bronze_storage_account:
-    description: Bronze ADLS Gen2 storage account name.
-    default: stblgdevbronzeuks
+    description: Bronze storage account name
   silver_storage_account:
-    description: Silver ADLS Gen2 storage account name.
-    default: stblgdevsilveruks
+    description: Silver storage account name
   gold_storage_account:
-    description: Gold ADLS Gen2 storage account name.
-    default: stblgdevgolduks
+    description: Gold storage account name
   bronze_access_connector_id:
-    description: Azure resource ID of the bronze Databricks access connector.
-    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-bronze
+    description: Bronze access connector Azure resource ID
   silver_access_connector_id:
-    description: Azure resource ID of the silver Databricks access connector.
-    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-silver
+    description: Silver access connector Azure resource ID
   gold_access_connector_id:
-    description: Azure resource ID of the gold Databricks access connector.
-    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-gold
+    description: Gold access connector Azure resource ID
+  bronze_schema:
+    description: Bronze schema name
+    default: core
+  silver_schema:
+    description: Silver schema name
+    default: core
+  gold_schema:
+    description: Gold schema name
+    default: core
 
 targets:
   dev:

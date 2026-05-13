@@ -89,6 +89,27 @@ Generated code does not use `for_each` or `count`. Any variation that other Terr
 2. Different generated `main.tf` variants chosen at code-generation time, when the variation distinguishes operational modes (e.g. `create` vs `existing` identities).
 
 **Why.** `for_each` and `count` carry two failure modes that recur across deployments: plan-time unknown-keys errors when iteration keys derive from resource attributes, and "resource already exists" collisions when iteration does not vary the cloud-side identity tuple. Repetition makes the resource set visible to the reader, gives every resource a stable address that survives reorderings, and removes a category of error that would otherwise require its own ruleset.
+ ...
+}
+```
+
+Required shape (keys are static; values may be apply-time):
+
+```hcl
+locals {
+  static_targets = {
+    key_a = local.some_apply_time_map["key_a"]
+    key_b = local.some_apply_time_map["key_b"]
+  }
+}
+
+resource "some_resource" "example" {
+  for_each = local.static_targets
+  value    = each.value
+}
+```
+
+If multiple variants collapse to the same identity, emit one static key (for example `shared`) instead of duplicating keys that point to the same value.
 
 **Multiple similar resources — repeat the block with explicit names.** Per-layer, per-environment, or per-role resources are written out one block per instance:
 
@@ -124,7 +145,22 @@ resource "azurerm_role_assignment" "kv_secrets_user_shared" {
 }
 ```
 
-This is the same rule that the old iteration guidance expressed as "drop the `for_each` when the iterating dimension does not vary identity" — restated for a repetition-based codebase as "don't write the same resource three times under different names."
+Th
+**Legacy compatibility rule (non-overfitted).** This skill avoids iteration in new output, but when touching existing Terraform that already uses `for_each`, apply one invariant:
+
+- `for_each` keys must be statically known at plan time.
+- Resource-attribute values may appear in map values, not in keys.
+
+Forbidden shape (keys come from apply-time values):
+
+```hcl
+locals {
+  dynamic_ids = toset(values(local.some_apply_time_map))
+}
+
+resource "some_resource" "example" {
+  for_each = local.dynamic_ids
+  #is is the same rule that the old iteration guidance expressed as "drop the `for_each` when the iterating dimension does not vary identity" — restated for a repetition-based codebase as "don't write the same resource three times under different names."
 
 **Operational modes — generate different `main.tf` variants.** When two modes need genuinely different resource sets (e.g. `identity_mode = "create"` creates service principals while `identity_mode = "existing"` does not), the choice is made at generation time, not at apply time. The generator emits one of two `main.tf` files. Within each generated file, every resource is unconditional.
 

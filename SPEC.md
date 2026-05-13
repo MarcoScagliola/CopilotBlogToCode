@@ -1,46 +1,34 @@
-# Secure Medallion Architecture Pattern on Azure Databricks (Part I)
+# Secure Medallion Architecture on Azure Databricks (Part I)
 
-## Source
-- URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-- Title: Secure Medallion Architecture Pattern on Azure Databricks - Part I
+Source article: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+
+## Scope
+- Pattern: secure medallion architecture on Azure Databricks.
+- Layers: Bronze, Silver, Gold.
+- Security focus: identity-based access, Key Vault integration, and governed data access.
 
 ## Architecture Summary
-- Pattern: bronze, silver, and gold layers on Azure Databricks with Unity Catalog governance.
-- Security model: per-layer identities, least-privilege access, and Key Vault-backed secret handling.
-- Storage model: ADLS Gen2 accounts scoped to medallion layers.
-- Orchestration model: setup plus bronze, silver, gold, and smoke-test jobs coordinated by an orchestrator job.
+- Azure Databricks workspace is the compute plane for batch data processing.
+- Data is organized across medallion layers with progressive refinement from Bronze to Gold.
+- Storage is separated by layer to support isolation and least privilege.
+- Unity Catalog is used for governed table access and privilege boundaries.
+- A Key Vault-backed secret model is used for runtime secret retrieval.
 
-## Stated or Inferred from Article
-- Medallion layering is explicitly used for progressive data quality and curation.
-- Unity Catalog is used for governance and controlled access to data assets.
-- Azure Databricks is the compute and orchestration plane.
-- Key Vault-backed secret usage is part of the secure design intent.
-- Layer separation by identity and storage boundary is part of the design intent.
+## Inferred Components
+- Inferred from architecture pattern and examples in article:
+  - One storage account per layer.
+  - One access boundary per layer for storage access from Databricks.
+  - Dedicated layer principals when stricter isolation is required.
 
-## Not Stated in Article
-- Exact source systems and ingestion protocols: not stated in article.
-- Full runtime secret key inventory and naming convention: not stated in article.
-- Complete catalog and schema naming standards per environment: not stated in article.
-- Full grant matrix for user groups, BI consumers, and service principals: not stated in article.
-- Monitoring baselines and alert thresholds: not stated in article.
-- Disaster recovery, backup, and retention policies: not stated in article.
-- Production remote Terraform state design and locking model: not stated in article.
-- Cost guardrails and budget controls for cluster and job execution: not stated in article.
+## Explicitly Not Stated in Article
+- Concrete production source system connection details.
+- Exact runtime secret key names and values.
+- Final enterprise RBAC matrix for all human groups.
+- Production scheduling cadence and SLA windows.
 
-## Decisions for This Generation Run
+## Decisions Applied in This Generation
 - Workload code: blg
 - Environment: dev
 - Azure region: uksouth
-- Layer identity mode: create (new layer service principals created by Terraform)
-- GitHub environment for workflows: BLG2CODEDEV
-
-## Name Mapping Used in This Run
-- Resource group: rg-blg-dev-uks
-- Key Vault: kv-blg-dev-uks
-- Databricks workspace: dbw-blg-dev-uks
-- Storage accounts: stblgdevbronzeuks, stblgdevsilveruks, stblgdevgolduks
-- Secret scope name in bundle defaults: kv-dev-scope
-
-## Other Observations
-- The article provides architecture direction and security posture but intentionally leaves environment-specific operational values to implementation.
-- Generated assets are scaffolded for repeatable deployment; production hardening decisions remain in TODO.md.
+- Layer principal mode: create
+- GitHub environment: BLG2CODEDEV

@@ -1,68 +1,72 @@
 variable "tenant_id" {
+  description = "Azure tenant ID"
   type        = string
-  description = "Azure tenant ID."
 }
 
 variable "subscription_id" {
+  description = "Azure subscription ID"
   type        = string
-  description = "Azure subscription ID."
 }
 
 variable "client_id" {
+  description = "Deployment service principal application (client) ID"
   type        = string
-  description = "Deployment service principal client ID."
 }
 
 variable "client_secret" {
+  description = "Deployment service principal client secret"
   type        = string
-  description = "Deployment service principal client secret."
   sensitive   = true
 }
 
 variable "sp_object_id" {
+  description = "Deployment service principal object ID from Enterprise Applications"
   type        = string
-  description = "Deployment service principal object ID."
 }
 
 variable "workload" {
+  description = "Short workload code"
   type        = string
-  description = "Workload short code."
+  default     = "blg"
 }
 
 variable "environment" {
+  description = "Deployment environment"
   type        = string
-  description = "Environment name."
+  default     = "dev"
 }
 
 variable "azure_region" {
+  description = "Azure region"
   type        = string
-  description = "Azure region for deployment."
+  default     = "uksouth"
 }
 
 variable "layer_sp_mode" {
+  description = "How to source layer service principals"
   type        = string
-  description = "Layer service principal mode: create or existing."
+  default     = "create"
 
   validation {
     condition     = contains(["create", "existing"], var.layer_sp_mode)
-    error_message = "layer_sp_mode must be 'create' or 'existing'."
+    error_message = "layer_sp_mode must be one of: create, existing."
   }
 }
 
 variable "existing_layer_sp_client_id" {
+  description = "Existing shared layer service principal application (client) ID"
   type        = string
-  description = "Existing layer service principal client ID (used in existing mode)."
   default     = ""
 }
 
 variable "existing_layer_sp_object_id" {
+  description = "Existing shared layer service principal object ID"
   type        = string
-  description = "Existing layer service principal object ID (used in existing mode)."
   default     = ""
 }
 
 variable "key_vault_recover_soft_deleted" {
+  description = "Whether Key Vault soft-deleted vaults should be recovered"
   type        = bool
-  description = "Whether to recover soft-deleted key vaults."
   default     = true
 }

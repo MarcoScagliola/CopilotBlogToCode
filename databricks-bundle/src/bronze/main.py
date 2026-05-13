@@ -1,24 +1,33 @@
-"""Ingest source data into the bronze layer."""
+"""Build a bronze layer seed table for secure medallion pipelines."""
 
 import argparse
 import logging
+
+from pyspark.sql import SparkSession
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run bronze ingestion logic.")
-    parser.add_argument("--catalog", required=True, help="Bronze catalog name.")
-    parser.add_argument("--schema", required=True, help="Bronze schema name.")
-    parser.add_argument("--secret-scope", required=True, help="Databricks secret scope name.")
+    parser = argparse.ArgumentParser(description="Populate bronze sample table")
+    parser.add_argument("--catalog", required=True)
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--secret-scope", required=True)
     args = parser.parse_args()
 
-    target_table = f"`{args.catalog}`.`{args.schema}`.`bronze_events`"
-    log.info("bronze ingest started")
-    log.info("target table: %s", target_table)
-    log.info("secret scope in use: %s", args.secret_scope)
-    log.info("bronze ingest complete")
+    spark = SparkSession.builder.getOrCreate()
+    table_name = f"`{args.catalog}`.`{args.schema}`.`transactions_bronze`"
+
+    data = [
+        (1, "A100", 120.5, "GBP"),
+        (2, "B200", 99.9, "GBP"),
+        (3, "C300", 240.0, "GBP"),
+    ]
+    df = spark.createDataFrame(data, ["id", "account_id", "amount", "currency"])
+    df.write.mode("overwrite").format("delta").saveAsTable(table_name)
+
+    log.info("Bronze table ready: %s using secret scope %s", table_name, args.secret_scope)
 
 
 if __name__ == "__main__":
