@@ -1,0 +1,69 @@
+bundle:
+  name: secure-medallion-blg
+
+include:
+  - resources/*.yml
+
+variables:
+  workspace_host:
+    description: Databricks workspace URL.
+    default: ""
+  workspace_resource_id:
+    description: Azure resource ID of the Databricks workspace.
+    default: ""
+  bronze_catalog:
+    description: Bronze catalog name.
+    default: blg_tst_bronze
+  silver_catalog:
+    description: Silver catalog name.
+    default: blg_tst_silver
+  gold_catalog:
+    description: Gold catalog name.
+    default: blg_tst_gold
+  bronze_schema:
+    description: Bronze schema name.
+    default: bronze
+  silver_schema:
+    description: Silver schema name.
+    default: silver
+  gold_schema:
+    description: Gold schema name.
+    default: gold
+  secret_scope:
+    description: Databricks secret scope name linked to Azure Key Vault.
+    default: kv-tst-scope
+  bronze_principal_client_id:
+    description: Application (client) ID of the bronze service principal.
+    default: ""
+  silver_principal_client_id:
+    description: Application (client) ID of the silver service principal.
+    default: ""
+  gold_principal_client_id:
+    description: Application (client) ID of the gold service principal.
+    default: ""
+  bronze_storage_account:
+    description: Bronze layer ADLS Gen2 storage account name.
+    default: stblgtstbronzeuks
+  silver_storage_account:
+    description: Silver layer ADLS Gen2 storage account name.
+    default: stblgtstsilveruks
+  gold_storage_account:
+    description: Gold layer ADLS Gen2 storage account name.
+    default: stblgtstgolduks
+  bronze_access_connector_id:
+    description: Azure resource ID of the bronze access connector.
+    default: ""
+  silver_access_connector_id:
+    description: Azure resource ID of the silver access connector.
+    default: ""
+  gold_access_connector_id:
+    description: Azure resource ID of the gold access connector.
+    default: ""
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prd:
+    mode: production
