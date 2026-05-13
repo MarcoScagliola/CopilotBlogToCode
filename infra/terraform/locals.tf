@@ -1,4 +1,6 @@
 locals {
+  layers = toset(["bronze", "silver", "gold"])
+
   region_abbr_map = {
     eastus      = "eus"
     eastus2     = "eus2"
@@ -9,37 +11,21 @@ locals {
     ukwest      = "ukw"
   }
 
-  region_key  = lower(replace(var.azure_region, " ", ""))
-  region_abbr = lookup(local.region_abbr_map, local.region_key, local.region_key)
+  azure_region_abbr = lookup(local.region_abbr_map, var.azure_region, replace(var.azure_region, " ", ""))
 
-  layers = toset(["bronze", "silver", "gold"])
+  rg_name               = "rg-${var.workload}-${var.environment}-${local.azure_region_abbr}"
+  key_vault_name        = substr(replace(lower("kv-${var.workload}-${var.environment}-${local.azure_region_abbr}"), "_", ""), 0, 24)
+  databricks_name       = "dbw-${var.workload}-${var.environment}-${local.azure_region_abbr}"
+  secret_scope_name     = "kv-${var.environment}-scope"
+  bronze_catalog_name   = "${var.workload}_bronze"
+  silver_catalog_name   = "${var.workload}_silver"
+  gold_catalog_name     = "${var.workload}_gold"
+  bronze_schema_name    = "bronze"
+  silver_schema_name    = "silver"
+  gold_schema_name      = "gold"
 
-  resource_group_name       = "rg-${var.workload}-${var.environment}-${local.region_abbr}"
-  databricks_workspace_name = "dbw-${var.workload}-${var.environment}-${local.region_abbr}"
-  databricks_mrg_name       = "mrg-${var.workload}-${var.environment}-${local.region_abbr}"
-  key_vault_name_raw        = "kv-${var.workload}-${var.environment}-${local.region_abbr}"
-  key_vault_name            = substr(replace(lower(local.key_vault_name_raw), "_", ""), 0, 24)
-  secret_scope_name         = "kv-${var.environment}-scope"
-
-  storage_account_names = {
+  layer_storage_names = {
     for layer in local.layers :
-    layer => substr(lower("st${var.workload}${var.environment}${layer}${local.region_abbr}"), 0, 24)
-  }
-
-  access_connector_names = {
-    for layer in local.layers :
-    layer => "ac-${var.workload}-${var.environment}-${layer}-${local.region_abbr}"
-  }
-
-  catalog_names = {
-    bronze = "${var.workload}_${var.environment}_bronze"
-    silver = "${var.workload}_${var.environment}_silver"
-    gold   = "${var.workload}_${var.environment}_gold"
-  }
-
-  schema_names = {
-    bronze = "bronze"
-    silver = "silver"
-    gold   = "gold"
+    layer => substr(replace(lower("st${var.workload}${var.environment}${layer}${local.azure_region_abbr}"), "-", ""), 0, 24)
   }
 }

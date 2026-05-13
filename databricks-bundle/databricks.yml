@@ -6,20 +6,20 @@ include:
 
 variables:
   workspace_host:
-    description: Databricks workspace URL.
-    default: ""
+    description: Databricks workspace host URL.
+    default: https://adb-placeholder.azuredatabricks.net
   workspace_resource_id:
-    description: Azure resource ID of the Databricks workspace.
-    default: ""
+    description: Databricks workspace Azure resource ID.
+    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/workspaces/dbw-placeholder
   bronze_catalog:
     description: Bronze catalog name.
-    default: blg_tst_bronze
+    default: blg_bronze
   silver_catalog:
     description: Silver catalog name.
-    default: blg_tst_silver
+    default: blg_silver
   gold_catalog:
     description: Gold catalog name.
-    default: blg_tst_gold
+    default: blg_gold
   bronze_schema:
     description: Bronze schema name.
     default: bronze
@@ -30,17 +30,17 @@ variables:
     description: Gold schema name.
     default: gold
   secret_scope:
-    description: Databricks secret scope name linked to Azure Key Vault.
+    description: Databricks secret scope backed by Azure Key Vault.
     default: kv-tst-scope
   bronze_principal_client_id:
     description: Application (client) ID of the bronze service principal.
-    default: ""
+    default: 00000000-0000-0000-0000-000000000001
   silver_principal_client_id:
     description: Application (client) ID of the silver service principal.
-    default: ""
+    default: 00000000-0000-0000-0000-000000000002
   gold_principal_client_id:
     description: Application (client) ID of the gold service principal.
-    default: ""
+    default: 00000000-0000-0000-0000-000000000003
   bronze_storage_account:
     description: Bronze layer ADLS Gen2 storage account name.
     default: stblgtstbronzeuks
@@ -51,14 +51,14 @@ variables:
     description: Gold layer ADLS Gen2 storage account name.
     default: stblgtstgolduks
   bronze_access_connector_id:
-    description: Azure resource ID of the bronze access connector.
-    default: ""
+    description: Azure resource ID of the bronze Databricks access connector.
+    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-bronze
   silver_access_connector_id:
-    description: Azure resource ID of the silver access connector.
-    default: ""
+    description: Azure resource ID of the silver Databricks access connector.
+    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-silver
   gold_access_connector_id:
-    description: Azure resource ID of the gold access connector.
-    default: ""
+    description: Azure resource ID of the gold Databricks access connector.
+    default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-gold
 
 targets:
   dev:

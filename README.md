@@ -1,56 +1,68 @@
 # Secure Medallion Architecture on Azure Databricks
 
-This repository implements the Azure Databricks secure medallion pattern described in the source article:
+This repository contains generated infrastructure and workload artifacts based on:
 https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
-Generated deployment inputs:
+Run inputs used for this generation:
 
 - workload: blg
 - environment: tst
 - azure_region: uksouth
-- layer_sp_mode: existing
+- layer_sp_mode: create
 - github_environment: BLG2CODEDEV
 
-## What this repository deploys
+## What is generated
 
-- Terraform infrastructure in `infra/terraform`:
-	- resource group, key vault, Databricks workspace
-	- per-layer ADLS Gen2 storage accounts
-	- per-layer Databricks access connectors
-	- per-layer RBAC role assignments (no new service principals created; uses existing principal)
-- Databricks Asset Bundle in `databricks-bundle`:
-	- setup, bronze, silver, gold, smoke-test, and orchestrator jobs
-	- Python entrypoints for each job
-	- target definitions for dev and prd
-- GitHub workflows in `.github/workflows`:
-	- validate-terraform.yml
-	- deploy-infrastructure.yml
-	- deploy-dab.yml
+- Terraform infrastructure under `infra/terraform`
+- Databricks Asset Bundle under `databricks-bundle`
+- GitHub Actions workflows under `.github/workflows`
+- Architecture analysis in `SPEC.md`
+- Operator checklist in `TODO.md`
 
-See SPEC.md for article-to-architecture mapping and TODO.md for unresolved operational decisions.
+## Workflows
 
-## Prerequisites
+- `validate-terraform.yml`: static Terraform validation.
+- `deploy-infrastructure.yml`: provisions Azure resources and publishes Terraform outputs.
+- `deploy-dab.yml`: deploys the Databricks Asset Bundle using infrastructure outputs.
 
-- Azure subscription and tenant
-- Deployment service principal with at least Contributor and User Access Administrator on target scope
-- For layer_sp_mode=existing, an existing Entra service principal already created
-- GitHub Environment BLG2CODEDEV with secrets:
-	- AZURE_TENANT_ID
-	- AZURE_SUBSCRIPTION_ID
-	- AZURE_CLIENT_ID
-	- AZURE_CLIENT_SECRET
-	- AZURE_SP_OBJECT_ID
-	- EXISTING_LAYER_SP_CLIENT_ID
-	- EXISTING_LAYER_SP_OBJECT_ID
+All workflows target GitHub Environment `BLG2CODEDEV` and resolve credentials from secrets first, then environment variables.
 
-## Workflow usage
+## Required GitHub Environment Secrets
 
-1. Run Validate Terraform (validate-terraform.yml) to verify Terraform syntax and contracts.
-2. Run Deploy Infrastructure (deploy-infrastructure.yml) with desired target, key_vault_recovery_mode, and state_strategy.
-3. Run Deploy DAB (deploy-dab.yml) manually with infra_run_id or let it trigger from successful infrastructure deployment.
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `AZURE_CLIENT_ID`
+- `AZURE_CLIENT_SECRET`
+- `AZURE_SP_OBJECT_ID`
 
-## Notes
+Since this run uses `layer_sp_mode=create`, existing layer principal secrets are not required.
 
-- This baseline favors deployability and then hardening; review TODO.md for post-deploy hardening items.
-- The source article is architecture-focused; workload-specific source contracts and transformations must be finalized separately.
-- In existing mode, no new service principals are created. All layers use the same existing principal referenced in EXISTING_LAYER_SP_*.
+## Terraform naming convention
+
+Canonical naming pattern:
+
+- `rg-<workload>-<environment>-<region-abbr>` (example: `rg-blg-tst-uks`)
+- `kv-<workload>-<environment>-<region-abbr>` (example: `kv-blg-tst-uks`)
+- `dbw-<workload>-<environment>-<region-abbr>` (example: `dbw-blg-tst-uks`)
+- `st<workload><environment><layer><region-abbr>` (example: `stblgtstbronzeuks`)
+
+For `uksouth`, region abbreviation is `uks`.
+
+## Deployment sequence
+
+1. Review and complete unresolved items in `TODO.md`.
+2. Run `Validate Terraform` workflow.
+3. Run `Deploy Infrastructure` workflow with appropriate input strategy.
+4. Run `Deploy DAB` workflow using the infrastructure run id, or let it run from successful infra workflow completion.
+5. Trigger Databricks orchestrator job and confirm bronze/silver/gold flow.
+
+## Validation commands (local)
+
+- `python -m py_compile .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py databricks-bundle/src/*/main.py`
+- `terraform -chdir=infra/terraform init -backend=false`
+- `terraform -chdir=infra/terraform validate`
+- `bash .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh`
+- `bash .github/skills/blog-to-databricks-iac/scripts/validate_bundle_parity.sh`
+- `bash .github/skills/blog-to-databricks-iac/scripts/validate_handler_coverage.sh`
+
+If bash is unavailable on Windows, use PowerShell alternatives where applicable.
