@@ -86,6 +86,7 @@ resource "azurerm_databricks_access_connector" "layer" {
   }
 }
 
+# Only create new service principals when layer_sp_mode = "create"
 resource "azuread_application" "layer" {
   for_each = var.layer_sp_mode == "create" ? local.layers : toset([])
 
@@ -98,26 +99,14 @@ resource "azuread_service_principal" "layer" {
   client_id = azuread_application.layer[each.key].client_id
 }
 
-locals {
-  layer_principal_client_ids = var.layer_sp_mode == "create" ? {
-    for layer in local.layers : layer => azuread_application.layer[layer].client_id
-  } : {
-    for layer in local.layers : layer => var.existing_layer_sp_client_id
-  }
-
-  layer_principal_object_ids = var.layer_sp_mode == "create" ? {
-    for layer in local.layers : layer => azuread_service_principal.layer[layer].object_id
-  } : {
-    for layer in local.layers : layer => var.existing_layer_sp_object_id
-  }
-}
-
+# RBAC: Grant deployment principal Key Vault Secrets Officer role
 resource "azurerm_role_assignment" "kv_deployment_sp" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.sp_object_id
 }
 
+# RBAC: Grant each layer principal Key Vault Secrets User role
 resource "azurerm_role_assignment" "kv_layer_sp" {
   for_each = local.layer_principal_object_ids
 
@@ -126,6 +115,7 @@ resource "azurerm_role_assignment" "kv_layer_sp" {
   principal_id         = each.value
 }
 
+# RBAC: Grant access connector system-assigned identity storage access
 resource "azurerm_role_assignment" "storage_access_connector" {
   for_each = local.layers
 
@@ -134,6 +124,7 @@ resource "azurerm_role_assignment" "storage_access_connector" {
   principal_id         = azurerm_databricks_access_connector.layer[each.key].identity[0].principal_id
 }
 
+# RBAC: Grant layer principals direct storage access
 resource "azurerm_role_assignment" "storage_layer_sp" {
   for_each = local.layers
 

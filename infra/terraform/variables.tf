@@ -52,11 +52,13 @@ variable "layer_sp_mode" {
 variable "existing_layer_sp_client_id" {
   description = "Existing layer principal application (client) ID used when layer_sp_mode=existing."
   type        = string
+  default     = ""
 }
 
 variable "existing_layer_sp_object_id" {
   description = "Existing layer principal object ID used when layer_sp_mode=existing."
   type        = string
+  default     = ""
 }
 
 variable "key_vault_recover_soft_deleted" {
