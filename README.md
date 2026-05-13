@@ -8,7 +8,7 @@ Generated deployment inputs:
 - workload: blg
 - environment: tst
 - azure_region: uksouth
-- layer_sp_mode: create
+- layer_sp_mode: existing
 - github_environment: BLG2CODEDEV
 
 ## What this repository deploys
@@ -17,8 +17,7 @@ Generated deployment inputs:
 	- resource group, key vault, Databricks workspace
 	- per-layer ADLS Gen2 storage accounts
 	- per-layer Databricks access connectors
-	- per-layer service principals when layer_sp_mode=create
-	- RBAC role assignments for key vault and storage access
+	- per-layer RBAC role assignments (no new service principals created; uses existing principal)
 - Databricks Asset Bundle in `databricks-bundle`:
 	- setup, bronze, silver, gold, smoke-test, and orchestrator jobs
 	- Python entrypoints for each job
@@ -34,13 +33,15 @@ See SPEC.md for article-to-architecture mapping and TODO.md for unresolved opera
 
 - Azure subscription and tenant
 - Deployment service principal with at least Contributor and User Access Administrator on target scope
-- If layer_sp_mode=create, Entra permissions to create app registrations and service principals
+- For layer_sp_mode=existing, an existing Entra service principal already created
 - GitHub Environment BLG2CODEDEV with secrets:
 	- AZURE_TENANT_ID
 	- AZURE_SUBSCRIPTION_ID
 	- AZURE_CLIENT_ID
 	- AZURE_CLIENT_SECRET
 	- AZURE_SP_OBJECT_ID
+	- EXISTING_LAYER_SP_CLIENT_ID
+	- EXISTING_LAYER_SP_OBJECT_ID
 
 ## Workflow usage
 
@@ -52,3 +53,4 @@ See SPEC.md for article-to-architecture mapping and TODO.md for unresolved opera
 
 - This baseline favors deployability and then hardening; review TODO.md for post-deploy hardening items.
 - The source article is architecture-focused; workload-specific source contracts and transformations must be finalized separately.
+- In existing mode, no new service principals are created. All layers use the same existing principal referenced in EXISTING_LAYER_SP_*.
