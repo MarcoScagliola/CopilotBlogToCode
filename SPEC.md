@@ -1,81 +1,46 @@
-# Secure Medallion Architecture on Azure Databricks (Part I)
+# Secure Medallion Architecture Pattern on Azure Databricks (Part I)
 
-Source article: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+## Source
+- URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+- Title: Secure Medallion Architecture Pattern on Azure Databricks – Part I
 
-## Architecture
+## Architecture Summary
+- Pattern: bronze, silver, and gold layers on Azure Databricks with Unity Catalog governance.
+- Security model: per-layer identities, least-privilege access, and Key Vault-backed secret handling.
+- Storage model: ADLS Gen2 accounts scoped to medallion layers.
+- Orchestration model: setup plus bronze, silver, gold, and smoke-test jobs coordinated by an orchestrator job.
 
-- High-level architecture pattern: medallion architecture (bronze, silver, gold) with security-first controls.
-- Named components and roles:
-  - Source systems feed ingestion into a bronze layer.
-  - Silver layer performs standardized transformations.
-  - Gold layer serves curated outputs for analytics consumption.
-  - Databricks orchestrates pipeline execution.
-- Data flow direction and triggers: batch progression bronze -> silver -> gold; exact production trigger cadence is not stated in article.
-- Stated or implied data volume, frequency, latency: not stated in article.
+## Stated or Inferred from Article
+- Medallion layering is explicitly used for progressive data quality and curation.
+- Unity Catalog is used for governance and controlled access to data assets.
+- Azure Databricks is the compute and orchestration plane.
+- Key Vault-backed secret usage is part of the secure design intent.
+- Layer separation by identity and storage boundary is part of the design intent.
 
-## Azure services
+## Not Stated in Article
+- Exact source systems and ingestion protocols: not stated in article.
+- Full runtime secret key inventory and naming convention: not stated in article.
+- Complete catalog and schema naming standards per environment: not stated in article.
+- Full grant matrix for user groups, BI consumers, and service principals: not stated in article.
+- Monitoring baselines and alert thresholds: not stated in article.
+- Disaster recovery, backup, and retention policies: not stated in article.
+- Production remote Terraform state design and locking model: not stated in article.
+- Cost guardrails and budget controls for cluster/job execution: not stated in article.
 
-- Azure Databricks: primary data engineering and orchestration platform.
-- Azure Storage (ADLS Gen2 implied): per-layer data storage boundary for medallion zones.
-- Azure Key Vault: secret and credential storage integrated with runtime.
-- Microsoft Entra ID: identity and service principal boundary for least-privilege execution.
-- For each service SKU/tier specifics: not stated in article.
-- Networking posture:
-  - Secure Cluster Connectivity (No Public IP) is required for workspace deployment.
-  - Hybrid workspace type is referenced.
-  - Private endpoint/firewall/service endpoint details are not stated in article.
-- Region and redundancy (LRS/ZRS/GRS): not stated in article.
+## Decisions for This Generation Run
+- Workload code: blg
+- Environment: dev
+- Azure region: uksouth
+- Layer identity mode: create (new layer service principals created by Terraform)
+- GitHub environment for workflows: BLG2CODEDEV
 
-## Databricks
+## Name Mapping Used in This Run
+- Resource group: rg-blg-dev-uks
+- Key Vault: kv-blg-dev-uks
+- Databricks workspace: dbw-blg-dev-uks
+- Storage accounts: stblgdevbronzeuks, stblgdevsilveruks, stblgdevgolduks
+- Secret scope name in bundle defaults: kv-dev-scope
 
-- Workspace tier: not stated in article.
-- Workspace type: Hybrid.
-- Secure Cluster Connectivity: enabled (No Public IP).
-- Unity Catalog usage: implied yes for governed medallion access model; concrete metastore id is not stated in article.
-- Catalog/schema names: not stated in article.
-- Compute model: job clusters for setup and layer jobs.
-- Jobs and orchestration:
-  - Layered jobs for setup, bronze, silver, gold, smoke test.
-  - Orchestrator dependency chain setup -> bronze -> silver -> gold -> smoke_test.
-  - Schedule/concurrency constraints beyond default single-run are not stated in article.
-- Lakeflow declarative pipelines usage: not stated in article.
-- Task source format: Python files.
-- Runtime/libraries/init scripts versions: not stated in article.
-
-## Data model
-
-- Source systems and formats: not stated in article.
-- Target datasets grouped by layer: bronze, silver, gold logical outputs.
-- Partitioning/liquid clustering/z-ordering: not stated in article.
-- Schema evolution/enforcement rules: not stated in article.
-- Data quality expectations: smoke-test style validation implied; detailed rules not stated in article.
-
-## Security and identity
-
-- Identities used:
-  - Deployment principal for infrastructure provisioning.
-  - Per-layer service principals for runtime separation (create mode in this run).
-  - Databricks access connectors per layer for storage access.
-- Secrets and storage:
-  - Secrets are expected in Azure Key Vault and consumed through Databricks secret scope.
-  - Exact secret key set is not stated in article.
-- RBAC and grants:
-  - Least-privilege model is required.
-  - Exact role assignment matrix and Unity Catalog grants are not stated in article.
-- Network boundaries and allowed paths: high-level secure boundary intent is stated; exact NSG and endpoint matrix is not stated in article.
-
-## Operational concerns
-
-- Monitoring/logging/alerting services: not stated in article.
-- Cost controls (auto-termination, budgets, reservations): not stated in article.
-- CI/CD approach in article: not stated in article.
-- Backup/retention/disaster recovery strategy: not stated in article.
-
-## Out-of-scope markers
-
-- Production-specific operational hardening and full enterprise governance details are deferred/not fully specified in article.
-
-## Other observations
-
-- The article emphasizes secure-by-default medallion separation rather than one shared runtime identity.
-- A practical implementation needs explicit decisions for region, catalog/schema naming, and secret key inventory before production rollout.
+## Other Observations
+- The article provides architecture direction and security posture but intentionally leaves environment-specific operational values to implementation.
+- Generated assets are scaffolded for repeatable deployment; production hardening decisions remain in TODO.md.

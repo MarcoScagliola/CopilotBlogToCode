@@ -107,25 +107,30 @@ Input variables structure the interface between code and consumers:
 - **Document assumptions** about variable origins (e.g., "tenant_id must come from GitHub Secrets, not hardcoded").
 
 ### 7. Conditional Resource Creation
+
 When generating code for different operational modes or constraints:
 
-- **Use `for_each` for optional resources** based on input variables, environment, or feature flags.
+- **Use `count` or `for_each` for optional resources** based on input variables, environment, or feature flags. `count` suits binary toggles; `for_each` suits cases that may grow to multiple named instances.
 - **Compute the condition in `locals.tf`** for clarity and to avoid repeating complex logic across resources.
 - **Use when identity creation is restricted**: Provide a variable (e.g., `create_new_identities`) and conditionally create identities or reuse input identifiers.
 - **Use when permissions vary**: Conditionally assign roles or resources based on what the deployment environment allows.
 - **Example pattern**:
-  ```hcl
+```hcl
   locals {
     should_create_identity = var.identity_mode == "create"
-    identities_to_create   = local.should_create_identity ? { new = true } : {}
+    identities_to_create   = local.should_create_identity ? { main = true } : {}
   }
-  
+
   resource "aws_iam_role" "custom_role" {
     for_each = local.identities_to_create
     # ...
   }
-  ```
+```
 - **Document both paths**: In README.md and variables.tf, explain what each mode does and why a user might choose one over the other.
+
+### 7a. `for_each` Keys Must Be Known at Plan Time
+
+Terraform must know the set of `for_each` keys during `plan`, even when the values inside each instance are unknown until `apply`. Build maps whose keys are static identifiers you control (names, labels) and whose values carry the apply-time data. Avoid `toset(...)` over resource attributes or module outputs — the elements become the keys, and they aren't known yet. If the error reads `for_each set includes values derived from resource attributes`, that shape is almost always the cause.
 
 ### 8. Iteration Shape vs. Resource Identity
 When using `for_each` or `count` to create multiple instances of a resource, two independent rules apply: iteration must vary the resource's identity at the cloud provider, **and** iteration keys must be statically known at plan time.

@@ -1,111 +1,102 @@
-# TODO - blg tst
+# TODO - blg dev
+
+This file tracks deferred operator decisions and post-generation actions for the current run.
 
 ## Pre-deployment
 
-### Confirm Entra directory permissions for create mode
+### Confirm deployment principal RBAC
+- What this is: The GitHub deployment principal must be authorized to create resources and role assignments in Azure.
+- Why deferred: Access policy is tenant-specific and cannot be safely inferred from article content.
+- Source: terraform skill RBAC guidance; SPEC.md Not Stated section.
+- Resolution:
+  1. Ensure Contributor is assigned at subscription or target resource-group scope.
+  2. Ensure User Access Administrator is assigned at the same scope.
+  3. Verify role propagation before dispatching infra workflow.
 
-Why deferred. This deployment uses layer_sp_mode=create, which requires creating app registrations and service principals in Entra ID.
-Source. SPEC.md Security and identity.
-Resolution.
-1. Confirm the deployment principal can create app registrations and enterprise applications in the tenant.
-2. If tenant policy blocks this, switch to existing mode and pre-provision layer principals.
-Done looks like. Infrastructure deploy in create mode completes without Authorization_RequestDenied errors.
-
-### Define region and naming governance exceptions
-
-Why deferred. The article does not define enterprise naming exceptions or policy waivers.
-Source. SPEC.md Azure services.
-Resolution.
-1. Validate blg/tst/uks naming with platform governance.
-2. Approve or document required exceptions before production.
-Done looks like. Resource naming passes policy checks for the target subscription.
+### Confirm Entra permissions for layer principal creation
+- What this is: create mode requires directory permissions to create app registrations and service principals for bronze, silver, and gold.
+- Why deferred: Tenant identity policy differs by organization.
+- Source: SKILL.md identity guardrails; SPEC.md Not Stated section.
+- Resolution:
+  1. Confirm deployment principal can create application registrations.
+  2. If blocked, switch to existing mode in a future run and pre-create principals.
 
 ## Deployment-time inputs
 
-### Select state strategy per run
+### Choose key_vault_recovery_mode per run
+- Why deferred: Soft-delete state is runtime Azure state and not known at generation time.
+- Source: SKILL.md workflow input contract.
+- Resolution:
+  1. Use auto for standard reruns.
+  2. Use recover only when a soft-deleted vault must be recovered.
+  3. Use fresh only when no recoverable vault exists.
 
-Why deferred. Local ephemeral state behavior depends on whether this is a clean-slate or adopt-existing run.
-Source. Skill workflow input contract.
-Resolution.
-1. Use fail for non-destructive runs.
-2. Use recreate_rg only when destructive rebuild is intended.
-Done looks like. Workflow preflight behavior matches deployment intent.
-
-### Select key vault recovery mode per run
-
-Why deferred. Soft-delete state cannot be known reliably at generation time.
-Source. Skill workflow input contract.
-Resolution.
-1. Use auto as default.
-2. Use recover or fresh only when operating state is already known.
-Done looks like. Key Vault provisioning path succeeds without manual rerun loops.
+### Choose state_strategy per run
+- Why deferred: Choice depends on whether the run is destructive reset or non-destructive adoption.
+- Source: SKILL.md state strategy policy.
+- Resolution:
+  1. Use fail for safe, non-destructive behavior.
+  2. Use recreate_rg only for ephemeral dev rebuilds where deletion is acceptable.
 
 ## Post-infrastructure
 
-### Create Databricks Key Vault-backed secret scope
+### Create Databricks secret scope backed by Key Vault
+- What this is: Databricks runtime bridge to the generated Key Vault.
+- Why deferred: Workspace object creation occurs after infra exists.
+- Source: databricks-asset-bundle skill; SPEC.md security intent.
+- Resolution:
+  1. Create scope kv-dev-scope in workspace.
+  2. Bind it to Key Vault kv-blg-dev-uks.
+  3. Validate secret reads from Databricks.
 
-Why deferred. Scope creation occurs inside workspace runtime, not Terraform infrastructure provisioning.
-Source. SPEC.md Security and identity.
-Resolution.
-1. Create the secret scope mapped to the deployed Key Vault.
-2. Validate workspace principals can read required secret keys.
-Done looks like. Runtime secret reads succeed from Databricks jobs.
+### Populate runtime secrets in Key Vault
+- What this is: Secret values needed by runtime ingestion/transformation logic.
+- Why deferred: Secret values are operational data and must never be generated.
+- Source: SKILL.md runtime secret policy; SPEC.md Not Stated section.
+- Resolution:
+  1. Determine required secret keys from workload implementation.
+  2. Store values in Key Vault and verify access via scope.
 
-### Populate runtime secrets and source credentials
-
-Why deferred. Secret values are environment-owned credentials and are intentionally never generated.
-Source. SPEC.md Security and identity; SPEC.md Data model.
-Resolution.
-1. Define exact key list for external source access.
-2. Populate secrets in Key Vault and validate retrieval in workspace context.
-Done looks like. Bronze ingestion job can authenticate to source systems without inline secrets.
-
-### Finalize Unity Catalog grants and object ownership
-
-Why deferred. The article describes secure layering but not the full grant matrix.
-Source. SPEC.md Databricks; SPEC.md Security and identity.
-Resolution.
-1. Grant least-privilege catalog/schema/table rights for bronze, silver, and gold principals.
-2. Verify owners and consumer group privileges align with governance standards.
-Done looks like. Orchestrated job chain runs without UC permission errors.
+### Finalize Unity Catalog grants and ownership
+- What this is: Data-plane permissions for layer principals and downstream consumers.
+- Why deferred: Consumer identities and access matrix are organization-specific.
+- Source: SPEC.md Not Stated section.
+- Resolution:
+  1. Grant use/read/write privileges per layer design.
+  2. Validate orchestrator run can read and write expected objects.
 
 ## Post-DAB
 
-### Replace scaffolded data logic with workload-specific transformations
+### Execute orchestrator functional test
+- What this is: End-to-end confirmation of setup, bronze, silver, gold, and smoke-test jobs.
+- Why deferred: Requires deployed workspace and runtime secrets.
+- Source: SKILL.md optional functional validation.
+- Resolution:
+  1. Run orchestrator job.
+  2. Confirm all task dependencies complete successfully.
+  3. Confirm expected tables are materialized.
 
-Why deferred. Article is architectural and does not provide full source-specific transformation code.
-Source. SPEC.md Data model.
-Resolution.
-1. Implement source ingestion logic in bronze entrypoint.
-2. Implement domain transformations in silver and serving logic in gold.
-3. Preserve argument contracts used by generated jobs.yml.
-Done looks like. Orchestrator creates or updates expected bronze, silver, and gold datasets.
-
-### Validate end-to-end smoke path
-
-Why deferred. Functional verification requires deployed environment and populated runtime dependencies.
-Source. Skill validation Step 9.2.
-Resolution.
-1. Execute orchestrator job.
-2. Validate data appears across all layers with expected minimum row counts.
-Done looks like. Smoke test job succeeds and confirms medallion flow integrity.
+### Configure schedules and runbook ownership
+- What this is: Operationalization of deployed jobs for ongoing use.
+- Why deferred: Schedule cadence and ownership are team decisions.
+- Source: SPEC.md Not Stated section.
+- Resolution:
+  1. Define run cadence, retry policy, and on-call ownership.
+  2. Enable schedules once data-quality checks pass.
 
 ## Architectural decisions deferred
 
-### Remote Terraform backend adoption
+### Adopt remote Terraform backend for non-destructive repeatability
+- Why deferred: Backend storage and lock design are platform choices beyond article scope.
+- Source: SKILL.md state management guidance; SPEC.md Not Stated section.
+- Resolution:
+  1. Define backend account/container and locking policy.
+  2. Migrate state before production-style reruns.
 
-Why deferred. Baseline generation keeps state local for iteration speed.
-Source. SPEC.md Operational concerns.
-Resolution.
-1. Plan remote backend for collaborative and non-destructive production deployments.
-2. Migrate state before production change management starts.
-Done looks like. Terraform state persists across workflow runs with locking.
-
-### Monitoring and DR design
-
-Why deferred. Monitoring stack and disaster recovery strategy are not stated in article.
-Source. SPEC.md Operational concerns.
-Resolution.
-1. Select monitoring and alerting services.
-2. Define retention, backup, and recovery objectives for medallion data products.
-Done looks like. Operational runbook includes observability and disaster recovery controls.
+### Define monitoring, DR, and cost governance baseline
+- Why deferred: Alert thresholds, RTO/RPO, and budget controls are org-specific controls.
+- Source: SPEC.md Not Stated section.
+- Resolution:
+  1. Add observability and alerting standards.
+  2. Define DR approach and retention policy.
+  3. Set cost budgets and compute guardrails.

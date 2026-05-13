@@ -20,6 +20,18 @@ output "gold_catalog_name" {
   value = local.gold_catalog_name
 }
 
+output "bronze_schema" {
+  value = local.bronze_schema_name
+}
+
+output "silver_schema" {
+  value = local.silver_schema_name
+}
+
+output "gold_schema" {
+  value = local.gold_schema_name
+}
+
 output "secret_scope_name" {
   value = local.secret_scope_name
 }

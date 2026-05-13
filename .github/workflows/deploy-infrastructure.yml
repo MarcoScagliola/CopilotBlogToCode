@@ -16,7 +16,7 @@ on:
       environment:
         description: Environment value to pass to the downstream DAB deployment
         required: true
-        default: tst
+        default: dev
       azure_region:
         description: Azure region for Terraform deployment
         required: true

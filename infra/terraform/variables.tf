@@ -10,28 +10,28 @@ variable "subscription_id" {
 
 variable "client_id" {
   type        = string
-  description = "Deployment principal application (client) ID."
+  description = "Deployment service principal client ID."
 }
 
 variable "client_secret" {
   type        = string
-  description = "Deployment principal client secret."
+  description = "Deployment service principal client secret."
   sensitive   = true
 }
 
 variable "sp_object_id" {
   type        = string
-  description = "Deployment principal object ID from Enterprise Applications."
+  description = "Deployment service principal object ID."
 }
 
 variable "workload" {
   type        = string
-  description = "Workload short name."
+  description = "Workload short code."
 }
 
 variable "environment" {
   type        = string
-  description = "Deployment environment name."
+  description = "Environment name."
 }
 
 variable "azure_region" {
@@ -45,22 +45,24 @@ variable "layer_sp_mode" {
 
   validation {
     condition     = contains(["create", "existing"], var.layer_sp_mode)
-    error_message = "layer_sp_mode must be either create or existing."
+    error_message = "layer_sp_mode must be 'create' or 'existing'."
   }
 }
 
 variable "existing_layer_sp_client_id" {
   type        = string
-  description = "Client ID for existing layer principal mode."
+  description = "Existing layer service principal client ID (used in existing mode)."
+  default     = ""
 }
 
 variable "existing_layer_sp_object_id" {
   type        = string
-  description = "Object ID for existing layer principal mode."
+  description = "Existing layer service principal object ID (used in existing mode)."
+  default     = ""
 }
 
 variable "key_vault_recover_soft_deleted" {
   type        = bool
-  description = "Recover soft deleted key vaults during apply."
+  description = "Whether to recover soft deleted key vaults."
   default     = true
 }

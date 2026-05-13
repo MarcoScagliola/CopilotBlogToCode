@@ -6,7 +6,7 @@ https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-archi
 Run inputs used for this generation:
 
 - workload: blg
-- environment: tst
+- environment: dev
 - azure_region: uksouth
 - layer_sp_mode: create
 - github_environment: BLG2CODEDEV
@@ -41,10 +41,10 @@ Since this run uses layer_sp_mode=create, existing layer principal secrets are n
 
 Canonical naming pattern:
 
-- rg-<workload>-<environment>-<region-abbr> (example: rg-blg-tst-uks)
-- kv-<workload>-<environment>-<region-abbr> (example: kv-blg-tst-uks)
-- dbw-<workload>-<environment>-<region-abbr> (example: dbw-blg-tst-uks)
-- st<workload><environment><layer><region-abbr> (example: stblgtstbronzeuks)
+- rg-workload-environment-regionabbr (example: rg-blg-dev-uks)
+- kv-workload-environment-regionabbr (example: kv-blg-dev-uks)
+- dbw-workload-environment-regionabbr (example: dbw-blg-dev-uks)
+- stworkloadenvironmentlayerregionabbr (example: stblgdevbronzeuks)
 
 For uksouth, region abbreviation is uks.
 
@@ -58,11 +58,8 @@ For uksouth, region abbreviation is uks.
 
 ## Validation commands (local)
 
-- python -m py_compile .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py databricks-bundle/src/*/main.py
+- python -m py_compile .github/skills/blog-to-databricks-iac/scripts/azure/deploy_dab.py databricks-bundle/src/setup/main.py databricks-bundle/src/bronze/main.py databricks-bundle/src/silver/main.py databricks-bundle/src/gold/main.py databricks-bundle/src/smoke_test/main.py
 - terraform -chdir=infra/terraform init -backend=false
 - terraform -chdir=infra/terraform validate
-- bash .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh
-- bash .github/skills/blog-to-databricks-iac/scripts/validate_bundle_parity.sh
-- bash .github/skills/blog-to-databricks-iac/scripts/validate_handler_coverage.sh
-
-If bash is unavailable on Windows, use PowerShell or Python equivalents.
+- python -c "import yaml,glob; [yaml.safe_load(open(f,encoding='utf-8')) for f in glob.glob('.github/workflows/*.yml')]; print('workflows yaml ok')"
+- python -c "import yaml,glob; [yaml.safe_load(open(f,encoding='utf-8',errors='ignore')) for f in glob.glob('databricks-bundle/**/*.yml', recursive=True)]; print('bundle yaml ok')"

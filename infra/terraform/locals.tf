@@ -20,6 +20,9 @@ locals {
   bronze_catalog_name = "${var.workload}_bronze"
   silver_catalog_name = "${var.workload}_silver"
   gold_catalog_name   = "${var.workload}_gold"
+  bronze_schema_name  = "bronze"
+  silver_schema_name  = "silver"
+  gold_schema_name    = "gold"
 
   layer_storage_names = {
     for layer in local.layers :
