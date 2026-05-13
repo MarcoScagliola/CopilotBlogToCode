@@ -24,9 +24,8 @@ def main() -> None:
     target_table = f"`{args.target_catalog}`.`{args.target_schema}`.`transactions_silver`"
 
     df = spark.table(source_table)
-    curated = (
-        df.filter(F.col("amount") > 0)
-        .withColumn("amount_bucket", F.when(F.col("amount") >= 150, F.lit("high")).otherwise(F.lit("standard")))
+    curated = df.filter(F.col("amount") > 0).withColumn(
+        "amount_bucket", F.when(F.col("amount") >= 150, F.lit("high")).otherwise(F.lit("standard"))
     )
     curated.write.mode("overwrite").format("delta").saveAsTable(target_table)
 

@@ -46,11 +46,6 @@ variable "layer_sp_mode" {
   description = "How to source layer service principals"
   type        = string
   default     = "create"
-
-  validation {
-    condition     = contains(["create", "existing"], var.layer_sp_mode)
-    error_message = "layer_sp_mode must be one of: create, existing."
-  }
 }
 
 variable "existing_layer_sp_client_id" {

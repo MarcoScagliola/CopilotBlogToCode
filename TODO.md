@@ -1,26 +1,26 @@
 # TODO - blg dev
 
 ## Pre-deployment
-- Confirm deployment principal has Contributor and User Access Administrator on the target scope.
-- Confirm deployment principal has Entra app-registration permissions for create mode.
-- Confirm GitHub Environment BLG2CODEDEV contains required Azure identity secrets.
+- Confirm the deployment principal has Contributor and User Access Administrator on the target Azure scope.
+- Confirm the deployment principal can create Entra service principals for create mode.
+- Create the GitHub Environment BLG2CODEDEV and store the Azure credential secrets there.
 
 ## Deployment-time inputs
-- Select key_vault_recovery_mode per run; default to auto for reruns.
-- Select state_strategy per run; use fail for non-destructive behavior.
+- Choose key_vault_recovery_mode for the run; use auto for normal reruns.
+- Choose state_strategy for the run; use fail for safe reruns.
 - Keep layer_sp_mode set to create for this generated variant.
 
 ## Post-infrastructure
-- Create Databricks secret scope backed by the generated Key Vault.
-- Populate Key Vault with runtime secret values required by ingestion and transformation code.
-- Validate Unity Catalog grants for bronze, silver, and gold execution principals.
+- Create the Databricks secret scope backed by the generated Azure Key Vault.
+- Populate Azure Key Vault with the runtime secrets required by the notebooks and jobs.
+- Verify Unity Catalog grants for bronze, silver, and gold identities.
 
 ## Post-DAB
-- Run orchestrator job once and confirm all layer jobs succeed.
-- Verify bronze, silver, and gold tables exist and contain expected rows.
-- Configure production schedules and alerting after smoke-test success.
+- Run the orchestrator job and verify all three layer jobs succeed.
+- Verify bronze, silver, and gold target tables contain expected rows.
+- Enable schedules and notifications only after a successful smoke test.
 
 ## Architectural decisions deferred
-- Decide whether to move Terraform state to a remote backend for non-destructive reruns.
-- Decide whether and when to disable shared key access on storage accounts as a hardening step.
-- Finalize enterprise data-governance model for downstream consumer groups.
+- Decide whether to move Terraform state to a remote backend for incremental reruns.
+- Decide whether to disable shared key access on storage accounts after provisioning.
+- Finalize the downstream consumer access model for the curated datasets.

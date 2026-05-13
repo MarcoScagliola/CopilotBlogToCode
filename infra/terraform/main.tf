@@ -11,12 +11,6 @@ resource "azurerm_storage_account" "bronze" {
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
   is_hns_enabled           = true
-
-  tags = {
-    workload    = var.workload
-    environment = var.environment
-    layer       = "bronze"
-  }
 }
 
 resource "azurerm_storage_account" "silver" {
@@ -27,12 +21,6 @@ resource "azurerm_storage_account" "silver" {
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
   is_hns_enabled           = true
-
-  tags = {
-    workload    = var.workload
-    environment = var.environment
-    layer       = "silver"
-  }
 }
 
 resource "azurerm_storage_account" "gold" {
@@ -43,12 +31,6 @@ resource "azurerm_storage_account" "gold" {
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
   is_hns_enabled           = true
-
-  tags = {
-    workload    = var.workload
-    environment = var.environment
-    layer       = "gold"
-  }
 }
 
 resource "azurerm_databricks_workspace" "main" {
@@ -56,11 +38,6 @@ resource "azurerm_databricks_workspace" "main" {
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
   sku                 = "premium"
-
-  tags = {
-    workload    = var.workload
-    environment = var.environment
-  }
 }
 
 resource "azurerm_databricks_access_connector" "bronze" {
@@ -103,11 +80,6 @@ resource "azurerm_key_vault" "main" {
   purge_protection_enabled      = true
   rbac_authorization_enabled    = true
   public_network_access_enabled = true
-
-  tags = {
-    workload    = var.workload
-    environment = var.environment
-  }
 }
 
 resource "azuread_application" "bronze" {

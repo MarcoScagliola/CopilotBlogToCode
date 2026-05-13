@@ -14,8 +14,6 @@ resources:
             num_workers: 1
             autotermination_minutes: 20
             data_security_mode: USER_ISOLATION
-            custom_tags:
-              layer: setup
       tasks:
         - task_key: setup_task
           job_cluster_key: setup_cluster
@@ -61,8 +59,6 @@ resources:
             num_workers: 1
             autotermination_minutes: 20
             data_security_mode: USER_ISOLATION
-            custom_tags:
-              layer: bronze
       tasks:
         - task_key: bronze_task
           job_cluster_key: bronze_cluster
@@ -90,8 +86,6 @@ resources:
             num_workers: 1
             autotermination_minutes: 20
             data_security_mode: USER_ISOLATION
-            custom_tags:
-              layer: silver
       tasks:
         - task_key: silver_task
           job_cluster_key: silver_cluster
@@ -121,8 +115,6 @@ resources:
             num_workers: 1
             autotermination_minutes: 20
             data_security_mode: USER_ISOLATION
-            custom_tags:
-              layer: gold
       tasks:
         - task_key: gold_task
           job_cluster_key: gold_cluster
@@ -152,8 +144,6 @@ resources:
             num_workers: 1
             autotermination_minutes: 20
             data_security_mode: USER_ISOLATION
-            custom_tags:
-              layer: smoke-test
       tasks:
         - task_key: smoke_test_task
           job_cluster_key: smoke_test_cluster

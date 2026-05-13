@@ -11,17 +11,17 @@ This repository was generated from the Microsoft article below and prepared for 
 
 ## Generated Artifacts
 
-- Terraform infrastructure in infra/terraform
-- Databricks bundle in databricks-bundle
-- GitHub workflows in .github/workflows
-- Architecture notes in SPEC.md
-- Operator checklist in TODO.md
+- Terraform infrastructure in `infra/terraform`
+- Databricks bundle in `databricks-bundle`
+- GitHub workflows in `.github/workflows`
+- Architecture notes in `SPEC.md`
+- Operator checklist in `TODO.md`
 
 ## Workflows
 
-- validate-terraform.yml: static Terraform validation.
-- deploy-infrastructure.yml: provisions Azure infrastructure and publishes Terraform outputs artifact.
-- deploy-dab.yml: deploys Databricks bundle using outputs from infrastructure run.
+- `validate-terraform.yml`: static Terraform validation.
+- `deploy-infrastructure.yml`: provisions Azure infrastructure and publishes Terraform outputs artifact.
+- `deploy-dab.yml`: deploys Databricks bundle using outputs from infrastructure run.
 
 ## Notes
 
