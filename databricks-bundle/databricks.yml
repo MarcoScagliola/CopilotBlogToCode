@@ -31,7 +31,7 @@ variables:
     default: gold
   secret_scope:
     description: Databricks secret scope backed by Azure Key Vault.
-    default: kv-dev-scope
+    default: kv-tst-scope
   bronze_principal_client_id:
     description: Application (client) ID of the bronze service principal.
     default: 00000000-0000-0000-0000-000000000001
@@ -43,13 +43,13 @@ variables:
     default: 00000000-0000-0000-0000-000000000003
   bronze_storage_account:
     description: Bronze layer ADLS Gen2 storage account name.
-    default: stblgdevbronzeuks
+    default: stblgtstbronzeuks
   silver_storage_account:
     description: Silver layer ADLS Gen2 storage account name.
-    default: stblgdevsilveruks
+    default: stblgtstsilveruks
   gold_storage_account:
     description: Gold layer ADLS Gen2 storage account name.
-    default: stblgdevgolduks
+    default: stblgtstgolduks
   bronze_access_connector_id:
     description: Azure resource ID of the bronze Databricks access connector.
     default: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-placeholder/providers/Microsoft.Databricks/accessConnectors/ac-bronze

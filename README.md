@@ -6,7 +6,7 @@ https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-archi
 Run inputs used for this generation:
 
 - workload: blg
-- environment: dev
+- environment: tst
 - azure_region: uksouth
 - layer_sp_mode: create
 - github_environment: BLG2CODEDEV
@@ -41,10 +41,10 @@ Since this run uses layer_sp_mode=create, existing layer principal secrets are n
 
 Canonical naming pattern:
 
-- rg-<workload>-<environment>-<region-abbr> (example: rg-blg-dev-uks)
-- kv-<workload>-<environment>-<region-abbr> (example: kv-blg-dev-uks)
-- dbw-<workload>-<environment>-<region-abbr> (example: dbw-blg-dev-uks)
-- st<workload><environment><layer><region-abbr> (example: stblgdevbronzeuks)
+- rg-<workload>-<environment>-<region-abbr> (example: rg-blg-tst-uks)
+- kv-<workload>-<environment>-<region-abbr> (example: kv-blg-tst-uks)
+- dbw-<workload>-<environment>-<region-abbr> (example: dbw-blg-tst-uks)
+- st<workload><environment><layer><region-abbr> (example: stblgtstbronzeuks)
 
 For uksouth, region abbreviation is uks.
 

@@ -1,4 +1,4 @@
-# TODO - blg dev
+# TODO - blg tst
 
 ## Pre-deployment
 
@@ -16,7 +16,7 @@ Done looks like. Infrastructure deploy in create mode completes without Authoriz
 Why deferred. The article does not define enterprise naming exceptions or policy waivers.
 Source. SPEC.md Azure services.
 Resolution.
-1. Validate blg/dev/uks naming with platform governance.
+1. Validate blg/tst/uks naming with platform governance.
 2. Approve or document required exceptions before production.
 Done looks like. Resource naming passes policy checks for the target subscription.
 
