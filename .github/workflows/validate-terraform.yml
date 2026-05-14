@@ -9,8 +9,8 @@ jobs:
     environment: BLG2CODEDEV
 
     env:
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID || vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID || vars.AZURE_SUBSCRIPTION_ID }}
 
     steps:
       - name: Checkout
@@ -18,8 +18,13 @@ jobs:
 
       - name: Ensure required environment secrets are set
         run: |
-          test -n "$AZURE_TENANT_ID" || (echo "Missing secret: AZURE_TENANT_ID" && exit 1)
-          test -n "$AZURE_SUBSCRIPTION_ID" || (echo "Missing secret: AZURE_SUBSCRIPTION_ID" && exit 1)
+          missing=()
+          [ -n "$AZURE_TENANT_ID" ] || missing+=("AZURE_TENANT_ID")
+          [ -n "$AZURE_SUBSCRIPTION_ID" ] || missing+=("AZURE_SUBSCRIPTION_ID")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required values: ${missing[*]}"
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3

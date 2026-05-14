@@ -23,18 +23,35 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent.parent
 JOBS_GENERATOR = REPO_ROOT / ".github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.py"
 
+# Required auth outputs consumed via environment variables.
+REQUIRED_AUTH_KEYS: dict[str, list[str]] = {
+    "workspace_host": ["databricks_workspace_url"],
+    "workspace_resource_id": ["databricks_workspace_resource_id"],
+}
+
 # Required flat outputs (DAB variable -> candidate Terraform keys)
 REQUIRED_FLAT_KEYS: dict[str, list[str]] = {
-    "workspace_host": ["databricks_workspace_url"],
     "workspace_resource_id": ["databricks_workspace_resource_id"],
 }
 
 # Optional flat outputs (DAB variable -> candidate Terraform keys)
 OPTIONAL_FLAT_KEYS: dict[str, list[str]] = {
-    "bronze_catalog": ["bronze_catalog_name", "uc_catalog_bronze"],
-    "silver_catalog": ["silver_catalog_name", "uc_catalog_silver"],
-    "gold_catalog": ["gold_catalog_name", "uc_catalog_gold"],
-    "secret_scope": ["secret_scope_name"],
+    "bronze_catalog": ["bronze_catalog", "bronze_catalog_name", "uc_catalog_bronze"],
+    "silver_catalog": ["silver_catalog", "silver_catalog_name", "uc_catalog_silver"],
+    "gold_catalog": ["gold_catalog", "gold_catalog_name", "uc_catalog_gold"],
+    "bronze_schema": ["bronze_schema"],
+    "silver_schema": ["silver_schema"],
+    "gold_schema": ["gold_schema"],
+    "secret_scope": ["secret_scope", "secret_scope_name"],
+    "bronze_principal_client_id": ["bronze_principal_client_id"],
+    "silver_principal_client_id": ["silver_principal_client_id"],
+    "gold_principal_client_id": ["gold_principal_client_id"],
+    "bronze_storage_account": ["bronze_storage_account"],
+    "silver_storage_account": ["silver_storage_account"],
+    "gold_storage_account": ["gold_storage_account"],
+    "bronze_access_connector_id": ["bronze_access_connector_id"],
+    "silver_access_connector_id": ["silver_access_connector_id"],
+    "gold_access_connector_id": ["gold_access_connector_id"],
 }
 
 # Optional map outputs (DAB variable -> (map output key, item key))
@@ -53,11 +70,13 @@ OPTIONAL_MAP_KEYS: dict[str, tuple[str, str]] = {
 # Static hints for validate_bundle_parity.sh, which scans this file for
 # literal "--var <name>=" tokens to verify bridge/bundle parity.
 PARITY_VAR_HINTS = """
---var workspace_host=
 --var workspace_resource_id=
 --var bronze_catalog=
 --var silver_catalog=
 --var gold_catalog=
+--var bronze_schema=
+--var silver_schema=
+--var gold_schema=
 --var secret_scope=
 --var bronze_principal_client_id=
 --var silver_principal_client_id=
@@ -141,6 +160,27 @@ def _first_present_key(tf_outputs: dict[str, object], candidate_keys: list[str])
     return next((k for k in candidate_keys if k in tf_outputs and tf_outputs[k] is not None), None)
 
 
+def build_auth_context(tf_outputs: dict[str, object]) -> dict[str, str]:
+    auth_context: dict[str, str] = {}
+    missing: list[str] = []
+
+    for auth_key, candidate_tf_keys in REQUIRED_AUTH_KEYS.items():
+        selected_key = _first_present_key(tf_outputs, candidate_tf_keys)
+        if not selected_key:
+            missing.append(f"{auth_key} (expected one of: {', '.join(candidate_tf_keys)})")
+            continue
+        auth_context[auth_key] = str(tf_outputs[selected_key])
+
+    if missing:
+        _fail(
+            "Missing required Terraform outputs for Databricks authentication:\n"
+            + "\n".join(f"  - {m}" for m in missing)
+        )
+
+    auth_context["workspace_host"] = _normalize_workspace_host(auth_context["workspace_host"])
+    return auth_context
+
+
 def build_dab_vars(tf_outputs: dict[str, object], environment: str) -> dict[str, str]:
     dab_vars: dict[str, str] = {}
     missing: list[str] = []
@@ -151,9 +191,6 @@ def build_dab_vars(tf_outputs: dict[str, object], environment: str) -> dict[str,
             missing.append(f"{dab_key} (expected one of: {', '.join(candidate_tf_keys)})")
             continue
         dab_vars[dab_key] = str(tf_outputs[selected_key])
-
-    if "workspace_host" in dab_vars:
-        dab_vars["workspace_host"] = _normalize_workspace_host(dab_vars["workspace_host"])
 
     for dab_key, candidate_tf_keys in OPTIONAL_FLAT_KEYS.items():
         selected_key = _first_present_key(tf_outputs, candidate_tf_keys)
@@ -195,10 +232,10 @@ def _normalize_workspace_host(raw_host: str) -> str:
     return host.rstrip("/")
 
 
-def build_databricks_env(base_env: dict[str, str], dab_vars: dict[str, str]) -> dict[str, str]:
+def build_databricks_env(base_env: dict[str, str], auth_context: dict[str, str]) -> dict[str, str]:
     env = dict(base_env)
-    workspace_host = _normalize_workspace_host(dab_vars["workspace_host"])
-    workspace_resource_id = dab_vars["workspace_resource_id"]
+    workspace_host = auth_context["workspace_host"]
+    workspace_resource_id = auth_context["workspace_resource_id"]
 
     # Databricks unified auth for Azure service principal + workspace target.
     env["DATABRICKS_HOST"] = workspace_host
@@ -292,6 +329,7 @@ def main() -> None:
     print(f"Generating jobs bundle from source: {JOBS_GENERATOR}")
     generate_jobs_bundle(bundle_dir)
 
+    auth_context = build_auth_context(tf_outputs)
     dab_vars = build_dab_vars(tf_outputs, args.environment)
     cmd = build_command(bundle_dir, args.target, dab_vars)
 
@@ -303,7 +341,7 @@ def main() -> None:
         return
 
     print("\nRunning deploy...")
-    run_env = build_databricks_env(dict(os.environ), dab_vars)
+    run_env = build_databricks_env(dict(os.environ), auth_context)
     try:
         subprocess.run(cmd, cwd=bundle_dir, env=run_env, check=True)
     except subprocess.CalledProcessError as e:

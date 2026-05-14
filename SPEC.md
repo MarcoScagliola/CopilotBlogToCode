@@ -1,65 +1,108 @@
 # SPEC.md
 
 ## Source
-- URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-- Title: Secure Medallion Architecture Pattern on Azure Databricks (Part I)
-- Fetch date: 2026-05-14
+
+- Source URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+- Source title: Secure Medallion Architecture Pattern on Azure Databricks (Part I)
+- Article summary: The article presents a security-first Azure Databricks medallion pattern where Bronze, Silver, and Gold are isolated by separate storage, compute, and non-human identities. Unity Catalog, Lakeflow Jobs, Azure Key Vault, and Databricks Access Connectors provide the governance and execution model.
+- Inferred architecture: Azure Databricks workspace plus Unity Catalog, three per-layer ADLS Gen2 accounts, three per-layer service principals, three per-layer clusters, one orchestrator job, and one Key Vault-backed secret scope per environment.
 
 ## Architecture
-- High-level architecture pattern: secure medallion architecture with Bronze, Silver, and Gold layers; each layer is isolated by identity, compute, and storage.
-- Named components and roles: source systems feed Bronze ingestion; Silver standardizes and refines; Gold serves curated data for analytics consumers; orchestration is handled by Lakeflow Jobs.
-- Data flow direction and triggers: sequential multi-hop pipeline Bronze -> Silver -> Gold, inferred from article narrative and architecture diagram; trigger cadence is presented as batch-style job orchestration.
-- Stated or implied data volume/frequency/latency: not explicitly quantified in the article; implied operational model is scheduled, reliability-focused batch processing.
+
+- High-level architecture pattern: secure medallion architecture with Bronze, Silver, and Gold processing layers.
+- Named components and role each one plays:
+  - Bronze stores raw immutable data from source systems.
+  - Silver cleanses, filters, and reshapes Bronze data into business-ready models.
+  - Gold publishes curated analytics-ready outputs for dashboards, reports, or APIs.
+  - A Lakeflow orchestrator runs the three layer-specific jobs in order.
+- Data flow direction and triggers: sequential multi-hop flow from Bronze to Silver to Gold, orchestrated by Lakeflow Jobs; exact trigger type and schedule are `not stated in article`.
+- Data volume, frequency, and latency requirements: `not stated in article`.
 
 ## Azure services
-- Azure services named: Azure Databricks, ADLS Gen2 storage accounts, Azure Key Vault, Microsoft Entra ID managed identities/service principals, Unity Catalog, Azure Databricks Access Connector, and Lakeflow Jobs.
-- Service roles and configuration:
-  - Azure Databricks workspace hosts jobs, clusters, and Unity Catalog governance.
-  - ADLS Gen2 provides layer-segregated storage.
-  - Key Vault stores secrets consumed at runtime through Databricks secret scopes.
-  - Entra ID service principals provide per-layer execution identities.
-  - Access Connector ties managed identity-based access between Databricks and storage.
-- Networking posture: the article emphasizes secure design and least privilege but does not provide a full private endpoint/firewall matrix; network hardening specifics are deferred.
-- Region and redundancy: not stated in article.
+
+- Azure Databricks: execution platform for Lakeflow Jobs and Unity Catalog-governed data processing.
+- Azure Data Lake Storage Gen2: inferred from prose as the per-layer storage substrate; one storage account per Bronze, Silver, and Gold layer.
+- Azure Key Vault: stores runtime secrets and backs the Databricks secret scope.
+- Microsoft Entra ID: identity provider for deployment and per-layer service principals.
+- Databricks Access Connector: explicit integration point for system-assigned managed identities that connect Databricks to Azure Storage.
+- Networking posture:
+  - Secure Cluster Connectivity / No Public IP for compute is explicit.
+  - Private endpoints, firewall rules, service endpoints, VNet injection, and storage network ACL specifics are `not stated in article`.
+- Region and redundancy: `not stated in article`.
 
 ## Databricks
-- Workspace tier: not stated in article.
-- Workspace type: Azure Databricks workspace, inferred as enterprise secure configuration.
-- Secure cluster connectivity/no public IP: not explicitly stated as a mandatory deployment flag.
-- Unity Catalog usage: yes. Catalog-per-layer isolation is explicitly recommended; schema names and metastore identifier are not explicitly named.
-- Compute model: job clusters per layer, plus orchestration job, explicitly described.
-- Jobs and orchestration: separate jobs for Bronze, Silver, Gold, plus one orchestrator that enforces dependency order.
-- Lakeflow Spark Declarative Pipelines mode: Lakeflow Jobs are explicitly used; continuous vs triggered mode is not explicitly specified.
-- Task source format: implementation examples in the article are conceptually notebook/job driven; this repo maps to Python entrypoints for deployability.
-- Libraries/runtime/init scripts: not stated in article.
+
+- Workspace tier: `not stated in article`.
+- Workspace type: hybrid is listed in the analysis checklist, but the article does not explicitly state a workspace type; treat as `not stated in article`.
+- Secure Cluster Connectivity: explicit; deploy the workspace with No Public IP.
+- Unity Catalog usage: explicit yes.
+  - Separate catalogs for Bronze, Silver, and Gold are explicit.
+  - Specific catalog names, schema names, and metastore identifiers are `not stated in article`.
+- Compute model:
+  - Three dedicated layer-specific clusters are explicit.
+  - Bronze and Gold use general-purpose compute with Photon optional or often disabled.
+  - Silver uses general-purpose compute with Photon enabled.
+  - Exact node types, autoscaling bounds, and DBR versions are `not stated in article`.
+- Jobs and orchestration:
+  - Three Lakeflow Jobs, one per layer, are explicit.
+  - One orchestrator Lakeflow is explicit.
+  - Schedules, retry policy, concurrency, and notifications are `not stated in article`.
+- Lakeflow Spark Declarative Pipelines usage: `not stated in article`.
+- Task source format: notebooks are explicit in the text that discusses notebook permissions; Python file packaging is `not stated in article` and is a generator choice for this repository.
+- Libraries, runtime version, and init scripts: `not stated in article`.
 
 ## Data model
-- Source systems and formats: source systems are referenced conceptually; concrete source connector and wire format are not explicitly specified.
-- Target datasets by layer:
-  - Bronze: raw/landing-standardized ingestion tables.
-  - Silver: cleaned, validated, and conformed datasets.
-  - Gold: business-ready curated outputs for reporting/consumption.
-- Partitioning or optimization strategy: the article discusses managed tables and governance; explicit liquid clustering or z-ordering prescription is not provided.
-- Schema evolution/enforcement: data quality and progressive checks are emphasized conceptually; exact schema evolution policy is not detailed.
-- Data quality expectations/tests: progressive quality checks and smoke-test style operational validation are implied.
+
+- Source systems and formats: `not stated in article`.
+- Target tables or datasets grouped by layer:
+  - Bronze, Silver, and Gold datasets are explicit as a layered pattern.
+  - Concrete table names and business subject areas are `not stated in article`.
+- Partitioning and clustering strategy:
+  - Managed tables are the chosen table type.
+  - Automatic liquid clustering and Predictive Optimization are described as managed-table capabilities.
+  - The article does not state a required partitioning, liquid-clustering, or Z-order rule for this workload.
+- Schema evolution or enforcement rules: `not stated in article`.
+- Data quality expectations:
+  - Progressive data quality checks are explicit at the architectural level.
+  - Concrete validation rules, thresholds, or test suites are `not stated in article`.
 
 ## Security and identity
-- Identities used: per-layer Entra ID service principals/managed identities; Databricks Access Connector identity for storage integrations.
-- Secrets and storage location: secrets must be kept in Azure Key Vault and accessed from Databricks via AKV-backed secret scopes at runtime.
-- RBAC and Unity Catalog grants: least-privilege RBAC and UC privilege segmentation are required conceptually; exact role assignment matrix is not exhaustively enumerated.
-- Network boundaries and allowed paths: layer isolation and separation of duties are emphasized; detailed network path matrix is not provided.
+
+- Identities used:
+  - One deployment service principal is implied for CI/CD.
+  - Three per-layer Microsoft Entra ID managed service principals are explicit.
+  - Three Databricks Access Connectors with system-assigned managed identities are explicit.
+- Secrets referenced and where they are stored:
+  - Secrets are stored in Azure Key Vault.
+  - Databricks reads them through an AKV-backed secret scope.
+  - Specific secret keys and source-system credential inventory are `not stated in article`.
+- RBAC assignments and Unity Catalog grants:
+  - Least-privilege grants per layer are explicit.
+  - Browse, Read File, and Write File privileges on source and target storage are explicit.
+  - Exact Azure RBAC role names, UC grant statements, and group mappings are `not stated in article`.
+- Network boundaries: per-layer isolation is explicit; exact network routes and boundary implementation details are `not stated in article`.
 
 ## Operational concerns
-- Monitoring/logging/alerting: enable system tables and use Jobs monitoring UI for failures, duration, and spend visibility.
-- Cost controls: cluster separation and operational observability are discussed; concrete budget artifacts and reserved-capacity settings are not specified.
-- CI/CD approach in article: article states CI/CD implementation will be detailed in Part II and is deferred.
-- Backup/retention/disaster recovery: not stated in article.
+
+- Monitoring and logging:
+  - Databricks system tables and Jobs monitoring UI are explicit.
+  - Azure-native monitoring sinks such as Log Analytics or Application Insights are `not stated in article`.
+- Cost controls:
+  - Auto-termination, right-sizing, and cluster policies are explicit concepts.
+  - Concrete quotas, budgets, or reserved-capacity settings are `not stated in article`.
+- CI/CD and deployment approach:
+  - The article explicitly says CI/CD code will be covered in Part II.
+  - This repository generates its own workflows and treats CI/CD implementation as out of scope for Part I.
+- Backup, retention, and disaster recovery strategy: `not stated in article`.
 
 ## Out-of-scope markers
-- CI/CD deployment implementation details are deferred to the next article in the series.
-- Environment promotion and some operational challenges are acknowledged as future content.
+
+- CI/CD code for deploying the pattern is deferred to Part II.
+- Cluster reusability challenges are deferred to Part II.
+- Environment promotion is deferred to Part II.
 
 ## Other observations
-- The architecture prioritizes blast-radius reduction by combining per-layer identity, storage, and compute isolation.
-- Managed Unity Catalog tables are preferred in the article due to governance/abstraction benefits.
-- Secret handling guidance is strict: no secrets in code, logs, or job parameters; runtime retrieval only.
+
+- The article prefers managed tables over external tables because managed tables simplify maintenance, optimize automatically, and obscure physical layout in storage.
+- The article still requires external locations and storage credentials as part of the Unity Catalog setup model, which implies storage governance remains an important deployment concern even when managed tables are preferred.
+- The repository implementation uses Python entrypoints rather than notebooks because the article does not provide runnable notebook code; this is an implementation choice, not a stated article requirement.

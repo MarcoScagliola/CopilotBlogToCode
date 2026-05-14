@@ -29,6 +29,8 @@ def build_jobs_yaml() -> str:
           spark_python_task:
             python_file: ../src/setup/main.py
             parameters:
+              - --workspace-resource-id
+              - ${var.workspace_resource_id}
               - --bronze-catalog
               - ${var.bronze_catalog}
               - --silver-catalog
@@ -53,6 +55,12 @@ def build_jobs_yaml() -> str:
               - ${var.silver_access_connector_id}
               - --gold-access-connector-id
               - ${var.gold_access_connector_id}
+              - --bronze-principal-client-id
+              - ${var.bronze_principal_client_id}
+              - --silver-principal-client-id
+              - ${var.silver_principal_client_id}
+              - --gold-principal-client-id
+              - ${var.gold_principal_client_id}
 
     bronze_job:
       name: bronze-layer-${bundle.target}

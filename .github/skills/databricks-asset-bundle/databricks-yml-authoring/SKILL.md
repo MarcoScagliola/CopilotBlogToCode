@@ -1,19 +1,19 @@
 ---
 name: databricks-yml-authoring
-description: "Author or update the databricks.yml file for a Databricks Asset Bundle. Use when creating, replacing, or modifying databricks.yml — including bundle name, include directives, variables, workspace configuration, and targets. Enforces DAB constraints on fields that do not support variable interpolation (workspace.host, workspace.profile, workspace.auth_type, bundle.name) and requires full-file replacement rather than appending."
+description: "Author or update the databricks.yml file for a Databricks Asset Bundle. Use when creating, replacing, or modifying databricks.yml — including bundle name, include directives, variables, workspace configuration, and targets. Enforces DAB constraints on fields that do not support any form of interpolation (workspace.host, workspace.profile, workspace.auth_type, bundle.name) and requires full-file replacement rather than appending."
 ---
 
 # databricks.yml Authoring
 
 ## Purpose
-This skill governs the authoring of a single file: the bundle's `databricks-bundle\databricks.yml`.
+This skill governs the authoring of a single file: the bundle's `databricks-bundle/databricks.yml`.
 
-It is a companion to the broader `databricks-asset-bundle` skill. Use this skill whenever the task touches `databricks-bundle\databricks.yml` specifically. Use the broader skill for resource files, Python entrypoints, and end-to-end parameter flow.
+It is a companion to the broader `databricks-asset-bundle` skill. Use this skill whenever the task touches `databricks-bundle/databricks.yml` specifically. Use the broader skill for resource files, Python entrypoints, and end-to-end parameter flow.
 
-The path to `databricks-bundle\databricks.yml` depends on the repository layout. Do not assume a fixed location — follow the repo's existing structure.
+The path to `databricks-bundle/databricks.yml` depends on the repository layout. Do not assume a fixed location — follow the repo's existing structure.
 
 ## Singleton Rule
-`databricks-bundle\databricks.yml` is a singleton artifact. No top-level key (`bundle`, `include`, `variables`, `workspace`, `targets`, `resources`, `sync`, `artifacts`, `permissions`, `run_as`, `presets`) may appear more than once.
+`databricks-bundle/databricks.yml` is a singleton artifact. No top-level key (`bundle`, `include`, `variables`, `workspace`, `targets`, `resources`, `sync`, `artifacts`, `permissions`, `run_as`, `presets`) may appear more than once.
 
 When re-authoring this file:
 1. Always replace the entire file. Never append to it.
@@ -22,8 +22,8 @@ When re-authoring this file:
 
 A file with duplicated top-level keys silently breaks deploys even when the parser tolerates it.
 
-## Fields That Do Not Support Variable Interpolation
-The Databricks CLI resolves a small set of fields before variable substitution. `${var.*}` and `${bundle.*}` references in them will fail or be ignored. Treat these as literals only:
+## Fields That Do Not Support Any Interpolation
+The Databricks CLI resolves a small set of fields before any interpolation. **No `${...}` expression of any kind** — `${var.*}`, `${bundle.*}`, `${env.*}`, or any other — is permitted in these fields. The CLI fails with errors such as `invalid character "{" in host name` or `Interpolation is not supported for the field <name>`. Treat these as literals only:
 
 - `bundle.name`
 - `workspace.host`
@@ -39,11 +39,39 @@ Implications:
 **For `bundle.name`:** use a plain literal string. Do not encode environment, workload code, target name, or any `${...}` expression. Environment separation is the job of `targets:`, not the bundle name. Changing the name later orphans existing bundle state.
 
 **For `workspace.host` and other auth fields:** choose one of these patterns:
-1. Omit from YAML and supply via environment variable (`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, etc.). Preferred when the host is produced by an upstream system such as infrastructure-as-code output.
+
+1. **Omit the field entirely from YAML.** The Databricks CLI reads `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, etc. from the process environment directly. **Do not reference these env vars in YAML via `${env.*}`** — auth-field interpolation is forbidden regardless of the interpolation type. The deploy bridge must `export DATABRICKS_HOST=...` (or equivalent) before invoking `databricks bundle deploy`. Preferred when the host is produced by an upstream system such as infrastructure-as-code output.
 2. Hardcode a literal value per target under `targets.<env>.workspace:`.
 3. Hardcode a literal value at the top level when there is a single environment.
 
-Never write `workspace.host: ${var.*}`. If a task description implies dynamic host selection, the answer is always one of the three patterns above.
+Never write `workspace.host: ${var.*}`, `workspace.host: ${env.*}`, or any other interpolation form. If a task description implies dynamic host selection, the answer is always one of the three patterns above.
+
+### Examples for `workspace.host`
+
+**Forbidden:**
+```yaml
+workspace:
+  host: ${var.workspace_host}              # ${var.*} interpolation
+  host: "https://${env.DATABRICKS_HOST}"   # ${env.*} interpolation
+  host: ${bundle.target}-workspace.url     # ${bundle.*} interpolation
+```
+
+**Allowed:**
+```yaml
+# Pattern 1 — omit entirely (preferred when host comes from upstream)
+workspace:
+  # host field intentionally omitted; CLI reads DATABRICKS_HOST from env
+
+# Pattern 2 — literal per target
+targets:
+  dev:
+    workspace:
+      host: https://adb-1234567890.12.azuredatabricks.net
+
+# Pattern 3 — literal at top level (single-environment bundles only)
+workspace:
+  host: https://adb-1234567890.12.azuredatabricks.net
+```
 
 ## Conventional Structure
 Every `databricks.yml` this skill produces follows the conventional shape below. Only `bundle:` is strictly required; `include:`, `variables:`, and `targets:` are conventional and present in most real bundles. Other top-level blocks are optional and may be added when the task requires them, subject to the singleton rule.
@@ -70,10 +98,11 @@ targets:                           # optional, but required in practice for any 
 
 `workspace:`, `resources:`, `artifacts:`, `sync:`, `permissions:`, `run_as:`, and `presets:` blocks are optional and may be added when the task requires them, subject to the singleton rule.
 
-Things that must not appear in `databricks-bundle\databricks.yml`:
+Things that must not appear in `databricks-bundle/databricks.yml`:
 - `resources.jobs` set to a string file path — `resources.jobs` must be a map of job definitions. Use `include:` to bring in external resource files.
 - Any top-level key appearing more than once.
 - Secrets, tokens, connection strings, or other sensitive values.
+- Any `${...}` expression inside a non-interpolable field.
 
 ## Authoring Procedure
 Follow these steps in order.
@@ -101,7 +130,7 @@ Rules:
 1. One spelling per concept. Do not declare both `catalog` and `catalog_name` for the same value.
 2. Provide `default:` only for values that are genuinely environment-agnostic. Do not default environment-specific values — this produces silent misconfiguration when a target forgets to override.
 3. Do not declare variables that nothing downstream references. Dead variables mislead readers.
-4. Do not declare a variable that exists only to carry an auth-field value (e.g. a `workspace_host` variable when the deploy model uses `DATABRICKS_HOST`). Because auth fields cannot interpolate, such a variable has no legitimate consumer.
+4. **Do not declare a variable whose only purpose is to populate an auth field** (e.g. a `workspace_host` variable when the deploy model uses `DATABRICKS_HOST`). Because auth fields cannot interpolate any expression, such a variable has no legitimate consumer. Authentication values must flow through environment variables set by the deploy bridge, not through bundle variables.
 5. Every variable needs a `description:`.
 6. **Per-layer variable families MUST be enumerated explicitly per layer.** Declaring one layer's variable does not cause sibling layers to be inferred. If the architecture defines layers (bronze/silver/gold, raw/curated/serving, or any other naming), every per-layer variable must be declared once per layer, by name. The model is prone to declaring three or four of a per-layer family and silently missing the fifth, because the families share a naming pattern and the omission is not visually obvious.
 
@@ -124,7 +153,7 @@ Rules:
 1. Set `default: true` on at most one target — typically the lowest-risk environment — so that `databricks bundle deploy` without `--target` is safe.
 2. Use `mode: development` or `mode: production` as appropriate. These enable different CLI behaviors.
 3. Put target-specific variable values under `targets.<name>.variables:` only when they are truly static per environment. When values come from an upstream system, prefer passing them via the deploy bridge so that the bundle file itself stays environment-agnostic.
-4. If the deploy model uses `DATABRICKS_HOST` (preferred), no per-target host configuration is needed in this file. If using hardcoded per-target hosts instead, place a literal URL under `targets.<name>.workspace.host:`.
+4. If the deploy model uses `DATABRICKS_HOST` (preferred), no per-target host configuration is needed in this file. If using hardcoded per-target hosts instead, place a literal URL under `targets.<name>.workspace.host:`. Never use any `${...}` expression here.
 
 ### Step 5. Verify downstream consistency
 Two boundaries to check, with different rules at each.
@@ -149,11 +178,19 @@ After writing, verify:
 
 1. Each top-level key appears at most once.
 2. `bundle.name` is a literal string with no `${...}`.
-3. No `${var.*}` or `${bundle.*}` appears in any non-interpolable field (`workspace.host`, `workspace.profile`, `workspace.auth_type`, `bundle.name`).
+3. **No `${...}` expression of any kind** (`${var.*}`, `${bundle.*}`, `${env.*}`, or any other) appears in any non-interpolable field. The check is: grep for `${` inside the values of `bundle.name`, `workspace.host`, `workspace.profile`, `workspace.auth_type`, including their per-target overrides. Any match fails.
 4. `resources.jobs`, if present, is a map and not a string.
 5. Every declared variable has a `description:`.
 6. Every variable referenced downstream is declared.
 6a. `scripts/validate_bundle_parity.sh` exits zero. This is the executable equivalent of items 6 and 7. If the script reports a divergence, the divergence MUST be resolved in this file, not by editing the deploy bridge or by suppressing the script's output.
+6b. The interpolation check passes:
+```bash
+    # All non-interpolable fields must be literals — no ${...} of any kind
+    yq '.bundle.name, .workspace.host, .workspace.profile, .workspace.auth_type,
+        .targets[].workspace.host, .targets[].workspace.profile, .targets[].workspace.auth_type' \
+        databricks-bundle/databricks.yml | grep -E '\$\{' && exit 1 || exit 0
+```
+    If this exits non-zero, an interpolation has crept into a non-interpolable field.
 7. Every declared variable is referenced by something (bridge, resource file, or target override).
 8. No declared variable's only apparent consumer is an auth field (which cannot interpolate).
 9. `include:` entries match paths that exist in the repo.
@@ -187,34 +224,36 @@ targets:
 ## Anti-Patterns to Reject
 Reject any proposed change that would produce:
 
-1. `${...}` in any non-interpolable field (`bundle.name`, `workspace.host`, `workspace.profile`, `workspace.auth_type`).
+1. **`${...}` of any kind in any non-interpolable field** (`bundle.name`, `workspace.host`, `workspace.profile`, `workspace.auth_type`). This covers `${var.*}`, `${bundle.*}`, `${env.*}`, and any other interpolation syntax. The CLI resolves these fields before interpolation runs, so any expression fails.
 2. `resources.jobs` set to a string file path.
 3. Any top-level key appearing more than once.
 4. Secrets, tokens, or credentials embedded in the file.
 5. Environment-specific defaults on variables intended for use across environments.
 6. Variables declared with no downstream consumer.
-7. Variables whose only apparent purpose is to populate an auth field via interpolation.
+7. Variables whose only apparent purpose is to populate an auth field via interpolation. Authentication values flow through environment variables, never through bundle variables.
 8. **Per-layer variable families with missing layers.** If `bronze_principal_client_id` and `silver_principal_client_id` are declared, `gold_principal_client_id` must also be declared. Partial per-layer families are a deploy-time failure waiting to happen.
 
 ## Relationship to Other Skills
-- The broader `databricks-asset-bundle` skill owns resource files, runtime entrypoints, job topology, and end-to-end parameter flow. Return to it after `databricks-bundle\databricks.yml` work is complete for any cross-cutting bundle review. This skill defers to it for anything outside `databricks-bundle\databricks.yml`.
-- The `python-entrypoints` skill owns the argparse contracts of runtime entrypoints. The mapping between bundle variables here and argparse arguments there is made explicit in resource files; this skill is responsible only for what is declared in `databricks-bundle\databricks.yml`.
+- The broader `databricks-asset-bundle` skill owns resource files, runtime entrypoints, job topology, and end-to-end parameter flow. Return to it after `databricks-bundle/databricks.yml` work is complete for any cross-cutting bundle review. This skill defers to it for anything outside `databricks-bundle/databricks.yml`.
+- The `python-entrypoints` skill owns the argparse contracts of runtime entrypoints. The mapping between bundle variables here and argparse arguments there is made explicit in resource files; this skill is responsible only for what is declared in `databricks-bundle/databricks.yml`.
 - Any script that generates resource files must produce output whose `${var.*}` references are declared in this file.
-- Any deploy bridge must pass `--var` names that match the declarations in this file, and is the correct place to export auth-related environment variables.
+- Any deploy bridge must pass `--var` names that match the declarations in this file, and is the correct place to export auth-related environment variables (`DATABRICKS_HOST`, `DATABRICKS_TOKEN`, etc.).
 
 ## Review Checklist
 - [ ] File fully replaced, not appended.
 - [ ] Each top-level key appears at most once.
 - [ ] `bundle.name` is a literal.
-- [ ] No `${var.*}` or `${bundle.*}` in any non-interpolable field (`bundle.name`, `workspace.host`, `workspace.profile`, `workspace.auth_type`).
+- [ ] **No `${...}` expression of any kind** (`${var.*}`, `${bundle.*}`, `${env.*}`, or any other) in any non-interpolable field (`bundle.name`, `workspace.host`, `workspace.profile`, `workspace.auth_type`).
 - [ ] No variable exists solely to populate an auth field.
 - [ ] No `resources.jobs: <string>`.
 - [ ] Every declared variable has a `description:`.
 - [ ] Every declared variable is referenced downstream.
 - [ ] Every downstream `${var.*}` reference is declared.
 - [ ] `include:` entries match paths that exist in the repo.
-- [ ] Auth configuration is handled outside the file (env var or per-target literal).
+- [ ] Auth configuration is handled outside the file (env var exported by deploy bridge, or per-target literal).
 - [ ] Deploy bridge `--var` names match this file's variable names.
+- [ ] Deploy bridge exports `DATABRICKS_HOST` (and other auth env vars) before invoking the CLI, rather than passing them as `--var`.
 - [ ] `scripts/validate_bundle_parity.sh` exists and exits zero.
+- [ ] The interpolation check on non-interpolable fields exits zero.
 - [ ] Every per-layer variable family is declared for every layer the architecture defines (no partial families).
 - [ ] No secrets or tokens embedded.

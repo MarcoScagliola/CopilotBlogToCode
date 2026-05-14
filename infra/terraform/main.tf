@@ -1,23 +1,65 @@
 resource "azurerm_resource_group" "main" {
   name     = local.resource_group_name
   location = var.azure_region
+
+  tags = {
+    architecture = "secure-medallion"
+    environment  = var.environment
+    workload     = var.workload
+  }
 }
 
-resource "azurerm_storage_account" "layer" {
-  for_each = local.layer_names
-
-  name                     = substr(lower("st${var.workload}${var.environment}${local.region_abbreviation}${substr(each.key, 0, 1)}"), 0, 24)
+resource "azurerm_storage_account" "bronze" {
+  name                     = local.bronze_storage_account_name
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
   account_kind             = "StorageV2"
   is_hns_enabled           = true
+  shared_access_key_enabled = true
+  min_tls_version          = "TLS1_2"
 
   tags = {
-    workload    = var.workload
     environment = var.environment
-    layer       = each.key
+    layer       = "bronze"
+    workload    = var.workload
+  }
+}
+
+resource "azurerm_storage_account" "silver" {
+  name                     = local.silver_storage_account_name
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  is_hns_enabled           = true
+  shared_access_key_enabled = true
+  min_tls_version          = "TLS1_2"
+
+  tags = {
+    environment = var.environment
+    layer       = "silver"
+    workload    = var.workload
+  }
+}
+
+resource "azurerm_storage_account" "gold" {
+  name                     = local.gold_storage_account_name
+  resource_group_name      = azurerm_resource_group.main.name
+  location                 = azurerm_resource_group.main.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  account_kind             = "StorageV2"
+  is_hns_enabled           = true
+  shared_access_key_enabled = true
+  min_tls_version          = "TLS1_2"
+
+  tags = {
+    environment = var.environment
+    layer       = "gold"
+    workload    = var.workload
   }
 }
 
@@ -27,32 +69,36 @@ resource "azurerm_key_vault" "main" {
   resource_group_name        = azurerm_resource_group.main.name
   tenant_id                  = var.tenant_id
   sku_name                   = "standard"
-  purge_protection_enabled   = false
   soft_delete_retention_days = 90
+  purge_protection_enabled   = true
   enable_rbac_authorization  = true
+  public_network_access_enabled = true
 
   tags = {
-    workload    = var.workload
     environment = var.environment
+    workload    = var.workload
   }
 }
 
 resource "azurerm_databricks_workspace" "main" {
-  name                = local.workspace_name
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  sku                 = var.databricks_workspace_sku
+  name                        = local.workspace_name
+  resource_group_name         = azurerm_resource_group.main.name
+  location                    = azurerm_resource_group.main.location
+  sku                         = var.databricks_workspace_sku
+  public_network_access_enabled = true
+
+  custom_parameters {
+    no_public_ip = true
+  }
 
   tags = {
-    workload    = var.workload
     environment = var.environment
+    workload    = var.workload
   }
 }
 
-resource "azurerm_databricks_access_connector" "layer" {
-  for_each = local.layer_names
-
-  name                = "acn-${var.workload}-${var.environment}-${each.key}-${local.region_abbreviation}"
+resource "azurerm_databricks_access_connector" "bronze" {
+  name                = local.bronze_access_connector_name
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -61,49 +107,135 @@ resource "azurerm_databricks_access_connector" "layer" {
   }
 
   tags = {
-    workload    = var.workload
     environment = var.environment
-    layer       = each.key
+    layer       = "bronze"
+    workload    = var.workload
   }
 }
 
-resource "azuread_application" "layer" {
-  for_each = var.layer_sp_mode == "create" ? local.layer_names : toset([])
+resource "azurerm_databricks_access_connector" "silver" {
+  name                = local.silver_access_connector_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
 
-  display_name = "sp-${var.workload}-${var.environment}-${each.key}"
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    environment = var.environment
+    layer       = "silver"
+    workload    = var.workload
+  }
 }
 
-resource "azuread_service_principal" "layer" {
-  for_each = azuread_application.layer
+resource "azurerm_databricks_access_connector" "gold" {
+  name                = local.gold_access_connector_name
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
 
-  client_id = each.value.client_id
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    environment = var.environment
+    layer       = "gold"
+    workload    = var.workload
+  }
 }
 
-resource "azurerm_role_assignment" "storage_layer_sp" {
-  for_each = local.layer_names
+resource "azuread_application" "bronze" {
+  display_name = "sp-${var.workload}-${var.environment}-bronze"
+}
 
-  scope                = azurerm_storage_account.layer[each.key].id
+resource "azuread_application" "silver" {
+  display_name = "sp-${var.workload}-${var.environment}-silver"
+}
+
+resource "azuread_application" "gold" {
+  display_name = "sp-${var.workload}-${var.environment}-gold"
+}
+
+resource "azuread_service_principal" "bronze" {
+  client_id = azuread_application.bronze.client_id
+}
+
+resource "azuread_service_principal" "silver" {
+  client_id = azuread_application.silver.client_id
+}
+
+resource "azuread_service_principal" "gold" {
+  client_id = azuread_application.gold.client_id
+}
+
+resource "azurerm_role_assignment" "bronze_storage_bronze_sp" {
+  scope                = azurerm_storage_account.bronze.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = local.layer_principal_object_ids[each.key]
+  principal_id         = azuread_service_principal.bronze.object_id
 }
 
-resource "azurerm_role_assignment" "storage_access_connector" {
-  for_each = local.layer_names
-
-  scope                = azurerm_storage_account.layer[each.key].id
+resource "azurerm_role_assignment" "silver_storage_silver_sp" {
+  scope                = azurerm_storage_account.silver.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azurerm_databricks_access_connector.layer[each.key].identity[0].principal_id
+  principal_id         = azuread_service_principal.silver.object_id
 }
 
-resource "azurerm_role_assignment" "keyvault_layer_sp" {
-  for_each = local.layer_names
+resource "azurerm_role_assignment" "gold_storage_gold_sp" {
+  scope                = azurerm_storage_account.gold.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azuread_service_principal.gold.object_id
+}
 
+resource "azurerm_role_assignment" "silver_reads_bronze" {
+  scope                = azurerm_storage_account.bronze.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azuread_service_principal.silver.object_id
+}
+
+resource "azurerm_role_assignment" "gold_reads_silver" {
+  scope                = azurerm_storage_account.silver.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azuread_service_principal.gold.object_id
+}
+
+resource "azurerm_role_assignment" "bronze_storage_connector" {
+  scope                = azurerm_storage_account.bronze.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_databricks_access_connector.bronze.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "silver_storage_connector" {
+  scope                = azurerm_storage_account.silver.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_databricks_access_connector.silver.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "gold_storage_connector" {
+  scope                = azurerm_storage_account.gold.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_databricks_access_connector.gold.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "bronze_key_vault_user" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = local.layer_principal_object_ids[each.key]
+  principal_id         = azuread_service_principal.bronze.object_id
 }
 
-resource "azurerm_role_assignment" "keyvault_deployment_sp" {
+resource "azurerm_role_assignment" "silver_key_vault_user" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azuread_service_principal.silver.object_id
+}
+
+resource "azurerm_role_assignment" "gold_key_vault_user" {
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azuread_service_principal.gold.object_id
+}
+
+resource "azurerm_role_assignment" "deployment_key_vault_officer" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.sp_object_id

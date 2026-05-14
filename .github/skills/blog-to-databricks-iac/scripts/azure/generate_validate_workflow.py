@@ -21,8 +21,8 @@ jobs:
     environment: {github_environment}
 
     env:
-      AZURE_TENANT_ID: ${{{{ secrets.{tenant_secret} }}}}
-      AZURE_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} }}}}
+      AZURE_TENANT_ID: ${{{{ secrets.{tenant_secret} || vars.{tenant_secret} }}}}
+      AZURE_SUBSCRIPTION_ID: ${{{{ secrets.{subscription_secret} || vars.{subscription_secret} }}}}
 
     steps:
       - name: Checkout
@@ -30,8 +30,13 @@ jobs:
 
       - name: Ensure required environment secrets are set
         run: |
-          test -n "$AZURE_TENANT_ID" || (echo "Missing secret: {tenant_secret}" && exit 1)
-          test -n "$AZURE_SUBSCRIPTION_ID" || (echo "Missing secret: {subscription_secret}" && exit 1)
+          missing=()
+          [ -n "$AZURE_TENANT_ID" ] || missing+=("{tenant_secret}")
+          [ -n "$AZURE_SUBSCRIPTION_ID" ] || missing+=("{subscription_secret}")
+          if [ ${{#missing[@]}} -gt 0 ]; then
+            echo "Missing required values: ${{missing[*]}}"
+            exit 1
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
