@@ -34,10 +34,11 @@ resource "azurerm_storage_account" "gold" {
 }
 
 resource "azurerm_databricks_workspace" "main" {
-  name                = local.databricks_name
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  sku                 = "premium"
+  name                        = local.databricks_name
+  resource_group_name         = azurerm_resource_group.main.name
+  location                    = azurerm_resource_group.main.location
+  sku                         = "premium"
+  public_network_access_enabled = true
 }
 
 resource "azurerm_databricks_access_connector" "bronze" {
@@ -78,7 +79,7 @@ resource "azurerm_key_vault" "main" {
   sku_name                      = "standard"
   soft_delete_retention_days    = 90
   purge_protection_enabled      = true
-  rbac_authorization_enabled    = true
+  enable_rbac_authorization     = true
   public_network_access_enabled = true
 }
 

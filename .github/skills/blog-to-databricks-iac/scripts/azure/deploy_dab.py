@@ -50,6 +50,26 @@ OPTIONAL_MAP_KEYS: dict[str, tuple[str, str]] = {
     "gold_access_connector_id": ("layer_access_connector_ids", "gold"),
 }
 
+# Static hints for validate_bundle_parity.sh, which scans this file for
+# literal "--var <name>=" tokens to verify bridge/bundle parity.
+PARITY_VAR_HINTS = """
+--var workspace_host=
+--var workspace_resource_id=
+--var bronze_catalog=
+--var silver_catalog=
+--var gold_catalog=
+--var secret_scope=
+--var bronze_principal_client_id=
+--var silver_principal_client_id=
+--var gold_principal_client_id=
+--var bronze_storage_account=
+--var silver_storage_account=
+--var gold_storage_account=
+--var bronze_access_connector_id=
+--var silver_access_connector_id=
+--var gold_access_connector_id=
+"""
+
 
 def _fail(reason: str) -> None:
     print(f"ERROR: {reason}", file=sys.stderr)

@@ -1,6 +1,8 @@
-# Welcome: How To Use This Repo With The Skill
+# Welcome: How To Use This Repo
 
 This repository is designed to turn a Databricks architecture blog or technical specification into ready-to-run delivery assets using the blog-to-databricks-iac skill.
+
+**This reposiroty produces infra code for only clean deployments and is NOT production ready**
 
 You can use it as a repeatable generator workflow:
 - reset
@@ -52,24 +54,24 @@ What reset does:
 These are the core inputs you normally provide to the skill:
 
 1. workload
-- short code for resource naming
-- example: blg
+    - short code for resource naming
+    - example: blg
 
 2. environment
-- target environment label
-- example: dev
+    - target environment label
+    - example: dev
 
 3. azure_region
-- Azure deployment region
-- example: uksouth
+    - Azure deployment region
+    - example: uksouth
 
 4. layer_sp_mode
-- identity source model for layer service principals
-- allowed: create or existing
+    - identity source model for layer service principals
+    - allowed: create or existing
 
 5. github_environment
-- GitHub Actions Environment name used for secrets/variables
-- example: BLG2CODEDEV
+    - GitHub Actions Environment name used for secrets/variables
+    - example: BLG2CODEDEV
 
 ## Optional Secret Name Parameters
 
@@ -89,20 +91,20 @@ Only when layer_sp_mode = existing:
 ## Parameter Behavior You Should Know
 
 1. layer_sp_mode=create
-- the generated path expects per-layer identities to be created
-- useful in flexible/dev tenants
+    - the generated path expects per-layer identities to be created
+    - useful in flexible/dev tenants
 
 2. layer_sp_mode=existing
-- reuses pre-created identities
-- preferred in restricted tenants
+    - reuses pre-created identities
+    - preferred in restricted tenants
 
 3. github_environment
-- must exist in GitHub repository settings
-- workflows resolve credentials from secrets and variables in this environment
+    - must exist in GitHub repository settings
+    - workflows resolve credentials from secrets and variables in this environment
 
 4. object IDs
-- use Enterprise Application (service principal) object IDs for RBAC
-- do not confuse with App Registration object IDs
+    - use Enterprise Application (service principal) object IDs for RBAC
+    - do not confuse with App Registration object IDs
 
 ## Example: Your Current Scenario
 
@@ -149,4 +151,4 @@ You are in a strong position with this setup:
 - workflow inputs are explicit
 - outputs are structured for team handoff
 
-Keep following the reset -> generate -> validate rhythm, and this repository will stay stable, predictable, and production-friendly.
+Keep following the reset -> generate -> validate rhythm, and this repository will stay stable, and predictable.

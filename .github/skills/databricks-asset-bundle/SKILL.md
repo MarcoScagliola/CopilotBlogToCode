@@ -6,51 +6,43 @@ description: "Create, update, or review a Databricks Asset Bundle. Use when desi
 # Databricks Asset Bundle
 
 ## Overview
-This skill captures general guidance for creating and maintaining a Databricks Asset Bundle (DAB).
+General guidance for creating and maintaining a Databricks Asset Bundle (DAB).
 
 Use this skill when:
-- coordinating bundle-wide changes (artifact-specific authoring is delegated to leaf skills, see `## Delegated Skills`)
+- coordinating bundle-wide changes (artifact-specific authoring is delegated; see Delegated Skills)
 - creating or updating `resources/jobs.yml`
 - defining bundle variables and deployment targets
 - wiring infrastructure outputs into bundle deployment variables
 - designing orchestration with `run_job_task`
 - reviewing whether bundle structure, parameter flow, and job topology are coherent
 
-This skill is intentionally generic. Adapt it to the current repository structure and naming conventions instead of assuming a specific workload, layer model, or environment naming scheme.
+This skill is intentionally generic. Adapt it to the current repository's structure and naming conventions instead of assuming a specific workload, layer model, or environment naming scheme.
 
 ## Delegated Skills
-Some concerns within a bundle have their own dedicated skill and should be handled there rather than in this skill.
+Some concerns within a bundle have their own dedicated skill and should be handled there rather than in this skill. When the work involves one of these concerns, load the named skill and follow its guidance for that artifact; return to this skill for cross-artifact coordination.
 
-- **`databricks-yml-authoring`**: owns authoring of `databricks.yml` itself — bundle name, `include:` directives, variable declarations, target definitions, and workspace/auth configuration. Load this skill whenever the task creates or modifies `databricks.yml`. This skill (the broader asset-bundle skill) remains the router: use it to determine scope and sequencing, then defer `databricks.yml` work to `databricks-yml-authoring`.
-
-- **`python-entrypoints`**: owns authoring of individual Python entrypoint files (typically `src/<job>/main.py`). Load this skill whenever an entrypoint file is created or modified. Covers file structure, argparse contracts, secret handling, object-name construction, and the singleton rule that prevents duplicate-`main` regressions.
-
-Return to this skill after the delegated work is complete, for tasks that span multiple artifacts (resource files, entrypoints, parameter-flow review).
+- **`databricks-yml-authoring`** — owns `databricks.yml`: bundle name, `include:` directives, variable declarations, target definitions, and workspace/auth configuration. Includes the canonical downstream-consistency check (its Step 5) that enforces variable-name parity across the bundle.
+- **`python-entrypoints`** — owns individual Python entrypoint files (typically `src/<job>/main.py`): file structure, argparse contracts, secret handling, object-name construction, and the singleton rule that prevents duplicate-`main` regressions.
 
 ## Scope Boundary
-The Asset Bundle owns runtime assets deployed into Databricks, for example:
-- jobs
-- pipelines of job tasks
+The Asset Bundle owns runtime assets deployed into Databricks:
+- jobs and pipelines of job tasks
 - bundle variables and targets
 - runtime Python entrypoints
 - job notifications and schedules
 - job-level parameter passing
-- Unity Catalog objects that are purely runtime such as catalogs, schemas, and tables when those are not provisioned as infrastructure
+- Unity Catalog objects that are purely runtime (catalogs, schemas, tables) when those are not provisioned as infrastructure
 
-The Asset Bundle should not define infrastructure that belongs in Terraform or other IaC layers, for example:
+The Asset Bundle does not define infrastructure that belongs in Terraform or other IaC layers:
 - cloud resource groups or projects
 - storage accounts, buckets, or containers
 - Databricks workspace creation
 - Unity Catalog infrastructure objects that are provisioned as infrastructure
 - secret stores themselves
 
-Keep the separation clear:
-- infrastructure code provisions resources
-- the bundle deploys runtime jobs and code into an existing workspace
+Infrastructure code provisions resources; the bundle deploys runtime jobs and code into an existing workspace.
 
 ## Typical Repository Layout
-A common bundle structure looks like this:
-
 ```text
 databricks-bundle/
   databricks.yml
@@ -60,65 +52,55 @@ databricks-bundle/
     <job>/main.py
 ```
 
-If the current repo uses different folder names, preserve the repo's existing structure rather than forcing this layout.
+Preserve the repo's existing folder names rather than forcing this layout.
 
 ## Bundle Contract
 
 ### databricks.yml
-Authoring `databricks.yml` is delegated to the `databricks-yml-authoring` skill. Load that skill whenever `databricks.yml` is created or modified — it covers bundle name, `include:` directives, variable declarations, target definitions, workspace/auth configuration, and the constraints around fields that do not support variable interpolation.
-
-From this skill's perspective, treat `databricks.yml` as the declaration layer that:
+Treat `databricks.yml` as the declaration layer that:
 - lists the bundle's runtime variables
 - includes the resource files where jobs are defined
 - defines the set of deployment targets
 
-The responsibilities of this skill that touch `databricks.yml` are coordination concerns only:
-- ensuring the variables referenced by `resources/*.yml` and Python entrypoints are declared there
-- ensuring environment-specific values are declared as variables rather than hardcoded in jobs or code
-- ensuring target names used elsewhere exist in that file
+Coordination responsibilities at this skill's level:
+- variables referenced by `resources/*.yml` and Python entrypoints are declared in `databricks.yml`
+- environment-specific values are declared as variables rather than hardcoded in jobs or code
+- target names used elsewhere exist in that file
 
-Do not duplicate `databricks-yml-authoring` guidance here.
+Detailed authoring rules (structure, interpolation constraints, target `mode` placement) live in `databricks-yml-authoring`.
 
 ### Targets
-Targets commonly represent environments such as `dev`, `test`, or `prd`. Authoring rules for targets within `databricks.yml` (structure, `mode`, `default: true` placement, per-target workspace configuration) live in the `databricks-yml-authoring` skill. The guidance below covers how targets relate to the rest of the bundle.
+Targets commonly represent environments such as `dev`, `test`, or `prd`.
 
-General guidance:
-1. Development targets can use `mode: development`.
-2. Production targets can use `mode: production`.
-3. Keep target-specific host and deployment behavior inside targets rather than duplicating job definitions.
+- Development targets typically use `mode: development`.
+- Production targets typically use `mode: production`.
+- Keep target-specific host and deployment behavior inside targets rather than duplicating job definitions.
 
 ## Job Topology
-`resources/jobs.yml` should define the runtime jobs in a way that matches the processing model.
+`resources/jobs.yml` defines runtime jobs in a way that matches the processing model.
 
 Typical patterns:
-1. Independent jobs, where each job can run alone.
-2. Layered jobs, where output of one job becomes input to another.
-3. Orchestrator jobs, where one job triggers downstream jobs via `run_job_task`.
+1. **Independent jobs** — each job runs alone.
+2. **Layered jobs** — output of one job becomes input to another.
+3. **Orchestrator jobs** — one job triggers downstream jobs via `run_job_task`.
 
-Use `spark_python_task` when a task executes a Python entrypoint.
-Use `run_job_task` when a job should orchestrate other jobs instead of duplicating their logic.
+Use `spark_python_task` when a task executes a Python entrypoint. Use `run_job_task` when a job orchestrates other jobs rather than duplicating their logic.
 
 Guidance:
-1. Keep orchestration in `jobs.yml`, not inside Python code.
-2. Pass runtime values as explicit task parameters.
-3. Use email notifications or schedules only where operationally justified.
-4. Prefer simple, readable task graphs over deeply nested orchestration.
+- Keep orchestration in `jobs.yml`, not inside Python code.
+- Pass runtime values as explicit task parameters.
+- Use email notifications or schedules only where operationally justified.
+- Prefer simple, readable task graphs over deeply nested orchestration.
 
 ## Python Entrypoints
-Authoring of individual entrypoint files is delegated to the `python-entrypoints` skill. Load that skill whenever an entrypoint is created or modified — it covers file structure, argparse contracts, secret handling, object-name construction, and the singleton rule that prevents duplicate-`main` regressions.
-
-From this skill's perspective, treat entrypoints as leaves in the job graph:
+Treat entrypoints as leaves in the job graph:
 - they receive arguments from their resource file's parameter list
 - they perform a single bounded unit of work (ingest, transform, aggregate, audit)
 - they never orchestrate other jobs (orchestration belongs in resource files via `run_job_task`)
 
-Secret handling is part of the entrypoint authoring contract and is covered in the `python-entrypoints` skill. At the bundle level, ensure secrets never appear in `databricks.yml`, in `resources/*.yml` task parameters, or in any repository file, and keep secret key names consistent across environments.
-
-Do not duplicate `python-entrypoints` guidance here.
+Secrets never appear in `databricks.yml`, in `resources/*.yml` task parameters, or in any repository file. Secret key names stay consistent across environments. Secret-handling detail at the entrypoint level lives in `python-entrypoints`.
 
 ## Parameter Flow
-One of the most important bundle design concerns is keeping parameter flow consistent across layers.
-
 Every runtime value should be traceable through this chain:
 1. infrastructure output or operator-provided value
 2. bundle variable
@@ -126,76 +108,59 @@ Every runtime value should be traceable through this chain:
 4. Python `argparse` argument
 5. runtime object naming or logic
 
-Whenever a variable changes name, verify all affected layers:
-- bundle variable definitions in `databricks.yml` (authored per the `databricks-yml-authoring` skill)
+When a variable changes name anywhere in the chain, the matching change is needed in:
+- bundle variable definitions in `databricks.yml`
 - `jobs.yml` parameter lists
-- Python entrypoint argument parsing (authored per the `python-entrypoints` skill)
-- deployment bridge scripts
+- Python entrypoint argument parsing
+- the deployment bridge script
 - documentation
 
-The `databricks-yml-authoring` skill contains a downstream-consistency check (Step 5 of its procedure) that is the canonical place to enforce variable-name parity. Trigger it whenever a variable is renamed, added, or removed anywhere in the chain.
-
 ## Infrastructure Output Mapping
-Many repositories deploy the bundle using values emitted by infrastructure code.
+Many repositories deploy the bundle using values emitted by infrastructure code: workspace host, workspace resource identifier, catalog names, schema names, service principal or identity IDs, secret scope names.
 
-When that pattern is used:
-1. Define a clear mapping from infrastructure outputs to bundle variables.
-2. Keep that mapping in one bridge layer rather than scattering it across workflows and code.
-3. Support reading outputs either from live infrastructure state or from an exported JSON artifact when workflow stages are split.
+**The bundle's deployment bridge reads infrastructure outputs from a file artifact, not by invoking an IaC CLI.** The infrastructure stage writes its outputs to a machine-readable file (typically JSON). The bundle's deployment bridge reads that file and maps each value to a bundle variable. The bridge does not invoke `terraform`, `pulumi`, `bicep`, or any other IaC tool at deploy time.
 
-Typical values passed from infrastructure to bundle:
-- workspace host
-- workspace resource identifier
-- catalog names
-- schema names
-- service principal or identity IDs
-- secret scope names
+Why this matters:
+- The bundle deploy runner only needs the Databricks CLI and Python — not the IaC toolchain.
+- The contract between infrastructure and bundle stages is a self-describing file, not an implicit shared install. If the bundle runner image changes or the IaC tool's CLI is missing, the bundle deploy keeps working.
+- Bundle deploy failures stop being entangled with IaC toolchain failures (missing CLI, version drift, remote-state lookup errors).
 
-If the repo contains a deployment bridge script, keep it aligned with both:
-- the infrastructure output names
-- the variable names in `databricks.yml`
-
-When bridge changes add, rename, or remove `--var` flags, load the `databricks-yml-authoring` skill to update the variable declarations in `databricks.yml` accordingly. Bridge and bundle variable sets must stay in one-to-one correspondence.
+Keep the bridge in a single layer rather than scattered across workflows and code. When the bridge gains, renames, or removes an input or output, update the bridge, the bundle variable declarations in `databricks.yml` (per `databricks-yml-authoring`), and the infrastructure outputs together so the three stay in one-to-one correspondence.
 
 ## Deployment Model
-A bundle can be deployed in different ways. This skill supports both common patterns:
+A bundle can be deployed in different ways.
 
 ### 1. Single-Workflow Deployment
-One workflow or script:
-- applies infrastructure
-- reads infrastructure outputs
-- deploys the bundle
+One workflow or script applies infrastructure, captures its outputs, then deploys the bundle in sequence. Even in this mode, the bundle step reads outputs from the file the infrastructure step wrote — not by re-querying IaC state — so the bundle's deploy command does not depend on the IaC toolchain being available at the point of invocation.
 
 ### 2. Split Deployment
-One workflow deploys infrastructure and exports outputs.
-Another workflow downloads those outputs and deploys the bundle.
+One workflow deploys infrastructure and publishes a machine-readable outputs artifact. A separate workflow downloads that artifact and deploys the bundle.
 
-If the repo uses split workflows:
-1. Infrastructure stage should publish a machine-readable outputs artifact.
-2. Bundle stage should consume that artifact rather than re-running infrastructure logic.
-3. Authentication for bundle deploy should be consistent with the repository's preferred model.
+1. The infrastructure stage writes outputs to a file (e.g. `tf-outputs.json` via `terraform output -json`) and publishes it as an artifact through the CI system's artifact mechanism.
+2. The bundle stage downloads the artifact and reads it as a file. It does not invoke the IaC CLI, query remote state, or otherwise depend on the infrastructure toolchain at runtime.
+3. The bundle runner image installs only what the bundle deploy needs (typically the Databricks CLI and Python). A bundle deploy that fails with a missing-CLI error for an IaC tool is a signal the bridge script is reaching for live state and should be refactored to read the artifact instead.
 
 ## Bundle-Wide Principles
-These principles apply across all bundle artifacts. Specific authoring rules live in the relevant leaf skill.
-
 1. Job definitions are declarative, expressed in `jobs.yml` rather than Python.
 2. Environment-specific values flow through bundle variables, not hardcoded literals.
 3. Object names are catalog/schema-qualified rather than relying on implicit defaults.
 4. Transform and aggregate jobs default to deterministic write behavior; append is opt-in for genuine incremental ingestion.
 5. Entrypoints are leaves: focused on one unit of work, not orchestration.
 6. Bundle variables, deployment bridge mappings, and documentation stay aligned.
-7. The repo's existing naming conventions are preserved unless the task explicitly requires renaming.
+7. The bundle deploy reads infrastructure outputs from a file artifact, not by invoking IaC CLIs.
+8. The repo's existing naming conventions are preserved unless the task explicitly requires renaming.
 
 ## Required Review Checklist
 Before considering bundle changes complete, verify:
 
-1. `databricks.yml` has been reviewed against the `databricks-yml-authoring` skill's review checklist (singleton top-level keys, literal bundle name, no `${var.*}` in auth fields, no `resources.jobs: <string>`, variable parity with downstream consumers).
+1. `databricks.yml` has been reviewed against the `databricks-yml-authoring` review checklist (singleton top-level keys, literal bundle name, no `${var.*}` in auth fields, no `resources.jobs: <string>`, variable parity with downstream consumers).
 2. `resources/jobs.yml` references valid relative entrypoint paths.
-3. Each modified entrypoint has been reviewed against the `python-entrypoints` skill's review checklist (singleton structure, argparse parity with its resource file, runtime-only secret handling).
+3. Each modified entrypoint has been reviewed against the `python-entrypoints` review checklist (singleton structure, argparse parity with its resource file, runtime-only secret handling).
 4. The parameter chain is consistent end-to-end: bundle variables in `databricks.yml` → `${var.*}` references in `resources/jobs.yml` → argparse arguments in entrypoints.
-5. Infrastructure output names expected by the deployment bridge still exist.
-6. Workflow changes still preserve the intended infra-to-bundle handoff.
-7. The bundle remains consistent across all targets.
+5. Infrastructure output names expected by the deployment bridge still exist in the infrastructure outputs.
+6. The deployment bridge reads infrastructure outputs from a file artifact and does not invoke `terraform` or other IaC CLIs. The bundle deploy runner does not need the IaC toolchain installed.
+7. Workflow changes still preserve the intended infra-to-bundle handoff.
+8. The bundle remains consistent across all targets.
 
 ## Common Changes
 Use this skill for tasks such as:
@@ -206,6 +171,4 @@ Use this skill for tasks such as:
 - converting from a single deployment workflow to split workflows
 - coordinating multi-file changes where `databricks.yml`, `resources/*.yml`, and entrypoints must move together
 
-Tasks that also modify `databricks.yml` (adding or removing bundle variables, renaming variables, adjusting targets, changing `include:` paths, changing workspace/auth configuration) additionally load the `databricks-yml-authoring` skill for the `databricks.yml` portion of the work.
-
-Tasks that also modify Python entrypoints additionally load the `python-entrypoints` skill for the entrypoint portion of the work.
+Tasks that also modify `databricks.yml` additionally load `databricks-yml-authoring` for the `databricks.yml` portion of the work. Tasks that also modify Python entrypoints additionally load `python-entrypoints` for the entrypoint portion.

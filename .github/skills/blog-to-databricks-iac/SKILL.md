@@ -106,7 +106,7 @@ Rules:
 - Aim for one to three bullets per checklist item. Prefer precise short entries over prose.
 - Do not include content outside the checklist structure. If the article mentions something interesting but not covered by the checklist, add it to a final "Other observations" section rather than scattering it through the main sections.
 
-Every `not stated in article` entry in `SPEC.md` must appear as a TODO.md item when step 8 generates TODO.md. Step 8 depends on this mapping; do not resolve `not stated` values here by guessing.
+Every `not stated in article` entry in `SPEC.md` must appear as a TODO.md item when step 9 generates TODO.md. Step 9 depends on this mapping; do not resolve `not stated` values here by guessing.
 
 ### 3. Apply Terraform code generation best practices
 Before generating or validating Terraform code, load and apply the `terraform` skill
@@ -159,7 +159,7 @@ Resource name computation in the generated workflow (must be enforced by `genera
 
 - The deployment workflow uses `$rg_name`, `$kv_name`, `$workspace_name`, and `$storage_name_<layer>` shell variables to refer to canonical resources. These variables must be assigned in an early step (after the region-abbreviation computation, before any step that operates on Azure resources) and reused across all later steps — state preflight, soft-delete recovery, `terraform import`, output extraction. No step may compute or hardcode a resource name; every reference goes through the variable.
 
-- Workflow-invented suffixes such as `-platform` are not permitted. The `terraform` skill's Section 5 explicitly forbids them. If a generator currently emits `-platform`, that is a regression caught by validation invariants in 9.3.
+- Workflow-invented suffixes such as `-platform` are not permitted. The `terraform` skill's Section 5 explicitly forbids them. If a generator currently emits `-platform`, that is a regression caught by validation invariants in 10.3.
 
 Soft-delete recovery state machine (must be enforced by generated workflow):
 
@@ -205,7 +205,12 @@ Repeatability and restricted-tenant guardrails (mandatory):
 
 This workflow runs only `terraform apply` and uploads Terraform outputs as a workflow artifact named `terraform-outputs`. It also uploads a `deploy-context` artifact that records the intended DAB target, environment, and source commit SHA for downstream deployment.
 
-### 6. Generate DAB deploy workflow dynamically
+### 6. Apply DAB code generation best practices
+Before generating any Databricks Asset Bundle artifact (`deploy-dab.yml`, `databricks.yml`, `resources/*.yml`, or bundle entrypoints), load and apply the `databricks-asset-bundle` skill. It can be found at `.github/skills/blog-to-databricks-iac/databricks-asset-bundle`.
+
+The `databricks-asset-bundle` skill delegates `databricks.yml` authoring to `databricks-yml-authoring` and Python entrypoint authoring to `python-entrypoints`; load those leaf skills when the work involves the corresponding artifact. The orchestrator only needs to load `databricks-asset-bundle` directly — it routes onward.
+
+### 7. Generate DAB deploy workflow dynamically
 Create (or refresh) `.github/workflows/deploy-dab.yml` by running:
 
 ```bash
@@ -232,7 +237,7 @@ This workflow downloads the `terraform-outputs` and `deploy-context` artifacts f
 
 **Terraform output requirement**: `outputs.tf` must export `databricks_workspace_resource_id` (the full Azure resource ID of the workspace) in addition to `databricks_workspace_url`.
 
-### 7. Generate DAB jobs bundle dynamically
+### 8. Generate DAB jobs bundle dynamically
 Create (or refresh) `databricks-bundle/resources/jobs.yml` by running:
 
 ```bash
@@ -242,7 +247,7 @@ python .github/skills/blog-to-databricks-iac/scripts/azure/generate_jobs_bundle.
 
 This file is a generated artifact. Keep the source of truth in the generator script, not in manual edits to `jobs.yml`.
 
-### 8. Generate README and TODO from templates
+### 9. Generate README and TODO from templates
 
 Use the templates in `.github/skills/blog-to-databricks-iac/templates/`:
 - `README.md.template` -> `README.md`
@@ -275,7 +280,7 @@ This rule keeps the file durable: command syntax ages, but conceptual descriptio
 - The five sections (`Pre-deployment`, `Deployment-time inputs`, `Post-infrastructure`, `Post-DAB`, `Architectural decisions deferred`) are always present, even if a section ends up empty.
 - Every entry follows the entry-field contract above.
 - Substitute every `{...}` placeholder with the corresponding value from `## Inputs`.
-- The `<YOUR_*>` form (e.g. `<YOUR_CLIENT_ID>`) marks values the deployer fills in at run time. Do not substitute these at Step 8 — leave them as-is so the reader knows they are inputs to provide.
+- The `<YOUR_*>` form (e.g. `<YOUR_CLIENT_ID>`) marks values the deployer fills in at run time. Do not substitute these at Step 9 — leave them as-is so the reader knows they are inputs to provide.
 - For each `not stated in article` entry in `SPEC.md`, add a corresponding entry to one of: `Pre-deployment`, `Deployment-time inputs`, or `Architectural decisions deferred`. Use the `<from SPEC.md § ...>` shape shown in the template.
 - For workload-specific work, add per-workload entries under `Post-infrastructure` and `Post-DAB` using the comment guides as templates. Reference `SPEC.md` sections for workload-specific names rather than embedding them in the entry.
 - Per-workload entries follow the same entry-field contract as universal entries, including the same prohibition on commands.
@@ -288,23 +293,23 @@ This rule keeps the file durable: command syntax ages, but conceptual descriptio
 - Do not leave unresolved placeholders in output.
 - Do not include credentials, connection strings, or subscription IDs.
 
-### 9. Validate output before declaring generation complete
+### 10. Validate output before declaring generation complete
 
 This step has three parts. All of it must pass before the skill reports completion.
 
-#### 9.1 Acceptance criteria
+#### 10.1 Acceptance criteria
 
-The generated output must satisfy the following properties. Each is paired with the verification in 9.2 that proves it.
+The generated output must satisfy the following properties. Each is paired with the verification in 10.2 that proves it.
 
 | # | Criterion | Verified by |
 |---|---|---|
-| A | DAB is syntactically valid and uses placeholders for values that could not be determined from the article. | 9.2.3 (YAML parse), 9.2.4 (generator runtime) |
-| B | `TODO.md` contains only unresolved values and post-deployment actions — no duplication of content that appears in `README.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
-| C | Concerns are separated: no Terraform resources defined inside the DAB, no Databricks jobs or notebooks defined inside Terraform. | 9.2.6 (manual inspection) |
-| D | Generated code is not production-ready. No fictional resource IDs, no placeholder subscription IDs, no `example.com` hostnames. Every assumption made by the skill is recorded in `TODO.md` or `SPEC.md`. | 9.2.6 (manual inspection) |
-| E | Architectural invariants from 9.3 hold for every relevant generated file. | 9.2.5 (invariant checks) |
+| A | DAB is syntactically valid and uses placeholders for values that could not be determined from the article. | 10.2.3 (YAML parse), 10.2.4 (generator runtime) |
+| B | `TODO.md` contains only unresolved values and post-deployment actions — no duplication of content that appears in `README.md` or `SPEC.md`. | 10.2.7 (manual inspection) |
+| C | Concerns are separated: no Terraform resources defined inside the DAB, no Databricks jobs or notebooks defined inside Terraform. | 10.2.7 (manual inspection) |
+| D | Generated code is not production-ready. No fictional resource IDs, no placeholder subscription IDs, no `example.com` hostnames. Every assumption made by the skill is recorded in `TODO.md` or `SPEC.md`. | 10.2.7 (manual inspection) |
+| E | Architectural invariants from 10.3 hold for every relevant generated file. | 10.2.5 (invariant checks) |
 
-#### 9.2 Verification commands
+#### 10.2 Verification commands
 
 Report pass/fail for each. If any required check fails, stop and report the failures; do not archive until they are resolved.
 
@@ -314,7 +319,7 @@ Report pass/fail for each. If any required check fails, stop and report the fail
    - `terraform -chdir=infra/terraform validate`
 3. **YAML parse.** Parse every file under `.github/workflows/` and every `*.yml` file under `databricks-bundle/` using a YAML parser. Any parse error is a failure.
 4. **Generator runtime.** Execute each workflow generator and confirm file regeneration succeeds without error and produces a non-empty file.
-5. **Invariant checks.** Run the automated checks in 9.3. Two parity checks must pass; run both explicitly:
+5. **Invariant checks.** Run the automated checks in 10.3. Two parity checks must pass; run both explicitly:
 
 ```bash
    bash .github/skills/blog-to-databricks-iac/scripts/validate_workflow_parity.sh
@@ -323,7 +328,7 @@ Report pass/fail for each. If any required check fails, stop and report the fail
 
    The first asserts every required variable in `variables.tf` has a matching `TF_VAR_*` export in `deploy-infrastructure.yml`, and that every `terraform apply` invocation uses `-input=false`. The second asserts every `--var name=value` flag emitted by `deploy_dab.py` has a matching declaration under `variables:` in `databricks-bundle/databricks.yml` or any file matched by its `include:` glob, and vice versa.
 
-   Each item marked "validation-time" in 9.3 must have a corresponding check here. If you add a new validation-time invariant, extend an existing script or add a new one and reference it here.
+   Each item marked "validation-time" in 10.3 must have a corresponding check here. If you add a new validation-time invariant, extend an existing script or add a new one and reference it here.
    
 6. **Recovery handler completeness.** The deploy-infrastructure workflow's recovery handler must cover every `already exists - to be managed via Terraform` pattern documented in the Terraform skill's *State Management* subsection. This is a structural check, not a parity check: the handler does not have to import every possible Azure resource, but every documented pattern must either be handled by an explicit import branch or be acknowledged in a fallback branch that exits with a clear "manual intervention required" message.
 
@@ -339,14 +344,12 @@ Report pass/fail for each. If any required check fails, stop and report the fail
 
    If `scripts/validate_handler_coverage.sh` does not exist in the repository, the orchestrator MUST author it on the next regeneration. Treat its absence as a failed check.
 
-7. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
-8. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
-7. **Manual inspection.** Confirm criteria B, C, and D from 9.1 by reading the generated files. Record findings in the execution record (step 10).
+7. **Manual inspection.** Confirm criteria B, C, and D from 10.1 by reading the generated files. Record findings in the execution record (step 11).
 8. **Functional test (optional, environment-permitting).** Run the end-to-end medallion flow via the orchestrator job. Verify Bronze, Silver, and Gold target tables are created or updated. If the run is blocked by environment prerequisites, document exactly what is missing in `TODO.md` and mark this check as deferred — do not mark it failed.
 
-#### 9.3 Architectural invariants
+#### 10.3 Architectural invariants
 
-Each invariant is labelled by where it is enforced: **generation-time** means the relevant generator or template must produce code that satisfies it and validation does not re-check it; **validation-time** means 9.2 must contain a check that proves the invariant holds on the generated output.
+Each invariant is labelled by where it is enforced: **generation-time** means the relevant generator or template must produce code that satisfies it and validation does not re-check it; **validation-time** means 10.2 must contain a check that proves the invariant holds on the generated output.
 
 Workflow and credentials (validation-time):
 - Every required variable declared in `infra/terraform/variables.tf` (no `default`) has a corresponding `TF_VAR_<name>` export in the Terraform Apply step of `.github/workflows/deploy-infrastructure.yml`.
@@ -387,7 +390,7 @@ TODO.md (validation-time):
 - Every `not stated in article` entry in `SPEC.md` is reflected in `TODO.md`.
   Check: count `not stated in article` occurrences in `SPEC.md` and the count of `Source: SPEC.md` references in `TODO.md`; the latter should equal or exceed the former. (Manual inspection acceptable.)
 
-### 10. Archive execution record
+### 11. Archive execution record
 
 After validation completes, create `.github/prompts/plan-blogToDatabricksIac-YYYY-MM-DD-HHmmss.prompt.md` (timestamp reflects run start).
 
@@ -396,7 +399,7 @@ Contents:
 - Source blog URL and fetch timestamp
 - Path to SPEC.md and summary of architecture decisions
 - List of generated artifacts with relative paths
-- Validation results: which checks from step 9 passed, which were skipped, and why
+- Validation results: which checks from step 10 passed, which were skipped, and why
 - Unresolved items deferred to TODO.md (counts and section headings).
 
 Rules:
