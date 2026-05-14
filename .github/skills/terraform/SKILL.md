@@ -20,7 +20,8 @@ When generating code for cloud providers (AWS, Azure, GCP, etc.), prioritize dep
 - **Understand provider behavior**: Some providers may still use control-plane authentication paths even when data-plane has stricter settings enabled.
 - **Post-deployment hardening**: When stricter settings are desirable, make them configurable via input variables or document them as post-deployment hardening steps (e.g., "disable shared access keys after initial deployment").
 - **Include comments**: Explain why a property is set to a particular value if it reflects a provider compatibility decision or limitation.
-- **One-way properties are special.** Some resource properties are *immutable once enabled* at the cloud provider — once set to a particular value, they cannot be reverted. For these properties, "deployment-safe default" means *the value the resource will permanently carry from creation onward*, not *the value that makes the first deploy easiest to undo*. The latter framing is a trap: it produces code that works on the first deploy and fails on every subsequent modify. When generating code for such a property, set the permanent value explicitly and never offer the reversible-looking alternative. See *Key Vault Purge Protection* in Common Error Prevention for the canonical example. Other Azure properties in the same category include `enable_purge_protection` on Recovery Services Vaults, `enable_soft_delete` on Cognitive Services accounts, and immutability policies on Storage containers.
+- **One-way properties are special.** Some resource properties are *immutable once enabled* at the cloud provider — once set to a particular value, they cannot be reverted. For these properties, "deployment-safe default" means *the value the resource will permanently carry from creation onward*, not *the value that makes the first deploy easiest to undo*. The latter framing is a trap: it produces code that works on the first deploy and fails on every subsequent modify. When generating code for such a property, set the permanent value explicitly and never offer the reversible-looking alternative. See *Key Vault Purge Protection* in Common Error Prevention for the canonical example. Other Azure properties in the same category include `enable_purge_protection` on Recovery Services Vaults, `enable_soft_delete` on Cognitive Services accounts, immutability policies on Storage containers, and `soft_delete_retention_days` on Key Vault (the value used at vault creation cannot be modified afterward, even though the property is not framed as a boolean toggle).
+- **Security-tightening requires supporting infrastructure.** Some "secure default" properties only work when matching infrastructure is in place in the same configuration. For example, disabling public network access on a managed service typically requires private endpoints or VNet injection to be configured alongside. Customer-managed encryption keys require a Key Vault and access policies that the workload identity can use. Setting the security property without the supporting infrastructure produces a misconfigured resource that the cloud provider rejects at create time, often with cryptic errors. The generator MUST verify that any "more secure" property it sets has its supporting infrastructure in the same configuration. If the supporting infrastructure is out of scope for the current generation, the generator MUST keep the looser default and list the hardening as a post-deployment item in TODO.md.
 
 ### 2. Current vs. Deprecated Properties
 Terraform providers introduce new properties and deprecate old ones over time. During code generation:
@@ -29,6 +30,13 @@ Terraform providers introduce new properties and deprecate old ones over time. D
 - **Check provider documentation** for the latest property name before generating; deprecations can happen between minor releases.
 - **Avoid deprecated arguments** even if they still work; future provider versions may remove them without notice.
 - **Include comments** if a property choice reflects a provider version compatibility decision or avoids a deprecated alternative.
+- **Search mechanism**: Use provider docs or changelog to identify if a property was recently renamed.
+- **AzureRM property renames are version-dependent.** AzureRM 4.0 renamed many properties from `enable_<X>` to `<X>_enabled`. The generator MUST match the rename to the AzureRM version pinned in the configuration's `required_providers` block:
+  - `~> 3.x`: use `enable_<X>` (the new name does not exist yet — using it produces an `unsupported argument` error).
+  - `~> 4.x`: prefer `<X>_enabled` (the `enable_<X>` form still works but emits a deprecation warning).
+  - `~> 5.x` and later: only `<X>_enabled` works.
+  
+  Examples: `enable_rbac_authorization` ↔ `rbac_authorization_enabled`, `enable_purge_protection` ↔ `purge_protection_enabled`, `enable_soft_delete` ↔ `soft_delete_enabled`. Always check the provider version pin before choosing the form.
 
 ### 3. Tenant and Environment Flexibility
 Cloud deployments span different tenants, subscriptions, organizations, and regulatory environments. Generated code must adapt:
@@ -360,7 +368,10 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] State persistence strategy documented (remote backend, local/ephemeral state, or other)
 - [ ] Cleanup/teardown strategy provided for ephemeral state scenarios
 - [ ] `purge_protection_enabled = true` is set explicitly on every `azurerm_key_vault` resource — never omitted, never `false` — to prevent modify-time failures from the provider serialising the implicit default.
-- [ ] `enable_rbac_authorization = true` is set explicitly on every `azurerm_key_vault` resource; no `azurerm_key_vault_access_policy` resources appear anywhere in generated code.
+- [ ] Key Vault authorisation mode is set to RBAC explicitly: `enable_rbac_authorization = true` (AzureRM 3.x) or `rbac_authorization_enabled = true` (AzureRM 4.x or later), depending on the provider version pinned in the configuration. No `azurerm_key_vault_access_policy` resources appear anywhere in generated code.
+- [ ] AzureRM property naming matches the provider version pinned in `required_providers`. On `~> 3.x`, `enable_<X>` is correct; on `~> 4.x` or later, `<X>_enabled` is correct. Verify with: read the version pin first, then grep for the matching naming convention.
+- [ ] `soft_delete_retention_days` on `azurerm_key_vault` matches the value the vault will hold permanently. If a vault already exists with a different value, the generated code must reflect the existing value, not the desired new value, since the property is one-way.
+- [ ] Security-tightening properties (network access disabled, identity-only auth, customer-managed keys) only appear when the matching supporting infrastructure is in the same configuration. Otherwise the looser default is used and the hardening is listed in TODO.md.
 
 **Outputs and Documentation**
 - [ ] Critical resource identifiers (IDs, ARNs) exported as outputs

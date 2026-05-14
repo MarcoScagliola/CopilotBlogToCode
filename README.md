@@ -1,74 +1,58 @@
-# Secure Medallion Architecture on Azure Databricks (BLG DEV)
+# Secure Medallion Architecture on Azure Databricks
 
-This repository implements a security-first medallion pattern inspired by the source article:
-https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-
-The baseline separates Bronze, Silver, and Gold with dedicated jobs, layer-level identity boundaries, separate storage accounts, and Key Vault-backed secret handling.
+This repository implements the architecture described in [Secure Medallion Architecture Pattern on Azure Databricks (Part I)](https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268).
 
 ## What this repository deploys
 
-- Azure infrastructure with Terraform in `infra/terraform/`.
-- Databricks jobs and entrypoints via Databricks Asset Bundle in `databricks-bundle/`.
-- CI/CD workflows in `.github/workflows/`:
-	- `validate-terraform.yml`
-	- `deploy-infrastructure.yml`
-	- `deploy-dab.yml`
+The generated solution deploys a secure medallion data platform with strong layer isolation:
 
-## Key inputs used for this generation
+- Bronze, Silver, and Gold processing layers.
+- Per-layer storage accounts.
+- Per-layer execution identities (create mode or existing mode).
+- Databricks workspace and access connectors.
+- Key Vault for runtime secret retrieval.
+- Lakeflow-style Databricks jobs and an orchestrator job in a Databricks Asset Bundle.
 
-- `workload`: `blg`
-- `environment`: `dev`
-- `azure_region`: `uksouth`
-- `layer_sp_mode`: `create`
-- `github_environment`: `BLG2CODEDEV`
+Infrastructure is under `infra/terraform/`. Workload deployment assets are under `databricks-bundle/`. CI/CD workflows are under `.github/workflows/`.
 
-Default secret names used by generated workflows:
+## Inputs used for this generation run
+
+- Workload: `blg`
+- Environment: `dev`
+- Region: `uksouth`
+- Layer SP mode: `create`
+- GitHub Environment: `BLG2CODEDEV`
+
+## Required GitHub environment secrets
+
+Populate these in GitHub Environment `BLG2CODEDEV`:
+
 - `AZURE_TENANT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_CLIENT_ID`
 - `AZURE_CLIENT_SECRET`
 - `AZURE_SP_OBJECT_ID`
 
-## Repository layout
+Optional (used when dispatching infrastructure workflow with `layer_sp_mode=existing`):
 
-```text
-.
-|- infra/terraform/              Azure platform resources
-|- databricks-bundle/            Databricks bundle resources and src
-|- .github/workflows/            Validation and deployment workflows
-|- SPEC.md                       Article-derived architecture summary
-|- TODO.md                       Unresolved values and deferred decisions
-|- README.md                     This runbook
-```
+- `EXISTING_LAYER_SP_CLIENT_ID`
+- `EXISTING_LAYER_SP_OBJECT_ID`
 
-## Prerequisites
+## Workflow responsibilities
 
-- Azure subscription with required RBAC for the deployment principal.
-- GitHub Environment `BLG2CODEDEV` with required secrets.
-- Terraform CLI 1.6+ and Python 3.11+ for local validation.
+- `validate-terraform.yml`: static Terraform validation (`init -backend=false`, `validate`).
+- `deploy-infrastructure.yml`: Terraform apply and output artifact publishing.
+- `deploy-dab.yml`: deploys Databricks bundle using infrastructure outputs and Azure SP auth.
 
-## One-time setup
+## Deployment flow
 
-1. Create or choose the deployment service principal.
-2. Assign required Azure RBAC roles.
-3. Configure GitHub Environment secrets.
-4. Review `TODO.md` and resolve pre-deployment entries.
+1. Run `Validate Terraform`.
+2. Run `Deploy Infrastructure` with desired dispatch inputs.
+3. Ensure post-infra tasks in `TODO.md` are completed (secret scope + runtime secrets).
+4. Run `Deploy DAB`.
+5. Execute orchestrator/smoke tests in Databricks.
 
-## Workflow usage
+## Notes
 
-1. Run `Validate Terraform` to validate static Terraform syntax.
-2. Run `Deploy Infrastructure` with target inputs and recovery/state strategy.
-3. Run `Deploy DAB` using the infrastructure run artifact handoff.
-
-## Manual post-deploy actions
-
-- Create Databricks secret scope backed by Azure Key Vault.
-- Populate runtime secret keys in Key Vault.
-- Apply Unity Catalog grants and validate principal isolation.
-- Execute orchestrator and smoke-test jobs.
-
-## Assumptions
-
-- The article is architecture-oriented and leaves concrete source-system/runtime details unresolved.
-- Defaults in generated code are baseline-safe and require environment-specific hardening.
-- Non-destructive repeatable production operation should use remote Terraform state.
+- This repository intentionally treats unresolved environment-specific values as operator decisions tracked in `TODO.md`.
+- Security and governance assumptions are documented in `SPEC.md`.

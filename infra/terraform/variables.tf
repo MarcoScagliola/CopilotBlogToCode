@@ -1,10 +1,10 @@
 variable "tenant_id" {
-  description = "Azure tenant ID used by Terraform authentication."
+  description = "Azure tenant ID for provider authentication."
   type        = string
 }
 
 variable "subscription_id" {
-  description = "Azure subscription ID used by Terraform authentication."
+  description = "Azure subscription ID for deployment."
   type        = string
 }
 
@@ -20,27 +20,27 @@ variable "client_secret" {
 }
 
 variable "sp_object_id" {
-  description = "Deployment service principal object ID from Enterprise Applications."
+  description = "Deployment service principal object ID (Enterprise App object ID)."
   type        = string
 }
 
 variable "workload" {
-  description = "Short workload identifier used in resource naming."
+  description = "Workload short name used in resource naming."
   type        = string
 }
 
 variable "environment" {
-  description = "Deployment environment label."
+  description = "Environment name."
   type        = string
 }
 
 variable "azure_region" {
-  description = "Azure region where resources are deployed."
+  description = "Azure region for resource deployment."
   type        = string
 }
 
 variable "layer_sp_mode" {
-  description = "How layer principals are sourced (create or existing)."
+  description = "How layer identities are sourced: create or existing."
   type        = string
 
   validation {
@@ -50,47 +50,23 @@ variable "layer_sp_mode" {
 }
 
 variable "existing_layer_sp_client_id" {
-  description = "Client ID to use when layer_sp_mode is existing."
+  description = "Existing layer service principal client ID when layer_sp_mode=existing."
   type        = string
 }
 
 variable "existing_layer_sp_object_id" {
-  description = "Object ID to use when layer_sp_mode is existing."
+  description = "Existing layer service principal object ID when layer_sp_mode=existing."
   type        = string
 }
 
 variable "key_vault_recover_soft_deleted" {
-  description = "Controls AzureRM provider behavior for Key Vault soft-delete recovery."
+  description = "Whether provider recovers soft-deleted key vaults."
   type        = bool
   default     = true
 }
 
-variable "enable_shared_key" {
-  description = "Keep true for provider compatibility during provisioning; disable later as a hardening step."
-  type        = bool
-  default     = true
-}
-
-variable "bronze_catalog_name" {
-  description = "Bronze catalog name passed to DAB deploy bridge."
+variable "databricks_workspace_sku" {
+  description = "Databricks workspace SKU."
   type        = string
-  default     = "bronze"
-}
-
-variable "silver_catalog_name" {
-  description = "Silver catalog name passed to DAB deploy bridge."
-  type        = string
-  default     = "silver"
-}
-
-variable "gold_catalog_name" {
-  description = "Gold catalog name passed to DAB deploy bridge."
-  type        = string
-  default     = "gold"
-}
-
-variable "secret_scope_name" {
-  description = "Databricks secret scope name backed by Azure Key Vault."
-  type        = string
-  default     = "kv-dev-scope"
+  default     = "premium"
 }

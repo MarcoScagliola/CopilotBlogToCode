@@ -6,37 +6,53 @@ include:
 
 variables:
   workspace_host:
+    description: Databricks workspace URL.
   workspace_resource_id:
+    description: Databricks workspace Azure resource ID.
   bronze_catalog:
+    description: Bronze layer catalog.
   silver_catalog:
+    description: Silver layer catalog.
   gold_catalog:
-  secret_scope:
-  bronze_principal_client_id:
-  silver_principal_client_id:
-  gold_principal_client_id:
-  bronze_storage_account:
-  silver_storage_account:
-  gold_storage_account:
-  bronze_access_connector_id:
-  silver_access_connector_id:
-  gold_access_connector_id:
+    description: Gold layer catalog.
   bronze_schema:
+    description: Bronze layer schema.
     default: bronze
   silver_schema:
+    description: Silver layer schema.
     default: silver
   gold_schema:
+    description: Gold layer schema.
     default: gold
+  secret_scope:
+    description: Secret scope name backed by Azure Key Vault.
+  bronze_principal_client_id:
+    description: Bronze layer principal client ID.
+  silver_principal_client_id:
+    description: Silver layer principal client ID.
+  gold_principal_client_id:
+    description: Gold layer principal client ID.
+  bronze_storage_account:
+    description: Bronze storage account name.
+  silver_storage_account:
+    description: Silver storage account name.
+  gold_storage_account:
+    description: Gold storage account name.
+  bronze_access_connector_id:
+    description: Bronze access connector resource ID.
+  silver_access_connector_id:
+    description: Silver access connector resource ID.
+  gold_access_connector_id:
+    description: Gold access connector resource ID.
 
 targets:
   dev:
-    mode: development
     default: true
     workspace:
-      host: ${var.workspace_host}
-      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+      host: ${env.DATABRICKS_HOST}
+      root_path: /Shared/bundles/${bundle.name}/${bundle.target}
 
   prd:
-    mode: production
     workspace:
-      host: ${var.workspace_host}
-      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+      host: ${env.DATABRICKS_HOST}
+      root_path: /Shared/bundles/${bundle.name}/${bundle.target}

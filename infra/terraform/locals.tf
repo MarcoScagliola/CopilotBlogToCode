@@ -1,31 +1,46 @@
 locals {
-  region_abbrev_map = {
-    eastus     = "eus"
-    eastus2    = "eus2"
-    westus2    = "wus2"
-    westeurope = "weu"
-    northeurope = "neu"
-    uksouth    = "uks"
-    ukwest     = "ukw"
+  region_abbreviations = {
+    eastus       = "eus"
+    eastus2      = "eus2"
+    westus2      = "wus2"
+    westeurope   = "weu"
+    northeurope  = "neu"
+    uksouth      = "uks"
+    ukwest       = "ukw"
   }
 
-  azure_region_abbrev = lookup(local.region_abbrev_map, lower(var.azure_region), replace(lower(var.azure_region), " ", ""))
+  region_abbreviation = lookup(local.region_abbreviations, var.azure_region, replace(var.azure_region, " ", ""))
 
-  rg_name = "rg-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
+  layer_names = toset(["bronze", "silver", "gold"])
 
-  key_vault_name_raw = "kv-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
-  key_vault_name     = substr(replace(lower(local.key_vault_name_raw), "_", ""), 0, 24)
+  name_suffix = "${var.workload}-${var.environment}-${local.region_abbreviation}"
 
-  workspace_name = "dbw-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
+  resource_group_name = "rg-${local.name_suffix}"
+  workspace_name      = "dbw-${local.name_suffix}"
+  key_vault_name      = substr(replace("kv-${local.name_suffix}", "_", ""), 0, 24)
+  secret_scope_name   = "kv-${var.environment}-scope"
 
-  bronze_storage_name_raw = "st${var.workload}${var.environment}bronze${local.azure_region_abbrev}"
-  silver_storage_name_raw = "st${var.workload}${var.environment}silver${local.azure_region_abbrev}"
-  gold_storage_name_raw   = "st${var.workload}${var.environment}gold${local.azure_region_abbrev}"
+  catalog_names = {
+    bronze = "bronze_${var.environment}"
+    silver = "silver_${var.environment}"
+    gold   = "gold_${var.environment}"
+  }
 
-  bronze_storage_name = substr(replace(lower(local.bronze_storage_name_raw), "-", ""), 0, 24)
-  silver_storage_name = substr(replace(lower(local.silver_storage_name_raw), "-", ""), 0, 24)
-  gold_storage_name   = substr(replace(lower(local.gold_storage_name_raw), "-", ""), 0, 24)
+  schema_names = {
+    bronze = "bronze"
+    silver = "silver"
+    gold   = "gold"
+  }
 
-  shared_layer_sp_client_id = var.existing_layer_sp_client_id != "" ? var.existing_layer_sp_client_id : var.client_id
-  shared_layer_sp_object_id = var.existing_layer_sp_object_id != "" ? var.existing_layer_sp_object_id : var.sp_object_id
+  layer_principal_client_ids = var.layer_sp_mode == "create" ? {
+    for layer, app in azuread_application.layer : layer => app.client_id
+  } : {
+    for layer in local.layer_names : layer => var.existing_layer_sp_client_id
+  }
+
+  layer_principal_object_ids = var.layer_sp_mode == "create" ? {
+    for layer, sp in azuread_service_principal.layer : layer => sp.object_id
+  } : {
+    for layer in local.layer_names : layer => var.existing_layer_sp_object_id
+  }
 }
