@@ -1,54 +1,42 @@
 bundle:
-  name: blg-medallion
+  name: secure-medallion-blg
 
 include:
   - resources/*.yml
 
 variables:
   workspace_host:
-    description: Databricks workspace host URL
   workspace_resource_id:
-    description: Azure resource ID of the Databricks workspace
   bronze_catalog:
-    description: Bronze Unity Catalog catalog name
   silver_catalog:
-    description: Silver Unity Catalog catalog name
   gold_catalog:
-    description: Gold Unity Catalog catalog name
   secret_scope:
-    description: Databricks secret scope name
   bronze_principal_client_id:
-    description: Application (client) ID of the bronze Service Principal
   silver_principal_client_id:
-    description: Application (client) ID of the silver Service Principal
   gold_principal_client_id:
-    description: Application (client) ID of the gold Service Principal
   bronze_storage_account:
-    description: Bronze storage account name
   silver_storage_account:
-    description: Silver storage account name
   gold_storage_account:
-    description: Gold storage account name
   bronze_access_connector_id:
-    description: Bronze access connector Azure resource ID
   silver_access_connector_id:
-    description: Silver access connector Azure resource ID
   gold_access_connector_id:
-    description: Gold access connector Azure resource ID
   bronze_schema:
-    description: Bronze schema name
-    default: core
+    default: bronze
   silver_schema:
-    description: Silver schema name
-    default: core
+    default: silver
   gold_schema:
-    description: Gold schema name
-    default: core
+    default: gold
 
 targets:
   dev:
     mode: development
     default: true
+    workspace:
+      host: ${var.workspace_host}
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
 
   prd:
     mode: production
+    workspace:
+      host: ${var.workspace_host}
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}

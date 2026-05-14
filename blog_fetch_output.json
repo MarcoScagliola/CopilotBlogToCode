@@ -1,18 +1,55 @@
-{
-  "title": "Secure Medallion Architecture Pattern on Azure Databricks (Part I)",
+﻿{
   "url": "https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268",
-  "meta_description": "A security-first medallion architecture pattern for Azure Databricks using Bronze, Silver, and Gold layers, Unity Catalog, managed identities, and Azure Key Vault.",
+  "title": "California Consumer Privacy Act (CCPA) Opt-Out Icon",
+  "meta_description": "This article presents a security-first pattern for Azure Databricks: a Medallion Architecture where Bronze, Silver and Gold each run as their Lakeflow Job...",
   "headings": [
-    { "level": 2, "text": "Medallion Architecture in brief" },
-    { "level": 2, "text": "Security challenges in Lakehouse pipelines" },
-    { "level": 2, "text": "Secure Lakeflow Design - Isolate Each Medallion Layer" },
-    { "level": 2, "text": "Final Words & next steps" }
+    {
+      "level": 2,
+      "text": "Blog Post"
+    },
+    {
+      "level": 1,
+      "text": "Secure Medallion Architecture Pattern on Azure Databricks (Part I)"
+    },
+    {
+      "level": 3,
+      "text": "Share this page"
+    }
   ],
   "paragraphs": [
-    "This article presents a secure Medallion Architecture for Azure Databricks.",
-    "The pattern uses Bronze, Silver, and Gold layers with dedicated identities, storage, and compute.",
-    "Unity Catalog and Azure Key Vault are key parts of the governance and secret-management model.",
-    "Lakeflow Jobs provide orchestration across layer-isolated jobs."
+    "Disclaimer: The views in this article are my own and do not represent Microsoft or Databricks.",
+    "This article is part of a series focused on deploying a secure Medallion Architecture. The series follows a top-down approach , beginning with a high-level architectural perspective and gradually drilling down into implementation details using repeatable, code.",
+    "Within a Lakehouse, strong security and access controls are essential to govern and protect data processing. This article introduces a deployment pattern for Azure Databricks that uses Lakeflow Jobs and the Medallion Architecture to enforce robust isolation across pipelines. Each pipeline stage runs as its own job per layer, executed by a dedicated Microsoft Entra ID service principal with tightly scoped, least-privilege access.",
+    "In short, we apply least privilege consistently across Bronze, Silver, and Gold using Azure components such as ADLS Gen2, Managed Identities (service principals), Azure Key Vault, Lakeflow Jobs, and Unity Catalog to build a secure, auditable platform. We also advocate separation of duties by segregating clusters and using separate storage accounts per layer.",
+    "The \u2018Medallion Architecture\u2019 provides a data archetype for managing data across its entire lifecycle ( from inception to enrichment, integration, and consumption) organised into sequential, compartmentalised data layers. Data disposition is typically handled by an additional tier, which not shown in the diagram below.",
+    "The multi-hop design increases business value at each step, simplifies troubleshooting, and enables progressive data quality checks. To fully realise these benefits, pipelines must embed strong security so that each layer is protected and only authorised processes can access it.",
+    "Running an end-to-end Lakeflow under a single identity with broad permissions creates security risks and governance challenges, such as:",
+    "This article proposed an archetype that decouple pipeline execution from any single human identity and securely compartmentalizing access across the Medallion Architecture.",
+    "Managed identities are special service principal objects in Microsoft Entra ID that simplify and secure authentication between Azure resources and services. By utilising managed identities for automation, we gain several key benefits:",
+    "The Azure Databricks Access Connector integrates a system-assigned managed identity (SAMI) with a Databricks workspace, enabling secure, least-privilege access to Unity Catalog governed data in line with identity and access-management best practices.",
+    "Enforce least privilege by splitting the end-to-end pipeline into three(3) Databricks Lakeflow jobs one per Medallion layer plus and overarching Lakeflow that acts as the orchestrator of the three(3) underline Lakeflow jobs.",
+    "This creates clear separation of duties. No single principal, cluster, or job has full access across all layers. If Bronze code is compromised, it cannot read or corrupt Silver and Gold because the Bronze identity lacks access to those locations. The same design prevents accidental overwrites (e.g., a Silver bug attempting to write into Gold will be blocked by permissions). As shown in the image below.",
+    "Provisioning Steps:",
+    "Apply the same isolation to compute: provision three(3) dedicated clusters, one(1) per layer, instead of sharing a single cluster.",
+    "The key benefits of a this multi-cluster approach are:",
+    "Service principals can be Databricks or Microsoft Entra ID managed.",
+    "In this pattern we authenticate via Microsoft Entra ID tokens, using Entra-managed service principals.",
+    "Provisioning steps:",
+    "Connect the components and complete configuration:",
+    "Please find below an high-level view on the cluster policies characteristics.",
+    "Under Unity Catalog, follow the catalog.schema.table convention. To preserve isolation, create separate catalogs for Bronze, Silver, and Gold. This also supports defining sub-layers, enabling smaller, incremental movements and transformations. In terms of table types we have the following choice:",
+    "Note: For managed tables, Unity Catalog writes data to Azure Storage using GUID-based paths for catalogs, schemas, and tables. This obfuscates the physical layout, making it harder to infer table names from storage alone.",
+    "Example folder structure you might see in ADLS Gen2:",
+    "Therefore Azure Databricks Managed Tables will be our choice in the design.",
+    "Keep secrets out of code, repos, and job parameters. Store them in Azure Key Vault (AKV) and read them at runtime from notebooks via AKV-backed secret scopes.",
+    "Provisioning steps( for each environment):",
+    "Read secrets only at runtime using dbutils.secrets.get(...). Keep them in memory and, when you must pass them on, prefer process environment variables over string literals. Implement rotation policies in Azure Key Vault (AKV) so secrets rotate without code changes. Never hard-code secrets or commit them to Git. Do not print or log secret values, avoid display(api_token) and any f-strings that echo them, and don\u2019t pass secrets as plain job parameters, as these appear in run history. Operate with one secret scope per environment and use consistent key names (e.g., api-token, db-password).",
+    "Enable AKV diagnostic logs for audit and review access regularly. Always validate secret access in a non-production workspace before promoting.",
+    "Build visibility in from day one. Enable system tables and use the Jobs monitoring UI so you can track failures, durations, and spend per Medallion layer.",
+    "What to enable",
+    "Pairing Medallion layering with per-layer identities, storage, and compute enforces least privilege end to end, reduces blast radius, and makes operations auditable and predictable. Unity Catalog provides the governance backbone with External Locations, storage credentials, managed tables and system-table observability so you can track reliability and cost by layer. While Lakeflow Jobs provide orchestration, retries, alerts, of data pipelines.",
+    "In Part II, we\u2019ll publish CI/CD code to deploy this pattern and address a few known challenges, like cluster reusability Lakeflow jobs and environment promotion."
   ],
-  "code_blocks": []
+  "code_blocks": [],
+  "cloud_hint": "azure"
 }

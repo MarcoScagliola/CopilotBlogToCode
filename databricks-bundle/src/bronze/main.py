@@ -1,33 +1,30 @@
-"""Build a bronze layer seed table for secure medallion pipelines."""
+from __future__ import annotations
 
 import argparse
-import logging
-
-from pyspark.sql import SparkSession
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Populate bronze sample table")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Bronze ingestion placeholder for secure medallion pattern.")
     parser.add_argument("--catalog", required=True)
     parser.add_argument("--schema", required=True)
     parser.add_argument("--secret-scope", required=True)
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    spark = SparkSession.builder.getOrCreate()
-    table_name = f"`{args.catalog}`.`{args.schema}`.`transactions_bronze`"
 
-    data = [
-        (1, "A100", 120.5, "GBP"),
-        (2, "B200", 99.9, "GBP"),
-        (3, "C300", 240.0, "GBP"),
-    ]
-    df = spark.createDataFrame(data, ["id", "account_id", "amount", "currency"])
-    df.write.mode("overwrite").format("delta").saveAsTable(table_name)
-
-    log.info("Bronze table ready: %s using secret scope %s", table_name, args.secret_scope)
+def main() -> None:
+    args = parse_args()
+    spark.sql(f"CREATE CATALOG IF NOT EXISTS `{args.catalog}`")
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS `{args.catalog}`.`{args.schema}`")
+    spark.sql(
+        f"""
+        CREATE TABLE IF NOT EXISTS `{args.catalog}`.`{args.schema}`.`raw_events`
+        USING DELTA
+        AS SELECT
+          current_timestamp() AS ingested_at,
+          'bootstrap' AS source_name,
+          1 AS event_count
+        """
+    )
 
 
 if __name__ == "__main__":

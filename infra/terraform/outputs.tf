@@ -15,38 +15,26 @@ output "databricks_workspace_resource_id" {
 }
 
 output "bronze_catalog_name" {
-  value = local.bronze_catalog_name
+  value = var.bronze_catalog_name
 }
 
 output "silver_catalog_name" {
-  value = local.silver_catalog_name
+  value = var.silver_catalog_name
 }
 
 output "gold_catalog_name" {
-  value = local.gold_catalog_name
-}
-
-output "bronze_schema" {
-  value = local.bronze_schema_name
-}
-
-output "silver_schema" {
-  value = local.silver_schema_name
-}
-
-output "gold_schema" {
-  value = local.gold_schema_name
+  value = var.gold_catalog_name
 }
 
 output "secret_scope_name" {
-  value = local.secret_scope_name
+  value = var.secret_scope_name
 }
 
 output "layer_principal_client_ids" {
   value = {
-    bronze = local.bronze_layer_sp_client_id
-    silver = local.silver_layer_sp_client_id
-    gold   = local.gold_layer_sp_client_id
+    bronze = local.shared_layer_sp_client_id
+    silver = local.shared_layer_sp_client_id
+    gold   = local.shared_layer_sp_client_id
   }
 }
 

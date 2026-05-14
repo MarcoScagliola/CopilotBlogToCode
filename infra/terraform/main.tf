@@ -1,48 +1,67 @@
 resource "azurerm_resource_group" "main" {
-  name     = local.resource_group_name
+  name     = local.rg_name
   location = var.azure_region
 }
 
 resource "azurerm_storage_account" "bronze" {
-  name                     = local.bronze_storage_account_name
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  account_kind             = "StorageV2"
-  is_hns_enabled           = true
+  name                            = local.bronze_storage_name
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  shared_access_key_enabled       = var.enable_shared_key
+  is_hns_enabled                  = true
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
 }
 
 resource "azurerm_storage_account" "silver" {
-  name                     = local.silver_storage_account_name
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  account_kind             = "StorageV2"
-  is_hns_enabled           = true
+  name                            = local.silver_storage_name
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  shared_access_key_enabled       = var.enable_shared_key
+  is_hns_enabled                  = true
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
 }
 
 resource "azurerm_storage_account" "gold" {
-  name                     = local.gold_storage_account_name
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  account_kind             = "StorageV2"
-  is_hns_enabled           = true
+  name                            = local.gold_storage_name
+  resource_group_name             = azurerm_resource_group.main.name
+  location                        = azurerm_resource_group.main.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  shared_access_key_enabled       = var.enable_shared_key
+  is_hns_enabled                  = true
+  min_tls_version                 = "TLS1_2"
+  allow_nested_items_to_be_public = false
 }
 
-resource "azurerm_databricks_workspace" "main" {
-  name                        = local.databricks_name
-  resource_group_name         = azurerm_resource_group.main.name
-  location                    = azurerm_resource_group.main.location
-  sku                         = "premium"
+resource "azurerm_key_vault" "main" {
+  name                          = local.key_vault_name
+  location                      = azurerm_resource_group.main.location
+  resource_group_name           = azurerm_resource_group.main.name
+  tenant_id                     = var.tenant_id
+  sku_name                      = "standard"
+  purge_protection_enabled      = true
+  soft_delete_retention_days    = 90
+  enable_rbac_authorization     = true
   public_network_access_enabled = true
 }
 
+resource "azurerm_databricks_workspace" "main" {
+  name                                  = local.workspace_name
+  resource_group_name                   = azurerm_resource_group.main.name
+  location                              = azurerm_resource_group.main.location
+  sku                                   = "premium"
+  public_network_access_enabled         = true
+  network_security_group_rules_required = "NoAzureDatabricksRules"
+}
+
 resource "azurerm_databricks_access_connector" "bronze" {
-  name                = "adb-ac-${local.workload_sanitized}-${local.environment_short}-bronze-${local.region_abbrev}"
+  name                = "ac-bronze-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -52,7 +71,7 @@ resource "azurerm_databricks_access_connector" "bronze" {
 }
 
 resource "azurerm_databricks_access_connector" "silver" {
-  name                = "adb-ac-${local.workload_sanitized}-${local.environment_short}-silver-${local.region_abbrev}"
+  name                = "ac-silver-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -62,7 +81,7 @@ resource "azurerm_databricks_access_connector" "silver" {
 }
 
 resource "azurerm_databricks_access_connector" "gold" {
-  name                = "adb-ac-${local.workload_sanitized}-${local.environment_short}-gold-${local.region_abbrev}"
+  name                = "ac-gold-${var.workload}-${var.environment}-${local.azure_region_abbrev}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
@@ -71,79 +90,31 @@ resource "azurerm_databricks_access_connector" "gold" {
   }
 }
 
-resource "azurerm_key_vault" "main" {
-  name                          = local.key_vault_name
-  location                      = azurerm_resource_group.main.location
-  resource_group_name           = azurerm_resource_group.main.name
-  tenant_id                     = var.tenant_id
-  sku_name                      = "standard"
-  soft_delete_retention_days    = 90
-  purge_protection_enabled      = true
-  enable_rbac_authorization     = true
-  public_network_access_enabled = true
-}
-
-resource "azuread_application" "bronze" {
-  display_name = "sp-${local.workload_sanitized}-${local.environment_short}-bronze"
-}
-
-resource "azuread_application" "silver" {
-  display_name = "sp-${local.workload_sanitized}-${local.environment_short}-silver"
-}
-
-resource "azuread_application" "gold" {
-  display_name = "sp-${local.workload_sanitized}-${local.environment_short}-gold"
-}
-
-resource "azuread_service_principal" "bronze" {
-  client_id = azuread_application.bronze.client_id
-}
-
-resource "azuread_service_principal" "silver" {
-  client_id = azuread_application.silver.client_id
-}
-
-resource "azuread_service_principal" "gold" {
-  client_id = azuread_application.gold.client_id
-}
-
-resource "azurerm_role_assignment" "kv_secrets_officer_deployment" {
+resource "azurerm_role_assignment" "kv_secrets_officer_deployment_sp" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = var.sp_object_id
 }
 
-resource "azurerm_role_assignment" "kv_secrets_user_bronze" {
+resource "azurerm_role_assignment" "kv_secrets_user_shared" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = local.bronze_layer_sp_object_id
+  principal_id         = local.shared_layer_sp_object_id
 }
 
-resource "azurerm_role_assignment" "kv_secrets_user_silver" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = local.silver_layer_sp_object_id
-}
-
-resource "azurerm_role_assignment" "kv_secrets_user_gold" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = local.gold_layer_sp_object_id
-}
-
-resource "azurerm_role_assignment" "storage_bronze_layer" {
+resource "azurerm_role_assignment" "storage_blob_data_contributor_bronze" {
   scope                = azurerm_storage_account.bronze.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_databricks_access_connector.bronze.identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "storage_silver_layer" {
+resource "azurerm_role_assignment" "storage_blob_data_contributor_silver" {
   scope                = azurerm_storage_account.silver.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_databricks_access_connector.silver.identity[0].principal_id
 }
 
-resource "azurerm_role_assignment" "storage_gold_layer" {
+resource "azurerm_role_assignment" "storage_blob_data_contributor_gold" {
   scope                = azurerm_storage_account.gold.id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_databricks_access_connector.gold.identity[0].principal_id
