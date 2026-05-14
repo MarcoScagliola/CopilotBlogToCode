@@ -252,6 +252,18 @@ This commonly fires for two distinct reasons:
 | `azurerm_key_vault.public_network_access_enabled = false` | Private endpoint configured against the vault |
 | `azurerm_storage_account.customer_managed_key` block | Key Vault, customer-managed key, and access grant to the storage identity |
 
+**Feature families.** Some properties belong to a feature family — a group of properties that ALL require the same supporting infrastructure. Emitting any single member of the family is forbidden unless the entire supporting infrastructure is also in scope. The orchestrator MUST treat the whole family as a single yes/no decision, not as individual opt-in flags.
+
+The most common feature families for Azure Databricks:
+
+- **VNet injection family** on `azurerm_databricks_workspace`. All of: `custom_parameters.virtual_network_id`, `custom_parameters.public_subnet_name`, `custom_parameters.private_subnet_name`, `custom_parameters.public_subnet_network_security_group_association_id`, `custom_parameters.private_subnet_network_security_group_association_id`, `custom_parameters.required_nsg_rules`, `public_network_access_enabled`, `network_security_group_rules_required`. Required supporting infrastructure: a virtual network, two subnets (host and container) with delegations to `Microsoft.Databricks/workspaces`, a network security group, and subnet-to-NSG associations.
+
+- **Private endpoint family** on data-plane resources (storage accounts, key vaults). All of: `public_network_access_enabled = false`, `network_acls` with restrictive rules, any `private_endpoint_*` references. Required supporting infrastructure: a private endpoint resource, a private DNS zone, and a private DNS zone group.
+
+- **Customer-managed key family** on storage and other encryptable resources. All of: `customer_managed_key` block, identity blocks referencing a user-assigned managed identity. Required supporting infrastructure: a Key Vault (with purge protection), a key resource, a managed identity, and role assignments granting the identity access to the key.
+
+When a feature family is out of scope for the current generation, NO member of that family appears in `main.tf`. The orchestrator does not pick individual properties from the family to "compromise" between secure and deployable — that produces invalid configurations. The decision is binary: full family or no family.
+
 **Default position: no enhancement.** When the orchestrator is uncertain whether a security-tightening property's supporting infrastructure is in scope, omit the property. Hardening features are easier to add later than to undo when they block the first deploy.
 
 ### Cross-System Identity Resolution
@@ -302,6 +314,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] Provider property naming matches the version pinned in `required_providers`. Read the version pin before choosing argument forms.
 - [ ] Security-tightening properties only appear when the matching supporting infrastructure is in the same configuration; otherwise the looser default is used and hardening is listed in TODO.md.
 - [ ] **REQUIRED OUTPUT — supporting infrastructure check.** Every property listed in "Parameter Requires Supporting Infrastructure" is either absent from `main.tf`, or accompanied by all its supporting infrastructure in the same module. Properties without their supporting infrastructure are removed, not defaulted.
+- [ ] **REQUIRED OUTPUT — feature family check.** For each feature family listed under "Parameter Requires Supporting Infrastructure" → "Feature families", either ALL members of the family appear (along with their supporting infrastructure) or NONE appear. Partial families are a generation failure. Verify on `azurerm_databricks_workspace` specifically: if `public_network_access_enabled` is present, the full VNet injection family must also be present; otherwise the line is removed.
 - [ ] **REQUIRED OUTPUT — cross-system identity registration.** For every identity the module creates, every downstream system that will reference it has a matching registration resource in the same module. Verify by counting originating identity resources and counting registrations per target system; counts must match per system. A mismatch is a generation failure, not a warning.
 - [ ] **REQUIRED OUTPUT — provider declarations match registration resources.** Every target system that has registration resources has its provider declared in `versions.tf` and configured in `providers.tf` against the host resource.
 - [ ] Every registration resource sources its identity reference from the originating resource — never from a hardcoded value or input variable.

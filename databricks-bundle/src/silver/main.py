@@ -1,22 +1,24 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Silver layer transformation entrypoint.")
-    parser.add_argument("--source-catalog", required=True)
-    parser.add_argument("--source-schema", required=True)
-    parser.add_argument("--target-catalog", required=True)
-    parser.add_argument("--target-schema", required=True)
-    return parser
+def parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Silver layer placeholder")
+    p.add_argument("--source-catalog", required=True)
+    p.add_argument("--source-schema", required=True)
+    p.add_argument("--target-catalog", required=True)
+    p.add_argument("--target-schema", required=True)
+    return p
 
 
 def main() -> int:
-    args = build_parser().parse_args()
+    args = parser().parse_args()
+    print("Silver placeholder executed")
     print(
-        "silver layer transition "
-        f"{args.source_catalog}.{args.source_schema} -> {args.target_catalog}.{args.target_schema}"
+        f"Flow: {args.source_catalog}.{args.source_schema} -> "
+        f"{args.target_catalog}.{args.target_schema}"
     )
     return 0
 

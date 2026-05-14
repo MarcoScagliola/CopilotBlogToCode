@@ -1,24 +1,25 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Smoke-test entrypoint for medallion flow.")
-    parser.add_argument("--bronze-catalog", required=True)
-    parser.add_argument("--bronze-schema", required=True)
-    parser.add_argument("--silver-catalog", required=True)
-    parser.add_argument("--silver-schema", required=True)
-    parser.add_argument("--gold-catalog", required=True)
-    parser.add_argument("--gold-schema", required=True)
-    parser.add_argument("--min-row-count", type=int, required=True)
-    return parser
+def parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Smoke-test placeholder")
+    p.add_argument("--bronze-catalog", required=True)
+    p.add_argument("--bronze-schema", required=True)
+    p.add_argument("--silver-catalog", required=True)
+    p.add_argument("--silver-schema", required=True)
+    p.add_argument("--gold-catalog", required=True)
+    p.add_argument("--gold-schema", required=True)
+    p.add_argument("--min-row-count", required=True, type=int)
+    return p
 
 
 def main() -> int:
-    args = build_parser().parse_args()
-    print("smoke test arguments validated")
-    print(f"min_row_count={args.min_row_count}")
+    args = parser().parse_args()
+    print("Smoke test placeholder executed")
+    print(f"Minimum row count expectation: {args.min_row_count}")
     return 0
 
 

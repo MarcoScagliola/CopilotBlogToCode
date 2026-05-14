@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Setup medallion Unity Catalog baseline.")
+    parser = argparse.ArgumentParser(description="Setup layer bootstrap placeholder")
     parser.add_argument("--workspace-resource-id", required=True)
     parser.add_argument("--bronze-catalog", required=True)
     parser.add_argument("--silver-catalog", required=True)
@@ -26,8 +27,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    print("setup completed")
-    print(f"workspace_resource_id={args.workspace_resource_id}")
+    print("Setup bootstrap placeholder completed")
+    print(f"Workspace resource id: {args.workspace_resource_id}")
     return 0
 
 

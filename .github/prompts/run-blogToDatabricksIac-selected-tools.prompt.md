@@ -7,7 +7,6 @@ https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-archi
 - workload: blg
 - environment: dev
 - azure_region: uksouth
-- layer_sp_mode: create
 - github_environment: BLG2CODEDEV
 
 ## Tool Policy

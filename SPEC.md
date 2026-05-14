@@ -1,112 +1,67 @@
-# Secure Medallion Architecture Pattern on Azure Databricks (Part I) - SPEC
+# Secure Medallion Architecture Pattern on Azure Databricks (Part I) — SPEC
 
 Source URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
-Fetch timestamp (UTC): 2026-05-14
 
 ## Architecture
 
-- High-level architecture pattern: secure medallion architecture with Bronze, Silver, Gold and a setup/orchestrator layer (stated in article).
-- Named components and roles:
-  - Source systems feed the bronze layer (source type specifics mostly not stated in article).
-  - Bronze captures raw/landing data.
-  - Silver performs validated/curated transformations from bronze.
-  - Gold provides refined/consumption-ready data products.
-  - Orchestrator coordinates per-layer jobs.
-- Data flow direction and triggers:
-  - Multi-hop Bronze -> Silver -> Gold flow (stated in article).
-  - Job orchestration via Lakeflow Jobs, including per-layer jobs and an overarching orchestrator (stated in article).
-  - Schedule cadence specifics are not stated in article.
-- Data volume, frequency, latency requirements: not stated in article.
+- High-level architecture pattern: medallion architecture (Bronze, Silver, Gold) with strict layer isolation.
+- Named components and roles: source systems -> Bronze raw ingestion -> Silver refinement/transformation -> Gold curated analytics for BI/reporting/APIs.
+- Data flow direction and triggers: sequential multi-hop Lakeflow jobs plus an orchestrator job; inferred from Lakeflow job guidance.
+- Data volume, frequency, latency: not stated in article.
 
 ## Azure services
 
-- Azure Databricks: core lakehouse compute and orchestration platform (stated in article).
-- ADLS Gen2: per-layer storage isolation for bronze/silver/gold (stated in article).
-- Azure Key Vault: central secret storage, accessed at runtime via AKV-backed scopes (stated in article).
-- Microsoft Entra ID service principals / managed identities: per-layer identity isolation and least privilege (stated in article).
-- Unity Catalog: governance backbone for catalogs/schemas/tables and permissions (stated in article).
-- For each service configuration:
-  - Databricks workspace configured with Secure Cluster Connectivity / no public IP (stated in article).
-  - Storage is separated by layer (stated in article).
-  - Key Vault diagnostics/logging is recommended (stated in article).
-- Networking posture:
-  - Secure cluster connectivity (no public IP) is stated in article.
-  - Private endpoints, service endpoints, and explicit firewall matrix are not stated in article.
-- Region and redundancy:
-  - Article does not prescribe a specific region.
-  - Current run uses uksouth from run inputs (not stated by article).
-  - LRS/ZRS/GRS preferences are not stated in article.
+- Azure Databricks: workspace running Lakeflow jobs and Unity Catalog-governed data access.
+- Azure Storage (ADLS Gen2): separate storage accounts per layer (bronze/silver/gold).
+- Azure Key Vault: runtime secrets store for pipeline credentials, accessed from Databricks through AKV-backed secret scopes.
+- Microsoft Entra ID managed service principals: per-layer non-human identities for least-privilege execution.
+- Azure Databricks Access Connector: managed identity bridge for workspace/storage access under Unity Catalog.
+- Networking posture: no public IP on clusters via secure cluster connectivity is stated; private endpoints/firewall specifics are not stated in article.
+- Region and redundancy (LRS/ZRS/GRS): not stated in article.
 
 ## Databricks
 
-- Workspace tier: not stated in article.
-- Workspace type hybrid: yes (inferred from article checklist requirement and Azure Databricks deployment model).
-- Secure Cluster Connectivity (No Public IP): stated in article.
-- Unity Catalog usage: yes.
-  - Separate bronze/silver/gold catalogs are recommended (stated in article).
-  - Schema names are implied by medallion layer semantics and generated as bronze/silver/gold.
-  - Metastore name/reference is not stated in article.
-- Compute model:
-  - Dedicated compute per layer (three isolated clusters/jobs) is stated in article.
-  - Additional setup and smoke-test execution paths are added by this repo pattern.
-- Jobs and orchestration:
-  - One job per layer and one orchestrator job with dependencies (stated in article and aligned with repo generator).
-  - Concurrency and full scheduling details are not stated in article.
-- Lakeflow usage:
-  - Lakeflow Jobs are explicitly referenced in article.
-  - Triggered vs continuous specifics are not stated in article.
-- Task source format: Python-based job tasks in this implementation (inferred from generated repo pattern).
-- Runtime versions and library specifics: not stated in article.
+- Workspace tier (Standard/Premium): not stated in article.
+- Workspace type (hybrid context): inferred from Azure-native integration (Entra ID, ADLS, Key Vault, Access Connector).
+- Secure Cluster Connectivity / No Public IP: explicitly required by the article's secure design guidance.
+- Unity Catalog usage: yes; separate Bronze, Silver, Gold catalogs and external locations with storage credentials.
+- Compute model: three dedicated layer clusters (one per layer) plus one orchestrator Lakeflow.
+- Jobs and orchestration: one job per layer plus orchestrator, with layer-level isolation and dependency sequencing.
+- Lakeflow mode (triggered vs continuous): inferred as triggered/scheduled job model from Lakeflow Jobs usage.
+- Task source format (notebooks/python/sql/jar/wheel): notebooks are referenced; Python-file implementation detail is not stated in article.
+- Libraries/runtime/init scripts: not stated in article.
 
 ## Data model
 
 - Source systems and formats: not stated in article.
-- Target datasets grouped by layer:
-  - Bronze tables in bronze catalog/schema.
-  - Silver tables in silver catalog/schema.
-  - Gold tables in gold catalog/schema.
-  - Exact business table names are not stated in article.
-- Partitioning/clustering:
-  - Article guidance prefers avoiding explicit partitioning and using liquid clustering or Z-order only if needed.
-  - Concrete table-level clustering choices are not stated in article.
+- Targets by layer:
+  - Bronze: raw immutable Delta ingestion.
+  - Silver: cleansed and integrated business-ready datasets.
+  - Gold: curated analytics-ready datasets.
+- Partitioning/liquid/z-order strategy: managed tables are preferred; automatic liquid clustering/predictive optimization are noted for managed tables.
 - Schema evolution/enforcement rules: not stated in article.
-- Data quality expectations:
-  - Progressive quality through medallion hops is stated conceptually.
-  - Explicit rule catalog and thresholds are not stated in article.
+- Data quality expectations: progressive quality checks per layer are stated; concrete test rules and thresholds are not stated in article.
 
 ## Security and identity
 
-- Identities used:
-  - Dedicated Entra ID service principal per data layer (stated in article).
-  - Databricks access connector managed identities for storage/UC paths (stated or strongly implied by architecture discussion).
-- Secrets and secret storage:
-  - Secrets are stored in Azure Key Vault and read at runtime from AKV-backed secret scopes (stated in article).
-- RBAC and UC grants:
-  - Least privilege is mandatory and per-layer scoped (stated in article).
-  - Exact role assignments and UC grants matrix are not fully enumerated in article.
-- Network boundaries:
-  - Separation of duties and blast-radius reduction across layer identities/compute/storage are stated in article.
-  - Full network path diagram (private endpoints per service, NSG matrices) is not stated in article.
+- Identities used: one Entra-managed service principal per layer, plus managed identities via Databricks Access Connectors.
+- Secrets and storage: Azure Key Vault with one AKV-backed secret scope per environment in Databricks.
+- RBAC and grants: layer principals get only required permissions (Browse/Read/Write as appropriate) and can run/manage relevant notebooks/jobs.
+- Network boundaries: per-layer separation of duties across identity, storage, and compute to reduce blast radius.
 
 ## Operational concerns
 
-- Monitoring/logging/alerting:
-  - Build observability from day one; use Jobs monitoring and system-table visibility guidance (stated in article).
-  - Specific alert channels and thresholds are not stated in article.
-- Cost controls:
-  - Layer isolation and per-cluster controls are recommended conceptually.
-  - Explicit budget mechanisms and reserved-capacity decisions are not stated in article.
-- CI/CD approach:
-  - Article indicates CI/CD implementation is deferred to Part II (stated in article).
-  - This repository generates independent workflows for infra and DAB deployment.
+- Monitoring/logging: enable Databricks system tables and Jobs monitoring UI for run/cost visibility.
+- Cost controls: use autoscaling, auto-termination, and cluster policies per layer.
+- CI/CD approach: implementation is explicitly deferred to Part II of the article.
 - Backup/retention/disaster recovery strategy: not stated in article.
 
 ## Out-of-scope markers
 
-- CI/CD implementation details are deferred to Part II (explicitly stated in article).
-- Cluster reusability and environment promotion challenges are noted as later discussion (explicitly stated in article).
+- Part II is intended to cover CI/CD implementation and environment-promotion mechanics.
 
 ## Other observations
 
-- The fetched page metadata title includes a non-article value due site framing, while page heading confirms the intended article title.
-- The article emphasizes least privilege as the primary architectural principle and frames medallion boundaries as security boundaries, not only transformation stages.
+- The pattern strongly recommends managed tables for this design.
+- The article emphasizes avoiding human-account dependency for production jobs.
+- Secret rotation and audit logging are recommended as operational guardrails.

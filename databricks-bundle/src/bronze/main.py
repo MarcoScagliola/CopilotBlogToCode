@@ -1,19 +1,21 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Bronze layer ingestion entrypoint.")
-    parser.add_argument("--catalog", required=True)
-    parser.add_argument("--schema", required=True)
-    parser.add_argument("--secret-scope", required=True)
-    return parser
+def parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Bronze layer placeholder")
+    p.add_argument("--catalog", required=True)
+    p.add_argument("--schema", required=True)
+    p.add_argument("--secret-scope", required=True)
+    return p
 
 
 def main() -> int:
-    args = build_parser().parse_args()
-    print(f"bronze layer target={args.catalog}.{args.schema}")
+    args = parser().parse_args()
+    print("Bronze placeholder executed")
+    print(f"Target: {args.catalog}.{args.schema}")
     return 0
 
 
