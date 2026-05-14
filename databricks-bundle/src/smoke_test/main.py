@@ -1,45 +1,51 @@
-"""Verify that bronze, silver, and gold targets exist and contain rows after orchestration completes."""
-
-from __future__ import annotations
+"""Verify the medallion tables exist and contain data after the jobs finish."""
 
 import argparse
 import logging
 
+from pyspark.sql import SparkSession
 
-LOG = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+BRONZE_TABLE_NAME = "bronze_layer_runs"
+SILVER_TABLE_NAME = "silver_layer_runs"
+GOLD_TABLE_NAME = "gold_layer_metrics"
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Smoke test medallion tables after orchestration.")
-    parser.add_argument("--bronze-catalog", required=True, help="Bronze Unity Catalog catalog.")
-    parser.add_argument("--bronze-schema", required=True, help="Bronze Unity Catalog schema.")
-    parser.add_argument("--silver-catalog", required=True, help="Silver Unity Catalog catalog.")
-    parser.add_argument("--silver-schema", required=True, help="Silver Unity Catalog schema.")
-    parser.add_argument("--gold-catalog", required=True, help="Gold Unity Catalog catalog.")
-    parser.add_argument("--gold-schema", required=True, help="Gold Unity Catalog schema.")
-    parser.add_argument("--min-row-count", type=int, default=1, help="Minimum rows expected in bronze and silver tables.")
-    return parser.parse_args()
+def _qualified_table(catalog: str, schema: str, table_name: str) -> str:
+    return f"`{catalog}`.`{schema}`.`{table_name}`"
 
 
-def _assert_rows(table_name: str, minimum_rows: int) -> None:
-    row_count = spark.table(table_name).count()
-    if row_count < minimum_rows:
-        raise RuntimeError(f"Smoke test failed for {table_name}: expected >= {minimum_rows}, got {row_count}")
-    LOG.info("Validated %s with %s rows", table_name, row_count)
+def _count_table(spark: SparkSession, catalog: str, schema: str, table_name: str) -> int:
+    qualified = _qualified_table(catalog, schema, table_name)
+    count = spark.table(qualified).count()
+    log.info("Table %s has %s row(s)", qualified, count)
+    return count
 
 
 def main() -> None:
-    args = _parse_args()
+    parser = argparse.ArgumentParser(description="Validate the medallion pipeline outputs.")
+    parser.add_argument("--bronze-catalog", required=True, help="Bronze catalog name.")
+    parser.add_argument("--bronze-schema", required=True, help="Bronze schema name.")
+    parser.add_argument("--silver-catalog", required=True, help="Silver catalog name.")
+    parser.add_argument("--silver-schema", required=True, help="Silver schema name.")
+    parser.add_argument("--gold-catalog", required=True, help="Gold catalog name.")
+    parser.add_argument("--gold-schema", required=True, help="Gold schema name.")
+    parser.add_argument("--min-row-count", type=int, required=True, help="Minimum row count expected in each table.")
+    args = parser.parse_args()
 
-    bronze_table = f"`{args.bronze_catalog}`.`{args.bronze_schema}`.`orders_bronze`"
-    silver_table = f"`{args.silver_catalog}`.`{args.silver_schema}`.`orders_silver`"
-    gold_table = f"`{args.gold_catalog}`.`{args.gold_schema}`.`orders_gold_metrics`"
+    spark = SparkSession.builder.getOrCreate()
 
-    _assert_rows(bronze_table, args.min_row_count)
-    _assert_rows(silver_table, args.min_row_count)
-    _assert_rows(gold_table, 1)
-    LOG.info("Smoke test completed successfully.")
+    bronze_count = _count_table(spark, args.bronze_catalog, args.bronze_schema, BRONZE_TABLE_NAME)
+    silver_count = _count_table(spark, args.silver_catalog, args.silver_schema, SILVER_TABLE_NAME)
+    gold_count = _count_table(spark, args.gold_catalog, args.gold_schema, GOLD_TABLE_NAME)
+
+    for layer_name, count in [("bronze", bronze_count), ("silver", silver_count), ("gold", gold_count)]:
+        if count < args.min_row_count:
+            raise RuntimeError(f"{layer_name} table has {count} row(s), expected at least {args.min_row_count}")
+
+    log.info("Smoke test complete")
 
 
 if __name__ == "__main__":

@@ -1,50 +1,45 @@
-"""Ingest raw records into the bronze layer and validate runtime secret access through the shared scope."""
-
-from __future__ import annotations
+"""Seed the bronze layer with synthetic ingestion records for the medallion pipeline."""
 
 import argparse
 import logging
+from datetime import datetime, timezone
 
+from pyspark.sql import SparkSession
 
-LOG = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+TABLE_NAME = "bronze_layer_runs"
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Load raw records into the bronze medallion layer.")
-    parser.add_argument("--catalog", required=True, help="Bronze Unity Catalog catalog.")
-    parser.add_argument("--schema", required=True, help="Bronze Unity Catalog schema.")
-    parser.add_argument("--secret-scope", required=True, help="AKV-backed Databricks secret scope.")
-    return parser.parse_args()
-
-
-def _probe_secret_access(secret_scope: str) -> None:
-    try:
-        dbutils.secrets.get(scope=secret_scope, key="source-system-username")
-        dbutils.secrets.get(scope=secret_scope, key="source-system-password")
-        LOG.info("Secret scope %s is reachable for bronze ingestion.", secret_scope)
-    except Exception as exc:  # noqa: BLE001 - Databricks exposes runtime-specific exceptions here.
-        LOG.warning("Secret probe skipped or unavailable: %s", exc)
+def _qualified_table(catalog: str, schema: str) -> str:
+    return f"`{catalog}`.`{schema}`.`{TABLE_NAME}`"
 
 
 def main() -> None:
-    args = _parse_args()
-    table_name = f"`{args.catalog}`.`{args.schema}`.`orders_bronze`"
+    parser = argparse.ArgumentParser(description="Write a synthetic bronze layer table.")
+    parser.add_argument("--catalog", required=True, help="Bronze catalog name.")
+    parser.add_argument("--schema", required=True, help="Bronze schema name.")
+    parser.add_argument("--secret-scope", required=True, help="Azure Key Vault-backed secret scope name.")
+    args = parser.parse_args()
 
-    _probe_secret_access(args.secret_scope)
+    spark = SparkSession.builder.getOrCreate()
+    target_table = _qualified_table(args.catalog, args.schema)
+    now = datetime.now(timezone.utc).isoformat()
 
-    source_df = spark.createDataFrame(
-        [
-            (1001, "contoso", 41.50),
-            (1002, "fabrikam", 84.25),
-            (1003, "adventure-works", 16.75),
-        ],
-        ["order_id", "customer_name", "order_total"],
-    )
-    bronze_df = source_df.withColumn("ingested_at", spark.sql("SELECT current_timestamp() AS ts").collect()[0]["ts"])
+    log.info("Writing bronze seed table %s using secret scope %s", target_table, args.secret_scope)
+    rows = [
+        {
+            "layer": "bronze",
+            "catalog": args.catalog,
+            "schema": args.schema,
+            "secret_scope": args.secret_scope,
+            "ingested_at": now,
+        }
+    ]
 
-    bronze_df.write.mode("overwrite").format("delta").saveAsTable(table_name)
-    LOG.info("Bronze ingestion complete for %s", table_name)
+    spark.createDataFrame(rows).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(target_table)
+    log.info("Bronze write complete")
 
 
 if __name__ == "__main__":

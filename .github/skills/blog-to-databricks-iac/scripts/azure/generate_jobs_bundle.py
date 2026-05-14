@@ -65,6 +65,8 @@ def build_jobs_yaml() -> str:
     bronze_job:
       name: bronze-layer-${bundle.target}
       max_concurrent_runs: 1
+      run_as:
+        service_principal_name: ${var.bronze_principal_client_id}
       tags:
         layer: bronze
         environment: ${bundle.target}
@@ -94,6 +96,8 @@ def build_jobs_yaml() -> str:
     silver_job:
       name: silver-layer-${bundle.target}
       max_concurrent_runs: 1
+      run_as:
+        service_principal_name: ${var.silver_principal_client_id}
       tags:
         layer: silver
         environment: ${bundle.target}
@@ -125,6 +129,8 @@ def build_jobs_yaml() -> str:
     gold_job:
       name: gold-layer-${bundle.target}
       max_concurrent_runs: 1
+      run_as:
+        service_principal_name: ${var.gold_principal_client_id}
       tags:
         layer: gold
         environment: ${bundle.target}

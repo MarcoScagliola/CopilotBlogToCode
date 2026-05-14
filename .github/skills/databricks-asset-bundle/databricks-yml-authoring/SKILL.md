@@ -1,6 +1,6 @@
 ---
 name: databricks-yml-authoring
-description: "Author or update the databricks.yml file for a Databricks Asset Bundle. Use when creating, replacing, or modifying databricks.yml — including bundle name, include directives, variables, workspace configuration, and targets. Enforces DAB constraints on fields that do not support any form of interpolation (workspace.host, workspace.profile, workspace.auth_type, bundle.name) and requires full-file replacement rather than appending."
+description: "Author or update the databricks.yml file for a Databricks Asset Bundle. Use when creating, replacing, or modifying databricks.yml — including bundle name, include directives, variables, workspace configuration, and targets. Enforces DAB constraints on fields that do not support any form of interpolation (workspace.host, workspace.profile, workspace.auth_type, bundle.name), the root_path uniqueness rule under mode: development, and requires full-file replacement rather than appending."
 ---
 
 # databricks.yml Authoring
@@ -32,7 +32,7 @@ The Databricks CLI resolves a small set of fields before any interpolation. **No
 
 Throughout this skill, these are referred to collectively as **non-interpolable fields**. The three `workspace.*` entries are also referred to as **auth fields** when the discussion is specific to authentication-time resolution. `bundle.name` shares the no-interpolation rule for a different reason: the bundle name forms part of the state path, and dynamic names corrupt state tracking.
 
-Every other field in the bundle supports `${var.*}` interpolation normally.
+Every other field in the bundle supports `${var.*}` interpolation normally, including `workspace.root_path`, which DOES support `${...}` expressions and is governed by a separate rule (see "The `root_path` and `mode: development` Rule" below).
 
 Implications:
 
@@ -73,6 +73,52 @@ workspace:
   host: https://adb-1234567890.12.azuredatabricks.net
 ```
 
+## The `root_path` and `mode: development` Rule
+
+When a target uses `mode: development`, any custom `workspace.root_path` (whether declared at the top level or under that target) MUST include a user-uniqueness marker. The Databricks CLI enforces this with the error:
+
+> `root_path must start with '~/' or contain the current username to ensure uniqueness when using 'mode: development'`
+
+The rule exists to prevent multiple developers — or multiple CI runs under the same principal — from clobbering each other's deployments in the workspace's `/Workspace/Users/...` tree.
+
+### Accepted uniqueness markers
+
+- `~/` at the start of the path (the CLI substitutes the current user's home folder)
+- `${workspace.current_user.userName}` anywhere in the path (interpolatable; this is not an auth field)
+- `${workspace.current_user.short_name}` (alternative shorter form)
+
+### Decision: which mode for CI deployments
+
+CI deployments driven by a service principal are arguably production by intent, even if the target is named `dev`. Two patterns are valid:
+
+**Pattern A — keep `mode: development`, include the username marker:**
+```yaml
+targets:
+  dev:
+    mode: development
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+```
+
+Pro: preserves development-mode behaviors (auto-paused schedules, notebook source format defaults, deployment tagging). Con: the SP's `userName` becomes part of the path; rotating the SP changes the deploy location.
+
+**Pattern B — switch CI targets to `mode: production`:**
+```yaml
+targets:
+  dev:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+```
+
+Pro: stable path independent of SP identity; predictable for shared CI workflows. Con: loses `mode: development` conveniences; need to manage schedule pausing and notebook formats explicitly.
+
+When the deploy is CI-driven by a service principal and the target represents a shared environment, prefer Pattern B. When the deploy represents individual-developer iteration from a laptop, prefer the default `mode: development` with no custom `root_path` at all (which the CLI handles automatically).
+
+### Default behavior — omit `root_path`
+
+The simplest correct option is to omit `workspace.root_path` entirely. The CLI uses a sensible default (`~/.bundle/<bundle-name>/<target>`) that already includes the `~/` uniqueness marker. Only add a custom `root_path` when there's a specific reason to override the default.
+
 ## Conventional Structure
 Every `databricks.yml` this skill produces follows the conventional shape below. Only `bundle:` is strictly required; `include:`, `variables:`, and `targets:` are conventional and present in most real bundles. Other top-level blocks are optional and may be added when the task requires them, subject to the singleton rule.
 
@@ -92,7 +138,7 @@ targets:                           # optional, but required in practice for any 
   <target_name>:
     mode: development | production
     # default: true on at most one target
-    # workspace: literal host here if not using env var
+    # workspace: literal host here if not using env var, and root_path with username marker if mode: development
     # variables: target-specific overrides here when needed
 ```
 
@@ -103,6 +149,7 @@ Things that must not appear in `databricks-bundle/databricks.yml`:
 - Any top-level key appearing more than once.
 - Secrets, tokens, connection strings, or other sensitive values.
 - Any `${...}` expression inside a non-interpolable field.
+- A custom `workspace.root_path` that lacks a user-uniqueness marker when any consuming target uses `mode: development`.
 
 ## Authoring Procedure
 Follow these steps in order.
@@ -154,6 +201,7 @@ Rules:
 2. Use `mode: development` or `mode: production` as appropriate. These enable different CLI behaviors.
 3. Put target-specific variable values under `targets.<name>.variables:` only when they are truly static per environment. When values come from an upstream system, prefer passing them via the deploy bridge so that the bundle file itself stays environment-agnostic.
 4. If the deploy model uses `DATABRICKS_HOST` (preferred), no per-target host configuration is needed in this file. If using hardcoded per-target hosts instead, place a literal URL under `targets.<name>.workspace.host:`. Never use any `${...}` expression here.
+5. **`root_path` and `mode: development` interaction.** When a target uses `mode: development`, any custom `workspace.root_path` MUST include either `~/` or `${workspace.current_user.userName}`. The CLI rejects mismatches at deploy time. If the deployment is CI-driven by a service principal targeting a shared environment, consider `mode: production` with an explicit shared `root_path` instead — `mode: development` is designed for individual-developer iteration. When in doubt, omit `root_path` entirely; the CLI's default already satisfies the uniqueness rule.
 
 ### Step 5. Verify downstream consistency
 Two boundaries to check, with different rules at each.
@@ -191,6 +239,18 @@ After writing, verify:
         databricks-bundle/databricks.yml | grep -E '\$\{' && exit 1 || exit 0
 ```
     If this exits non-zero, an interpolation has crept into a non-interpolable field.
+6c. The `root_path` uniqueness check passes:
+```bash
+    # For every target with mode: development, any custom root_path must include ~/ or ${workspace.current_user.*}
+    yq '.targets | to_entries[] | select(.value.mode == "development") | .value.workspace.root_path // ""' \
+        databricks-bundle/databricks.yml | while read -r path; do
+      if [ -n "$path" ] && ! echo "$path" | grep -qE '(^~/|\$\{workspace\.current_user)'; then
+        echo "Development target has root_path without uniqueness marker: $path"
+        exit 1
+      fi
+    done
+```
+    Also check the top-level `workspace.root_path` if any target inherits it under `mode: development`.
 7. Every declared variable is referenced by something (bridge, resource file, or target override).
 8. No declared variable's only apparent consumer is an auth field (which cannot interpolate).
 9. `include:` entries match paths that exist in the repo.
@@ -216,9 +276,21 @@ targets:
   <primary_target>:
     mode: development
     default: true
+    # No custom root_path needed — the CLI default includes ~/ automatically.
 
   <other_target>:
     mode: production
+```
+
+If the CI deploy runs under a service principal and targets a shared environment, prefer the production-mode pattern:
+
+```yaml
+targets:
+  dev:
+    mode: production
+    default: true
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
 ```
 
 ## Anti-Patterns to Reject
@@ -232,6 +304,7 @@ Reject any proposed change that would produce:
 6. Variables declared with no downstream consumer.
 7. Variables whose only apparent purpose is to populate an auth field via interpolation. Authentication values flow through environment variables, never through bundle variables.
 8. **Per-layer variable families with missing layers.** If `bronze_principal_client_id` and `silver_principal_client_id` are declared, `gold_principal_client_id` must also be declared. Partial per-layer families are a deploy-time failure waiting to happen.
+9. **Custom `root_path` under `mode: development` without a user-uniqueness marker.** The CLI rejects this at deploy time with `root_path must start with '~/' or contain the current username`. Either include `~/` / `${workspace.current_user.userName}` in the path, switch the target to `mode: production`, or omit `root_path` entirely.
 
 ## Relationship to Other Skills
 - The broader `databricks-asset-bundle` skill owns resource files, runtime entrypoints, job topology, and end-to-end parameter flow. Return to it after `databricks-bundle/databricks.yml` work is complete for any cross-cutting bundle review. This skill defers to it for anything outside `databricks-bundle/databricks.yml`.
@@ -255,5 +328,6 @@ Reject any proposed change that would produce:
 - [ ] Deploy bridge exports `DATABRICKS_HOST` (and other auth env vars) before invoking the CLI, rather than passing them as `--var`.
 - [ ] `scripts/validate_bundle_parity.sh` exists and exits zero.
 - [ ] The interpolation check on non-interpolable fields exits zero.
+- [ ] For every target with `mode: development`, any custom `workspace.root_path` includes `~/` or `${workspace.current_user.userName}` (or `root_path` is omitted entirely).
 - [ ] Every per-layer variable family is declared for every layer the architecture defines (no partial families).
 - [ ] No secrets or tokens embedded.

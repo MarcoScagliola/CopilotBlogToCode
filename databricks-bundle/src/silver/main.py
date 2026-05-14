@@ -1,38 +1,48 @@
-"""Transform bronze orders into a standardized silver dataset with basic data-quality enforcement."""
-
-from __future__ import annotations
+"""Transform bronze records into a compact silver summary for the medallion pipeline."""
 
 import argparse
 import logging
 
+from pyspark.sql import SparkSession, functions as F
 
-LOG = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+SOURCE_TABLE_NAME = "bronze_layer_runs"
+TARGET_TABLE_NAME = "silver_layer_runs"
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Refine bronze records into the silver medallion layer.")
-    parser.add_argument("--source-catalog", required=True, help="Source Unity Catalog catalog.")
-    parser.add_argument("--source-schema", required=True, help="Source Unity Catalog schema.")
-    parser.add_argument("--target-catalog", required=True, help="Target Unity Catalog catalog.")
-    parser.add_argument("--target-schema", required=True, help="Target Unity Catalog schema.")
-    return parser.parse_args()
+def _qualified_table(catalog: str, schema: str, table_name: str) -> str:
+    return f"`{catalog}`.`{schema}`.`{table_name}`"
 
 
 def main() -> None:
-    args = _parse_args()
-    source_table = f"`{args.source_catalog}`.`{args.source_schema}`.`orders_bronze`"
-    target_table = f"`{args.target_catalog}`.`{args.target_schema}`.`orders_silver`"
+    parser = argparse.ArgumentParser(description="Read bronze records and write a silver summary.")
+    parser.add_argument("--source-catalog", required=True, help="Bronze source catalog name.")
+    parser.add_argument("--source-schema", required=True, help="Bronze source schema name.")
+    parser.add_argument("--target-catalog", required=True, help="Silver target catalog name.")
+    parser.add_argument("--target-schema", required=True, help="Silver target schema name.")
+    args = parser.parse_args()
 
-    df = spark.table(source_table)
-    refined_df = (
-        df.dropna(subset=["order_id", "customer_name", "order_total"])
-        .dropDuplicates(["order_id"])
-        .withColumnRenamed("customer_name", "customer_name_clean")
+    spark = SparkSession.builder.getOrCreate()
+    source_table = _qualified_table(args.source_catalog, args.source_schema, SOURCE_TABLE_NAME)
+    target_table = _qualified_table(args.target_catalog, args.target_schema, TARGET_TABLE_NAME)
+
+    log.info("Reading bronze source table %s", source_table)
+    bronze_df = spark.table(source_table)
+    bronze_count = bronze_df.count()
+
+    summary_df = bronze_df.select(
+        F.lit("silver").alias("layer"),
+        F.lit(args.source_catalog).alias("source_catalog"),
+        F.lit(args.source_schema).alias("source_schema"),
+        F.lit(bronze_count).alias("bronze_row_count"),
+        F.current_timestamp().alias("processed_at"),
     )
 
-    refined_df.write.mode("overwrite").format("delta").saveAsTable(target_table)
-    LOG.info("Silver transformation complete for %s", target_table)
+    log.info("Writing silver summary table %s from %s bronze rows", target_table, bronze_count)
+    summary_df.write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(target_table)
+    log.info("Silver write complete")
 
 
 if __name__ == "__main__":
