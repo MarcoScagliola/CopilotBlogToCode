@@ -6,7 +6,6 @@ from pathlib import Path
 
 def build_workflow_yaml(
     workflow_name: str,
-    github_environment: str,
     tenant_secret: str,
     subscription_secret: str,
     client_id_secret: str,
@@ -65,7 +64,7 @@ env:
 jobs:
   deploy_infrastructure:
     runs-on: ubuntu-latest
-    environment: {github_environment}
+    environment: ${{{{ github.event.inputs.workload }}}}-${{{{ github.event.inputs.environment }}}}
 
     steps:
       - name: Checkout
@@ -283,7 +282,6 @@ def main() -> int:
     )
     parser.add_argument("--output", default=".github/workflows/deploy-infrastructure.yml")
     parser.add_argument("--workflow-name", default="Deploy Infrastructure")
-    parser.add_argument("--github-environment", default="MYAPP-DEV")
     parser.add_argument("--tenant-secret", default="AZURE_TENANT_ID")
     parser.add_argument("--subscription-secret", default="AZURE_SUBSCRIPTION_ID")
     parser.add_argument("--client-id-secret", default="AZURE_CLIENT_ID")
@@ -301,7 +299,6 @@ def main() -> int:
 
     content = build_workflow_yaml(
         workflow_name=args.workflow_name,
-        github_environment=args.github_environment,
         tenant_secret=args.tenant_secret,
         subscription_secret=args.subscription_secret,
         client_id_secret=args.client_id_secret,

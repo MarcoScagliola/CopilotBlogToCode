@@ -1,60 +1,56 @@
+output "resource_group_name" {
+  description = "Resource group name for the deployment."
+  value       = azurerm_resource_group.main.name
+}
+
 output "databricks_workspace_url" {
+  description = "Databricks workspace URL used by the DAB deploy workflow."
   value       = azurerm_databricks_workspace.main.workspace_url
-  description = "Databricks workspace host URL used by the deploy bridge."
 }
 
 output "databricks_workspace_resource_id" {
+  description = "Databricks workspace Azure resource ID used for Azure auth in DAB."
   value       = azurerm_databricks_workspace.main.id
-  description = "Databricks workspace ARM resource ID used for Azure auth context."
-}
-
-output "secret_scope" {
-  value       = local.secret_scope
-  description = "Expected AKV-backed Databricks secret scope name."
 }
 
 output "bronze_catalog" {
-  value = local.bronze_catalog
+  value = var.bronze_catalog
 }
 
 output "silver_catalog" {
-  value = local.silver_catalog
+  value = var.silver_catalog
 }
 
 output "gold_catalog" {
-  value = local.gold_catalog
+  value = var.gold_catalog
 }
 
 output "bronze_schema" {
-  value = local.bronze_schema
+  value = var.bronze_schema
 }
 
 output "silver_schema" {
-  value = local.silver_schema
+  value = var.silver_schema
 }
 
 output "gold_schema" {
-  value = local.gold_schema
+  value = var.gold_schema
+}
+
+output "secret_scope" {
+  value = var.secret_scope
 }
 
 output "bronze_principal_client_id" {
-  value = azuread_application.bronze.client_id
+  value = local.layer_principal_client_ids.bronze
 }
 
 output "silver_principal_client_id" {
-  value = azuread_application.silver.client_id
+  value = local.layer_principal_client_ids.silver
 }
 
 output "gold_principal_client_id" {
-  value = azuread_application.gold.client_id
-}
-
-output "layer_principal_client_ids" {
-  value = {
-    bronze = azuread_application.bronze.client_id
-    silver = azuread_application.silver.client_id
-    gold   = azuread_application.gold.client_id
-  }
+  value = local.layer_principal_client_ids.gold
 }
 
 output "bronze_storage_account" {
@@ -69,14 +65,6 @@ output "gold_storage_account" {
   value = azurerm_storage_account.gold.name
 }
 
-output "layer_storage_account_names" {
-  value = {
-    bronze = azurerm_storage_account.bronze.name
-    silver = azurerm_storage_account.silver.name
-    gold   = azurerm_storage_account.gold.name
-  }
-}
-
 output "bronze_access_connector_id" {
   value = azurerm_databricks_access_connector.bronze.id
 }
@@ -87,6 +75,18 @@ output "silver_access_connector_id" {
 
 output "gold_access_connector_id" {
   value = azurerm_databricks_access_connector.gold.id
+}
+
+output "layer_principal_client_ids" {
+  value = local.layer_principal_client_ids
+}
+
+output "layer_storage_account_names" {
+  value = {
+    bronze = azurerm_storage_account.bronze.name
+    silver = azurerm_storage_account.silver.name
+    gold   = azurerm_storage_account.gold.name
+  }
 }
 
 output "layer_access_connector_ids" {

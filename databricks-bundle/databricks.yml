@@ -6,27 +6,27 @@ include:
 
 variables:
   workspace_resource_id:
-    description: Databricks workspace ARM resource ID.
+    description: Azure resource ID of the Databricks workspace.
   bronze_catalog:
-    description: Bronze catalog name.
+    description: Unity Catalog catalog for bronze.
   silver_catalog:
-    description: Silver catalog name.
+    description: Unity Catalog catalog for silver.
   gold_catalog:
-    description: Gold catalog name.
+    description: Unity Catalog catalog for gold.
   bronze_schema:
-    description: Bronze schema name.
+    description: Unity Catalog schema for bronze.
   silver_schema:
-    description: Silver schema name.
+    description: Unity Catalog schema for silver.
   gold_schema:
-    description: Gold schema name.
+    description: Unity Catalog schema for gold.
   secret_scope:
-    description: Key Vault-backed Databricks secret scope.
+    description: Databricks secret scope name.
   bronze_principal_client_id:
-    description: Bronze layer principal client ID.
+    description: Bronze layer service principal client ID.
   silver_principal_client_id:
-    description: Silver layer principal client ID.
+    description: Silver layer service principal client ID.
   gold_principal_client_id:
-    description: Gold layer principal client ID.
+    description: Gold layer service principal client ID.
   bronze_storage_account:
     description: Bronze storage account name.
   silver_storage_account:
@@ -34,15 +34,20 @@ variables:
   gold_storage_account:
     description: Gold storage account name.
   bronze_access_connector_id:
-    description: Bronze access connector resource ID.
+    description: Bronze access connector ID.
   silver_access_connector_id:
-    description: Silver access connector resource ID.
+    description: Silver access connector ID.
   gold_access_connector_id:
-    description: Gold access connector resource ID.
+    description: Gold access connector ID.
 
 targets:
   dev:
-    mode: development
     default: true
+    mode: development
+    workspace:
+      host: https://adb-placeholder-dev.azuredatabricks.net
+
   prd:
     mode: production
+    workspace:
+      host: https://adb-placeholder-prd.azuredatabricks.net
