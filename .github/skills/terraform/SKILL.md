@@ -334,6 +334,29 @@ This commonly fires for two distinct reasons:
 | `Microsoft.Authorization/roleAssignments/<guid>` | `azurerm_role_assignment.<name>` | the full role assignment ID |
 | `Microsoft.Databricks/workspaces/<name>` | `azurerm_databricks_workspace.main` | the full workspace ID |
 
+### Workspace Identity Registration (cross-system identity bridging)
+
+**Error**: `cannot be set as run_as service principal, because it doesn't exist`, or equivalent errors when a Databricks job, permission grant, secret scope ACL, or Unity Catalog grant references a service principal by `application_id`.
+
+**Root cause**: The cloud-provider identity system and the Databricks workspace identity system are separate. An identity that exists in the cloud provider (e.g. an Azure AD SP, an AWS IAM principal, a GCP service account) is not automatically visible to a Databricks workspace. The workspace maintains its own identity table and resolves references against it. If a workspace artifact references an identity by its cloud-provider ID without that identity having been registered in the workspace, the workspace returns a "doesn't exist" error. The identity exists; it just isn't visible to the workspace.
+
+**Prevention**:
+- Every cloud-provider identity that any downstream artifact references inside a Databricks workspace (job `run_as`, permission grants, secret scope ACLs, Unity Catalog grants) must have a matching workspace-side registration in the same Terraform module.
+- Both halves of the bridge (cloud-provider identity and workspace registration) live in the same Terraform plan so they apply atomically. Splitting them across separately-applied modules causes deploy-time failures when downstream artifacts run before the workspace registration is applied.
+- The `databricks` provider must be configured in the module, with `host` sourced from the workspace resource. Authentication reuses the cloud-provider credentials already present in the module's environment.
+- The workspace registration must source the identity reference (e.g. `application_id`, `client_id`) from the cloud-provider resource it registers, never from a hardcoded value or input variable. Hardcoded values decouple the two halves and silently break when the underlying identity rotates.
+- The workspace registration must declare `depends_on` on the workspace resource so the workspace exists before registration is attempted.
+
+**Family completeness.** When identities follow a per-instance pattern (per-layer, per-environment, per-role), workspace registrations are subject to the same completeness rule as other repeated resources (Core Principle 7). If the cloud-provider side declares N instances of an identity family, the workspace side must declare N matching registrations. Partial families surface as DAB-deploy failures rather than Terraform-apply failures, making them harder to diagnose.
+
+**Forbidden patterns:**
+- Creating a cloud-provider identity without a matching workspace registration when downstream workspace artifacts reference it.
+- Hardcoding the identity reference on the workspace registration instead of sourcing it from the cloud-provider resource.
+- Splitting cloud-provider identity and workspace registration across separately-applied modules.
+- Using a data-source lookup to discover an identity that the module is responsible for creating. Registration is a resource, not a discovery.
+
+**Validation:** the module's cloud-provider identity resources and workspace registrations must form a 1:1 set by logical name. Generate the two lists from the module's `.tf` files and diff them; any divergence is a deploy-time bug.
+
 ## Pre-Generation Validation
 Before writing Terraform code, validate the generation strategy:
 
@@ -372,6 +395,11 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] AzureRM property naming matches the provider version pinned in `required_providers`. On `~> 3.x`, `enable_<X>` is correct; on `~> 4.x` or later, `<X>_enabled` is correct. Verify with: read the version pin first, then grep for the matching naming convention.
 - [ ] `soft_delete_retention_days` on `azurerm_key_vault` matches the value the vault will hold permanently. If a vault already exists with a different value, the generated code must reflect the existing value, not the desired new value, since the property is one-way.
 - [ ] Security-tightening properties (network access disabled, identity-only auth, customer-managed keys) only appear when the matching supporting infrastructure is in the same configuration. Otherwise the looser default is used and the hardening is listed in TODO.md.
+- [ ] Every cloud-provider service-principal resource has a matching workspace registration sourced from the same resource.
+- [ ] The Databricks provider is configured against the workspace resource (host sourced from the workspace, not hardcoded).
+- [ ] Workspace registrations declare `depends_on` on the workspace resource.
+- [ ] No data-source lookups for identities the module is responsible for creating.
+- [ ] Per-family cloud-provider identities and workspace registrations form a 1:1 set by logical name.
 
 **Outputs and Documentation**
 - [ ] Critical resource identifiers (IDs, ARNs) exported as outputs
