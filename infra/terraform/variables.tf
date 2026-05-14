@@ -1,52 +1,46 @@
 variable "tenant_id" {
-  description = "Azure tenant ID"
+  description = "Azure tenant ID used by Terraform and RBAC resources."
   type        = string
 }
 
 variable "subscription_id" {
-  description = "Azure subscription ID"
+  description = "Azure subscription ID used for deployment."
   type        = string
 }
 
 variable "client_id" {
-  description = "Deployment principal application (client) ID"
+  description = "Deployment service principal client ID."
   type        = string
 }
 
 variable "client_secret" {
-  description = "Deployment principal client secret"
+  description = "Deployment service principal client secret."
   type        = string
   sensitive   = true
 }
 
 variable "sp_object_id" {
-  description = "Deployment principal service principal object ID"
+  description = "Enterprise application object ID for deployment principal."
   type        = string
 }
 
 variable "workload" {
-  description = "Workload short name"
+  description = "Short workload identifier used in resource names."
   type        = string
 }
 
 variable "environment" {
-  description = "Environment short name"
+  description = "Environment identifier such as dev or prd."
   type        = string
 }
 
 variable "azure_region" {
-  description = "Azure region"
+  description = "Azure region for deployment."
   type        = string
 }
 
 variable "key_vault_recover_soft_deleted" {
-  description = "Whether provider recovers soft-deleted key vaults"
-  type        = bool
-  default     = true
-}
-
-variable "enable_shared_key" {
-  description = "Keep shared key enabled for storage provisioning compatibility"
+  description = "Controls Key Vault soft-delete recovery behavior in provider features."
   type        = bool
   default     = true
 }

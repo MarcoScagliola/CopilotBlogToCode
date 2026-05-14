@@ -1,17 +1,11 @@
-output "resource_group_name" {
-  value = azurerm_resource_group.main.name
-}
-
 output "databricks_workspace_url" {
-  value = azurerm_databricks_workspace.main.workspace_url
+  description = "Databricks workspace URL used by DAB deployment bridge."
+  value       = azurerm_databricks_workspace.main.workspace_url
 }
 
 output "databricks_workspace_resource_id" {
-  value = azurerm_databricks_workspace.main.id
-}
-
-output "key_vault_name" {
-  value = azurerm_key_vault.main.name
+  description = "Databricks workspace Azure resource ID used for unified auth."
+  value       = azurerm_databricks_workspace.main.id
 }
 
 output "bronze_catalog" {
@@ -39,19 +33,19 @@ output "gold_schema" {
 }
 
 output "secret_scope" {
-  value = local.secret_scope_name
+  value = local.secret_scope
 }
 
 output "bronze_principal_client_id" {
-  value = var.client_id
+  value = local.layer_principal_client_ids.bronze
 }
 
 output "silver_principal_client_id" {
-  value = var.client_id
+  value = local.layer_principal_client_ids.silver
 }
 
 output "gold_principal_client_id" {
-  value = var.client_id
+  value = local.layer_principal_client_ids.gold
 }
 
 output "bronze_storage_account" {
@@ -79,11 +73,7 @@ output "gold_access_connector_id" {
 }
 
 output "layer_principal_client_ids" {
-  value = {
-    bronze = var.client_id
-    silver = var.client_id
-    gold   = var.client_id
-  }
+  value = local.layer_principal_client_ids
 }
 
 output "layer_storage_account_names" {

@@ -1,31 +1,21 @@
-"""Build bronze layer tables from raw source records."""
+from __future__ import annotations
 
 import argparse
-import logging
-
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
-def main() -> None:
-  parser = argparse.ArgumentParser(description="Bronze layer load")
-  parser.add_argument("--catalog", required=True, help="Bronze catalog")
-  parser.add_argument("--schema", required=True, help="Bronze schema")
-  parser.add_argument("--secret-scope", required=True, help="Secret scope name")
-  args = parser.parse_args()
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Bronze layer ingestion entrypoint.")
+    parser.add_argument("--catalog", required=True)
+    parser.add_argument("--schema", required=True)
+    parser.add_argument("--secret-scope", required=True)
+    return parser
 
-  spark = SparkSession.builder.getOrCreate()
-  table_name = f"`{args.catalog}`.`{args.schema}`.`raw_events`"
 
-  # Placeholder bronze ingestion data for first-run validation.
-  df = spark.range(1, 11).withColumn("ingest_ts", F.current_timestamp())
-  df.write.mode("overwrite").saveAsTable(table_name)
-
-  log.info("Bronze table refreshed: %s", table_name)
+def main() -> int:
+    args = build_parser().parse_args()
+    print(f"bronze layer target={args.catalog}.{args.schema}")
+    return 0
 
 
 if __name__ == "__main__":
-  main()
+    raise SystemExit(main())

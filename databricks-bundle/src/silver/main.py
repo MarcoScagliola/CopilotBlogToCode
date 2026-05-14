@@ -1,32 +1,25 @@
-"""Transform bronze records into silver business-conformed records."""
+from __future__ import annotations
 
 import argparse
-import logging
-
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 
-def main() -> None:
-  parser = argparse.ArgumentParser(description="Silver layer transform")
-  parser.add_argument("--source-catalog", required=True, help="Source catalog")
-  parser.add_argument("--source-schema", required=True, help="Source schema")
-  parser.add_argument("--target-catalog", required=True, help="Target catalog")
-  parser.add_argument("--target-schema", required=True, help="Target schema")
-  args = parser.parse_args()
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Silver layer transformation entrypoint.")
+    parser.add_argument("--source-catalog", required=True)
+    parser.add_argument("--source-schema", required=True)
+    parser.add_argument("--target-catalog", required=True)
+    parser.add_argument("--target-schema", required=True)
+    return parser
 
-  spark = SparkSession.builder.getOrCreate()
-  source_table = f"`{args.source_catalog}`.`{args.source_schema}`.`raw_events`"
-  target_table = f"`{args.target_catalog}`.`{args.target_schema}`.`refined_events`"
 
-  df = spark.table(source_table).withColumn("quality_flag", F.lit("valid"))
-  df.write.mode("overwrite").saveAsTable(target_table)
-
-  log.info("Silver table refreshed: %s", target_table)
+def main() -> int:
+    args = build_parser().parse_args()
+    print(
+        "silver layer transition "
+        f"{args.source_catalog}.{args.source_schema} -> {args.target_catalog}.{args.target_schema}"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-  main()
+    raise SystemExit(main())

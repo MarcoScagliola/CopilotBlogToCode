@@ -22,11 +22,11 @@ variables:
   secret_scope:
     description: AKV-backed Databricks secret scope name.
   bronze_principal_client_id:
-    description: Application (client) ID of the bronze Service Principal.
+    description: Application client ID for bronze principal.
   silver_principal_client_id:
-    description: Application (client) ID of the silver Service Principal.
+    description: Application client ID for silver principal.
   gold_principal_client_id:
-    description: Application (client) ID of the gold Service Principal.
+    description: Application client ID for gold principal.
   bronze_storage_account:
     description: Bronze ADLS Gen2 storage account name.
   silver_storage_account:
@@ -34,15 +34,18 @@ variables:
   gold_storage_account:
     description: Gold ADLS Gen2 storage account name.
   bronze_access_connector_id:
-    description: Azure resource ID of the bronze Databricks Access Connector.
+    description: Bronze Databricks access connector resource ID.
   silver_access_connector_id:
-    description: Azure resource ID of the silver Databricks Access Connector.
+    description: Silver Databricks access connector resource ID.
   gold_access_connector_id:
-    description: Azure resource ID of the gold Databricks Access Connector.
+    description: Gold Databricks access connector resource ID.
 
 targets:
   dev:
-    default: true
-    mode: production
+    mode: development
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
   prd:
     mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

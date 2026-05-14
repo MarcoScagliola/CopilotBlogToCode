@@ -230,6 +230,30 @@ This commonly fires for two distinct reasons:
 - After recovering a parent from soft-delete, the recovery handler MUST expect child conflicts if legacy children exist. The handler enumerates and imports each preserved child individually by Terraform resource address and cloud resource ID — or the operator deletes them out-of-band before reapplying.
 - The deployer often cannot prevent child preservation on the cloud side; recovery brings them back. The only options are (a) wait out the soft-delete retention window, or (b) import each preserved child.
 
+### Parameter Requires Supporting Infrastructure
+
+**Error**: A property valid only when accompanied by specific supporting infrastructure is emitted without that infrastructure. The cloud rejects the create with errors like `<property> is only supported for <feature>-enabled <resource>` or `<property> requires <prerequisite>`.
+
+**Root cause**: Source articles often describe a security-hardened or feature-rich variant of a resource (VNet-injected workspaces, private-endpoint-only services, customer-managed-key encryption). When the generator emits the security property without also emitting the supporting infrastructure, the cloud rejects the configuration. The property is valid in principle, just not in this configuration.
+
+**Prevention**:
+- Before emitting a property that requires supporting infrastructure, verify the supporting infrastructure exists in the same module.
+- If the supporting infrastructure is intentionally out of scope, the property MUST NOT be emitted. Omit it entirely. Do not emit with a default value, do not emit commented out, do not emit as an opt-in variable.
+- If the source article describes the property but the generation scope excludes the supporting infrastructure, record the article's description in SPEC.md and list the hardening as a post-deployment item in TODO.md. The property itself stays out of `main.tf`.
+
+**Known property pairs** (extend as new cases surface):
+
+| Property | Required supporting infrastructure |
+|---|---|
+| `azurerm_databricks_workspace.custom_parameters.required_nsg_rules` | VNet injection (virtual_network_id, public_subnet_name, private_subnet_name, subnet delegations, NSG associations) |
+| `azurerm_databricks_workspace.custom_parameters.public_subnet_name` | Full VNet injection |
+| `azurerm_databricks_workspace.custom_parameters.private_subnet_name` | Full VNet injection |
+| `azurerm_storage_account.public_network_access_enabled = false` | Private endpoint configured against the storage account |
+| `azurerm_key_vault.public_network_access_enabled = false` | Private endpoint configured against the vault |
+| `azurerm_storage_account.customer_managed_key` block | Key Vault, customer-managed key, and access grant to the storage identity |
+
+**Default position: no enhancement.** When the orchestrator is uncertain whether a security-tightening property's supporting infrastructure is in scope, omit the property. Hardening features are easier to add later than to undo when they block the first deploy.
+
 ### Cross-System Identity Resolution
 
 **Error**: A reference to an identity in one system (cloud directory) fails to resolve in a separate system (workspace, SaaS application, cluster) that maintains its own identity table. Common wording: `<identity-id> doesn't exist`.
@@ -249,6 +273,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] **Secret handling**: where will credentials come from? Mark secret variables `sensitive = true`.
 - [ ] **Error scenarios**: identify which error types from Common Error Prevention apply.
 - [ ] **Cross-system identity bridging**: for every identity the module creates, enumerate the downstream systems that will reference it. Each one needs a registration resource.
+- [ ] **Supporting-infrastructure scope**: for every property in the "Parameter Requires Supporting Infrastructure" table that the source article describes, decide whether the supporting infrastructure is in scope for this generation. If not, the property is omitted from `main.tf` and the hardening is listed in TODO.md.
 - [ ] **Credentials and assumptions**: document any assumptions about pre-existing identities, permissions, or resources in variables.tf and TODO.md.
 
 ## Implementation Checklist
@@ -276,6 +301,7 @@ Before writing Terraform code, validate the generation strategy:
 - [ ] One-way properties are set explicitly to their permanent value — never omitted, never set to the reversible-looking alternative.
 - [ ] Provider property naming matches the version pinned in `required_providers`. Read the version pin before choosing argument forms.
 - [ ] Security-tightening properties only appear when the matching supporting infrastructure is in the same configuration; otherwise the looser default is used and hardening is listed in TODO.md.
+- [ ] **REQUIRED OUTPUT — supporting infrastructure check.** Every property listed in "Parameter Requires Supporting Infrastructure" is either absent from `main.tf`, or accompanied by all its supporting infrastructure in the same module. Properties without their supporting infrastructure are removed, not defaulted.
 - [ ] **REQUIRED OUTPUT — cross-system identity registration.** For every identity the module creates, every downstream system that will reference it has a matching registration resource in the same module. Verify by counting originating identity resources and counting registrations per target system; counts must match per system. A mismatch is a generation failure, not a warning.
 - [ ] **REQUIRED OUTPUT — provider declarations match registration resources.** Every target system that has registration resources has its provider declared in `versions.tf` and configured in `providers.tf` against the host resource.
 - [ ] Every registration resource sources its identity reference from the originating resource — never from a hardcoded value or input variable.

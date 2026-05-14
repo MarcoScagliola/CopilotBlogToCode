@@ -9,25 +9,28 @@ locals {
     ukwest      = "ukw"
   }
 
-  region_abbrev = lookup(local.region_abbrev_map, var.azure_region, replace(var.azure_region, " ", ""))
+  region_abbrev = lookup(local.region_abbrev_map, lower(var.azure_region), lower(replace(var.azure_region, " ", "")))
 
-  resource_group_name = "rg-${var.workload}-${var.environment}-${local.region_abbrev}"
-  workspace_name      = "dbw-${var.workload}-${var.environment}-${local.region_abbrev}"
+  rg_name         = "rg-${var.workload}-${var.environment}-${local.region_abbrev}"
+  workspace_name  = substr("dbw-${var.workload}-${var.environment}-${local.region_abbrev}", 0, 64)
+  key_vault_name  = substr(replace("kv-${var.workload}-${var.environment}-${local.region_abbrev}", "_", ""), 0, 24)
+  secret_scope    = "kv-${var.environment}-scope"
 
-  key_vault_raw  = lower(replace("kv-${var.workload}-${var.environment}-${local.region_abbrev}", "_", ""))
-  key_vault_name = substr(local.key_vault_raw, 0, 24)
+  bronze_storage_account_name = substr(lower(replace("st${var.workload}${var.environment}bronze${local.region_abbrev}", "-", "")), 0, 24)
+  silver_storage_account_name = substr(lower(replace("st${var.workload}${var.environment}silver${local.region_abbrev}", "-", "")), 0, 24)
+  gold_storage_account_name   = substr(lower(replace("st${var.workload}${var.environment}gold${local.region_abbrev}", "-", "")), 0, 24)
 
-  bronze_storage_account = substr(lower("st${var.workload}${var.environment}bronze${local.region_abbrev}"), 0, 24)
-  silver_storage_account = substr(lower("st${var.workload}${var.environment}silver${local.region_abbrev}"), 0, 24)
-  gold_storage_account   = substr(lower("st${var.workload}${var.environment}gold${local.region_abbrev}"), 0, 24)
+  bronze_catalog = "bronze"
+  silver_catalog = "silver"
+  gold_catalog   = "gold"
 
-  bronze_catalog = "${var.workload}_bronze"
-  silver_catalog = "${var.workload}_silver"
-  gold_catalog   = "${var.workload}_gold"
+  bronze_schema = "bronze"
+  silver_schema = "silver"
+  gold_schema   = "gold"
 
-  bronze_schema = "core"
-  silver_schema = "core"
-  gold_schema   = "core"
-
-  secret_scope_name = "kv-${var.environment}-scope"
+  layer_principal_client_ids = {
+    bronze = var.client_id
+    silver = var.client_id
+    gold   = var.client_id
+  }
 }
