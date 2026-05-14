@@ -1,26 +1,26 @@
 bundle:
-  name: blg-medallion
+  name: secure-medallion-blg
 
 include:
   - resources/*.yml
 
 variables:
   workspace_resource_id:
-    description: Full Azure resource ID of the Databricks workspace.
+    description: Azure resource ID of the Databricks workspace.
   bronze_catalog:
-    description: Bronze Unity Catalog catalog name.
+    description: Bronze Unity Catalog name.
   silver_catalog:
-    description: Silver Unity Catalog catalog name.
+    description: Silver Unity Catalog name.
   gold_catalog:
-    description: Gold Unity Catalog catalog name.
+    description: Gold Unity Catalog name.
   bronze_schema:
-    description: Bronze Unity Catalog schema name.
+    description: Bronze schema name.
   silver_schema:
-    description: Silver Unity Catalog schema name.
+    description: Silver schema name.
   gold_schema:
-    description: Gold Unity Catalog schema name.
+    description: Gold schema name.
   secret_scope:
-    description: Azure Key Vault-backed Databricks secret scope name.
+    description: AKV-backed Databricks secret scope name.
   bronze_principal_client_id:
     description: Application (client) ID of the bronze Service Principal.
   silver_principal_client_id:
@@ -28,26 +28,21 @@ variables:
   gold_principal_client_id:
     description: Application (client) ID of the gold Service Principal.
   bronze_storage_account:
-    description: Bronze storage account name.
+    description: Bronze ADLS Gen2 storage account name.
   silver_storage_account:
-    description: Silver storage account name.
+    description: Silver ADLS Gen2 storage account name.
   gold_storage_account:
-    description: Gold storage account name.
+    description: Gold ADLS Gen2 storage account name.
   bronze_access_connector_id:
-    description: Bronze Databricks access connector resource ID.
+    description: Azure resource ID of the bronze Databricks Access Connector.
   silver_access_connector_id:
-    description: Silver Databricks access connector resource ID.
+    description: Azure resource ID of the silver Databricks Access Connector.
   gold_access_connector_id:
-    description: Gold Databricks access connector resource ID.
+    description: Azure resource ID of the gold Databricks Access Connector.
 
 targets:
   dev:
-    mode: production
     default: true
-    workspace:
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
-
+    mode: production
   prd:
     mode: production
-    workspace:
-      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}

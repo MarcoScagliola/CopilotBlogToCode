@@ -1,196 +1,53 @@
 # Secure Medallion Architecture Pattern on Azure Databricks
 
-This repository implements the Azure Databricks architecture pattern described in [Secure Medallion Architecture Pattern on Azure Databricks (Part I)](https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268). The pattern, the design choices it captures, and the trade-offs it makes are documented in detail in [SPEC.md](SPEC.md). This README is the operator's runbook: it tells you what you need, how to set it up, and how to deploy.
+This repository implements the architecture from Secure Medallion Architecture Pattern on Azure Databricks (Part I):
+https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
 
-## What this repository deploys
+## What this deploys
 
-The generated baseline is a security-first medallion scaffold. Terraform provisions the Azure platform layer: a resource group, separate storage accounts for Bronze/Silver/Gold, a Key Vault, a Databricks workspace, access connectors, and layer service principals. The Databricks Asset Bundle deploys a setup job, one job per medallion layer, an orchestrator job, and a smoke test. The runtime jobs use synthetic managed tables so the medallion flow can run end-to-end even though the article does not name concrete source datasets or consumer tables.
+- Terraform platform layer in infra/terraform:
+	- Resource group in uksouth
+	- Azure Databricks workspace
+	- One ADLS Gen2 storage account per medallion layer (bronze, silver, gold)
+	- One Databricks access connector per layer
+	- Azure Key Vault for runtime secrets
+- Databricks Asset Bundle in databricks-bundle:
+	- Layer jobs (setup, bronze, silver, gold, smoke test)
+	- One orchestrator job that runs layer jobs in order
+- GitHub workflows:
+	- validate-terraform.yml
+	- deploy-infrastructure.yml
+	- deploy-dab.yml
 
-Infrastructure is provisioned with Terraform under [`infra/terraform/`](infra/terraform/). Databricks workloads are deployed via a Databricks Asset Bundle under [`databricks-bundle/`](databricks-bundle/). CI/CD is split across three GitHub Actions workflows, each with a single responsibility.
+## Inputs used for this run
 
-For anything the source article did not specify and which the operator must decide, see [TODO.md](TODO.md). The TODO list is structured by deployment phase and must be worked through sequentially.
-
-## Repository layout
-
-```
-.
-├── infra/terraform/              Platform layer (resource group, storage, identity, Key Vault, workspace)
-├── databricks-bundle/            Workload layer (jobs, entry points, environment configuration)
-│   ├── databricks.yml
-│   ├── resources/
-│   └── src/
-├── .github/workflows/            CI/CD pipelines (validate, deploy infra, deploy bundle)
-├── SPEC.md                       Architecture decisions read from the source article
-├── TODO.md                       Operator checklist for everything the article left unstated
-├── REPO_CONTEXT.md               Repo-local naming and run defaults for this generated baseline
-└── README.md                     This file
-```
+- workload: blg
+- environment: dev
+- azure_region: uksouth
+- layer_sp_mode: create
+- github_environment: BLG2CODEDEV
 
 ## Prerequisites
 
-### Azure environment
+- GitHub environment BLG2CODEDEV with:
+	- AZURE_TENANT_ID
+	- AZURE_SUBSCRIPTION_ID
+	- AZURE_CLIENT_ID
+	- AZURE_CLIENT_SECRET
+	- AZURE_SP_OBJECT_ID
+- Optional local tooling for validation:
+	- Python 3.11+
+	- Terraform 1.6+
 
-- An Azure subscription where the deployment principal has at minimum `Contributor` on the target resource group, or on the subscription if the resource group does not yet exist.
-- The target region must support the services this architecture uses. This baseline was generated for `uksouth`.
-- If your tenant has a soft-deleted Key Vault from a previous deployment in this region with the same name, the deploy workflow will detect it and recover it. No manual cleanup is required for the normal case.
+## Deployment flow
 
-### Microsoft Entra ID (identity)
+1. Run Validate Terraform workflow.
+2. Run Deploy Infrastructure workflow.
+3. Run Deploy DAB workflow (auto after successful infrastructure run, or manual with infra_run_id).
+4. Execute orchestrator and smoke test jobs in Databricks.
 
-The deployment principal needs the following identities provisioned **before** the workflows can run:
+## Notes and assumptions
 
-- **A deployment Service Principal.** This is the identity GitHub Actions uses to authenticate to Azure. It needs its tenant ID, subscription ID, client ID, client secret, and Service Principal object ID (the object ID from Enterprise Applications, not from App Registrations).
-- **Layer Service Principals.** This baseline generates bronze, silver, and gold service principals in Terraform and uses them as the run-as identity for the layer jobs.
-
-This repository is designed to work in restricted tenants, meaning tenants where the deployment principal cannot read Microsoft Graph. All object IDs are passed in as secrets, never resolved from names at plan time. If your tenant does allow Graph reads, the workflows still work - they just do not need them.
-
-### Local tooling (optional, for validation)
-
-- Terraform CLI `>= 1.6`
-- Python `>= 3.11`
-- Databricks CLI `>= 0.220` if you want to run bundle commands locally
-
-You do not need any of these installed to run the deployment, which is workflow-driven. They are useful if you want to validate changes before pushing.
-
-## Required GitHub Secrets and Variables
-
-All secrets and variables live in the GitHub Environment named `BLG2CODEDEV`. The environment must be created before the workflows can dispatch.
-
-### Always required
-
-| Name | Type | Description |
-|---|---|---|
-| `AZURE_TENANT_ID` | Secret | Azure tenant ID (UUID) |
-| `AZURE_SUBSCRIPTION_ID` | Secret | Azure subscription ID (UUID) |
-| `AZURE_CLIENT_ID` | Secret | Deployment Service Principal application (client) ID |
-| `AZURE_CLIENT_SECRET` | Secret | Deployment Service Principal client secret |
-| `AZURE_SP_OBJECT_ID` | Secret | Deployment Service Principal object ID from Enterprise Applications |
-
-### Layer identities generated by Terraform
-
-The layer Service Principals are provisioned by Terraform in this baseline, so no additional GitHub secrets are needed for them unless you convert the repository to an existing-principal flow later.
-
-## One-time setup
-
-These steps need to be done once per target Azure subscription. After they are complete, every subsequent deployment is a workflow dispatch.
-
-### Step 1: Create or identify the deployment Service Principal
-
-In the Azure portal: Microsoft Entra ID -> App registrations -> New registration. Give it a name that identifies its purpose, for example `gh-actions-blg`.
-
-Once created, note down:
-- The Application (client) ID from the App registration overview.
-- A client secret, which you create under Certificates & secrets.
-- The Service Principal object ID, which you find under Microsoft Entra ID -> Enterprise applications -> your app -> Object ID.
-
-### Step 2: Assign Azure RBAC
-
-The deployment Service Principal needs Azure RBAC roles on the target scope. The minimum set is:
-
-- `Contributor` on the subscription, or on the resource group if one already exists.
-- `User Access Administrator` on the same scope.
-
-### Step 3: Review the identity mode
-
-This generated baseline uses `layer_sp_mode=create`, so Terraform provisions the layer service principals itself. If you later want to reuse pre-created layer principals, regenerate the stack in an existing-principal mode and supply the corresponding object IDs.
-
-### Step 4: Populate the GitHub Environment
-
-In the GitHub repository: Settings -> Environments -> `BLG2CODEDEV`. Add every secret listed in the Always required table above.
-
-### Step 5: Review TODO.md
-
-[TODO.md](TODO.md) lists every decision the source article did not make for you, plus the universal post-deploy actions that apply to any Databricks workspace. You do not have to resolve everything before the first dispatch, but you should at least read the Pre-deployment section so the workflow run does not stall on a missing input.
-
-## Workflows
-
-### Validate Terraform
-
-| | |
-|---|---|
-| File | [`.github/workflows/validate-terraform.yml`](.github/workflows/validate-terraform.yml) |
-| Trigger | `workflow_dispatch` |
-| Auth required | Tenant + subscription IDs only |
-| Outputs | None |
-
-Runs `terraform init -backend=false` and `terraform validate`.
-
-### Deploy Infrastructure
-
-| | |
-|---|---|
-| File | [`.github/workflows/deploy-infrastructure.yml`](.github/workflows/deploy-infrastructure.yml) |
-| Trigger | `workflow_dispatch` |
-| Auth required | All always-required secrets |
-| Outputs | `terraform-outputs` artifact, `deploy-context` artifact |
-
-Dispatch inputs:
-
-| Input | Type | Description |
-|---|---|---|
-| `target` | choice | DAB target to pair with this infrastructure deployment. Defaults to `dev`. |
-| `workload` | string | Workload identifier used in resource naming. Defaults to `blg`. |
-| `environment` | choice | Deployment environment. Defaults to `dev`. |
-| `azure_region` | choice | Azure region for deployment. Defaults to `uksouth`. |
-| `key_vault_recovery_mode` | choice | `auto`, `recover`, or `fresh`. |
-| `state_strategy` | choice | `fail` or `recreate_rg`. |
-
-The workflow runs `terraform apply` against the target environment. On success, it uploads two artifacts that the DAB deployment workflow consumes:
-
-- `terraform-outputs` - the JSON-formatted outputs from `terraform output -json`.
-- `deploy-context` - a small metadata bundle including the commit SHA that was deployed.
-
-### Deploy DAB
-
-| | |
-|---|---|
-| File | [`.github/workflows/deploy-dab.yml`](.github/workflows/deploy-dab.yml) |
-| Trigger | `workflow_dispatch` (requires `infra_run_id`) or automatic on successful infrastructure deployment |
-| Auth required | All always-required secrets |
-| Outputs | None |
-
-This workflow takes the artifacts from a specific infrastructure run and deploys the Databricks Asset Bundle against them. It downloads both artifacts, checks out the repository at the commit SHA recorded in `deploy-context`, then runs `databricks bundle deploy` with Terraform outputs mapped to bundle variables.
-
-## State strategy and recovery
-
-Azure has a few resources that do not behave well across repeated deploy/destroy cycles in the same subscription. Key Vault is the most prominent: by default, deleted vaults are soft-deleted and retained for a period of time. Attempting to create a vault with the same name in the same subscription during that window fails. This repository handles that case automatically.
-
-### `key_vault_recovery_mode`
-
-| Value | Behaviour |
-|---|---|
-| `auto` (recommended) | The workflow detects whether a soft-deleted vault exists and, if so, recovers it. |
-| `recover` | Force recovery. Fails if there is no soft-deleted vault to recover. |
-| `fresh` | Skip recovery and create a new vault. Will fail if a soft-deleted vault with the same name exists. |
-
-### `state_strategy`
-
-| Value | Behaviour |
-|---|---|
-| `fail` (default) | Stop the workflow if Terraform detects state mismatch or pre-existing resources it does not own. |
-| `recreate_rg` | Delete the target resource group before applying. Useful for ephemeral environments. |
-
-## Post-deployment verification
-
-After both workflows complete successfully, the infrastructure exists and the bundle is deployed, but the system is not yet production-ready.
-
-1. Populate the actual runtime secrets in Azure Key Vault. The generated scaffold threads the secret-scope name through the bundle, but the article does not name the concrete keys.
-2. Verify the setup job created the catalogs and schemas for Bronze, Silver, and Gold.
-3. Verify the smoke test job passes and the synthetic bronze, silver, and gold tables each contain rows.
-4. Decide whether to keep the synthetic scaffold or replace it with the real business tables and transformations.
-5. Configure any job schedules from the Databricks workflows UI once the runtime data model is finalized.
-
-## Troubleshooting
-
-| Symptom | Likely cause | Where to look |
-|---|---|---|
-| Terraform fails on an `azuread_*` resource | The deployment principal lacks directory permissions to create service principals | TODO.md and Azure RBAC/Entra setup |
-| Role assignment fails with `PrincipalNotFound` | Object ID is for App Registration, not Service Principal | Use the Enterprise Application object ID |
-| Deploy succeeds but bundle deploy fails on auth | DAB CLI env vars not aligned with workflow secrets | Check that the Azure environment secrets are present |
-| Workflow run hangs at Terraform prompt | A required variable was added without a matching workflow export | Run the workflow parity check |
-| Key Vault create fails with a conflict | Soft-deleted vault with the same name still exists | Use `key_vault_recovery_mode=auto` |
-
-## Documentation index
-
-- [SPEC.md](SPEC.md) - every architectural decision read from the source article, plus what was inferred from the generated scaffold and what was explicitly not stated.
-- [TODO.md](TODO.md) - the operator checklist, organized by deployment phase.
-- [REPO_CONTEXT.md](REPO_CONTEXT.md) - this repository's defaults and naming contract for the generated baseline.
+- Article-guided pattern values that were not explicitly stated are tracked in SPEC.md and TODO.md.
+- This baseline is generated for first-run reproducibility and leaves remote Terraform backend setup as a deferred decision.
+- Secrets are never stored in repository files and must be added in Azure Key Vault after infrastructure deployment.

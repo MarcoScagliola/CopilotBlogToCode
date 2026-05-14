@@ -1,259 +1,145 @@
-# TODO — blg dev
+# TODO - blg dev
 
-This file lists everything not yet resolved by the generated artifacts. Items are grouped by when they need to be addressed. Each entry explains what the action is, why the orchestrator did not do it, and what done looks like at the level of concepts, not commands.
-
-The five sections below are always present. Per-workload entries are added by the orchestrator based on `SPEC.md`.
+This file tracks unresolved decisions and operator actions after generation.
 
 ## Pre-deployment
 
-### Deployment principal has the required Azure RBAC roles
+### Confirm Azure RBAC for deployment principal
 
-**What this is.** The deployment principal is the Azure service principal whose credentials are stored in the GitHub Environment as `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET`. It is the identity Terraform uses to provision every resource in `infra/terraform/`.
+Why deferred. Role assignment is tenant and subscription specific and cannot be safely inferred from the article.
 
-The required roles are not narrow. Terraform creates a resource group, storage accounts, a Key Vault, a Databricks workspace, access connectors, and several role assignments. The deployment principal therefore needs broad resource-creation permission and the ability to assign roles to other identities.
+Source. SPEC.md security and identity section.
 
-**Why deferred.** RBAC assignment must happen before the first Terraform apply. The deployment workflow uses the deployment principal's credentials to run; it cannot grant itself permissions it does not yet have.
+Resolution.
+1. Ensure the deployment principal has Contributor and User Access Administrator at the target subscription scope.
+2. Confirm role assignments are applied before running infrastructure deployment.
 
-**Source.** `terraform` skill - RBAC / Permission Errors.
+### Confirm Entra permissions for layer identity mode
 
-**Resolution.**
-1. Identify the deployment principal in Azure by matching the Application (client) ID from the GitHub secret `AZURE_CLIENT_ID` to the corresponding Enterprise Application.
-2. At subscription scope, assign at minimum the `Contributor` role and the `User Access Administrator` role.
-3. Verify the assignments are in place before triggering the deployment workflow.
+Why deferred. Directory permissions vary by tenant policy and are outside repository control.
 
-**Done looks like.** A role list query against the deployment principal at subscription scope returns at least `Contributor` and `User Access Administrator`.
+Source. SPEC.md security and identity section.
 
-### Deployment principal has Entra ID permissions if the layer principals are created from Terraform
+Resolution.
+1. For create mode, verify the deployment principal can create app registrations and service principals.
+2. If create mode is restricted, switch to existing mode and provide pre-created principal identifiers.
 
-**What this is.** The generated Terraform currently creates bronze, silver, and gold service principals directly. Creating those identities is a directory-level operation in Entra ID, not a subscription-level one.
+### Populate GitHub environment BLG2CODEDEV with required secrets
 
-**Why deferred.** Tenant policy may restrict service principal creation in ways the orchestrator cannot detect in advance.
+Why deferred. Secret values are operator-managed credentials.
 
-**Source.** `terraform` skill - Identity Creation Restrictions.
+Source. Workflow input contract and repository context.
 
-**Resolution.**
-1. If the tenant allows it, grant the deployment principal the directory permissions needed to create app registrations and service principals.
-2. If the tenant blocks it, regenerate the infrastructure in an existing-principal mode and supply the layer principal identifiers explicitly.
-
-**Done looks like.** Terraform can create the layer identities without `Authorization_RequestDenied` errors, or the deployment is regenerated to reuse pre-created identities.
-
-### GitHub Environment `BLG2CODEDEV` exists with all required secrets
-
-**What this is.** The GitHub Environment is the scoped container that holds the Azure credentials used by the workflows.
-
-**Why deferred.** GitHub Environment configuration is outside Terraform's reach.
-
-**Source.** SKILL.md Step 6; deploy bridge variable contract.
-
-**Resolution.**
-1. Create or verify the GitHub Environment named `BLG2CODEDEV`.
-2. Populate `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_SP_OBJECT_ID`.
-3. Keep the values as GitHub secrets, not repository variables.
-
-**Done looks like.** The environment exists and the deploy workflows can read the Azure credentials without missing-secret errors.
+Resolution.
+1. Add AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, and AZURE_SP_OBJECT_ID in BLG2CODEDEV.
+2. If existing mode is used later, add EXISTING_LAYER_SP_CLIENT_ID and EXISTING_LAYER_SP_OBJECT_ID.
 
 ## Deployment-time inputs
 
-### `key_vault_recovery_mode` - choose per-run when dispatching the workflow
+### key_vault_recovery_mode selection per run
 
-**Why deferred.** The right value depends on whether a Key Vault with the target name exists in a soft-deleted state from a prior deploy.
+Why deferred. Soft-delete state exists only at runtime in the target subscription.
 
-**Source.** SKILL.md Step 5 workflow inputs; `terraform` skill - Key Vault Soft-Delete Recovery.
+Source. Deploy workflow contract.
 
-**Resolution.**
-- Use `auto` for normal runs.
-- Use `recover` when you know a soft-deleted vault exists and want the workflow to recover it.
-- Use `fresh` only when you are certain no soft-deleted vault exists with the target name.
+Resolution.
+1. Use auto for normal runs.
+2. Use recover only when known soft-deleted vault recovery is required.
+3. Use fresh only when no recoverable vault exists.
 
-### `state_strategy` - choose per-run when dispatching the workflow
+### state_strategy selection per run
 
-**Why deferred.** The baseline keeps Terraform state local to the runner. On rerun, Terraform has no state and treats existing Azure resources as unmanaged.
+Why deferred. State handling depends on whether deployment is ephemeral or persistent.
 
-**Source.** SKILL.md Step 5 state-strategy policy.
+Source. Deploy workflow contract.
 
-**Resolution.**
-- Use `fail` for runs where existing resources must be preserved.
-- Use `recreate_rg` only for ephemeral runs where full resource-group deletion is acceptable.
+Resolution.
+1. Use fail for non-destructive runs.
+2. Use recreate_rg only for disposable environments where full recreation is acceptable.
 
-### Define the combination of run-time controls for this baseline
+### Fill architecture values not stated in article
 
-**Why deferred.** The article does not specify whether this deployment is a lab-style resettable environment or a persistent environment with remote state.
+Why deferred. The article intentionally leaves implementation specifics open.
 
-**Source.** SPEC.md § Operational concerns; SPEC.md § Architectural decisions deferred.
+Source. SPEC.md entries marked not stated in article.
 
-**Resolution.**
-1. Decide whether the deployment should remain ephemeral or be converted to remote state.
-2. Confirm the intended dispatch values for `key_vault_recovery_mode` and `state_strategy` before each run.
-
-**Done looks like.** The workflow inputs match the intended deployment lifecycle and do not surprise the operator with destructive reruns.
+Resolution.
+1. Choose concrete catalog and schema names for each layer.
+2. Choose concrete source systems, dataset names, and schedules.
+3. Choose concrete workspace tier and runtime policy values.
 
 ## Post-infrastructure
 
-### Create the Azure Key Vault-backed Databricks secret scope
+### Create AKV-backed Databricks secret scope
 
-**What this is.** A Databricks secret scope is the named bridge through which jobs read Azure Key Vault secrets at runtime.
+Why deferred. Secret scopes require an existing workspace and Key Vault deployment.
 
-**Why deferred.** A secret scope requires a workspace to already exist and be reachable.
+Source. SPEC.md secrets and credentials section.
 
-**Source.** `databricks-asset-bundle` skill - Scope Boundary; SPEC.md § Security and identity.
+Resolution.
+1. Create one secret scope in the workspace backed by the deployed Key Vault.
+2. Use the same scope name configured in bundle variable secret_scope.
 
-**Resolution.**
-1. Identify the Key Vault Terraform provisioned and the workspace that will read it.
-2. Create the Key Vault-backed secret scope using the generated scope name `kv-dev-scope`.
-3. Verify the workspace identity can read from the vault.
+### Populate runtime secrets in Key Vault
 
-**Done looks like.** The scope exists, points at the generated Key Vault, and secret reads succeed from the workspace.
+Why deferred. Runtime credentials must not be generated or stored in repository artifacts.
 
-### Populate Azure Key Vault with the runtime secrets the bundle reads
+Source. SPEC.md secrets and credentials section.
 
-**What this is.** Runtime secrets are the source-system credentials or API keys the jobs read from the secret scope at execution time.
+Resolution.
+1. Add the required secret keys used by notebook and Python entrypoints.
+2. Validate non-production secret access before production rollout.
 
-**Why deferred.** The article does not name the concrete secrets, so the orchestrator cannot invent them.
+### Establish Unity Catalog objects and grants
 
-**Source.** SPEC.md § Security and identity; SPEC.md § Other observations.
+Why deferred. Object names and privilege models are tenant-specific governance decisions.
 
-**Resolution.**
-1. Decide which source systems the workload will actually ingest from.
-2. Define the secret key names and store the values in the generated Key Vault.
-3. Keep the key names stable across environments.
+Source. SPEC.md Unity Catalog and security sections.
 
-**Done looks like.** Every runtime secret the jobs need exists in the Key Vault and can be resolved from the secret scope.
-
-### Replace the synthetic medallion tables with the real business tables
-
-**What this is.** The generated bundle uses synthetic managed tables so the jobs can run end-to-end even though the article does not name source datasets or target table contracts.
-
-**Why deferred.** The article never specifies the real upstream datasets, the exact target table names, or the transformation rules between layers.
-
-**Source.** SPEC.md § Data model.
-
-**Resolution.**
-1. Define the real Bronze input, Silver transformation, and Gold consumption tables.
-2. Replace the scaffolded table names with the business names that belong to the workload.
-3. Preserve the catalog and schema boundaries already generated.
-
-**Done looks like.** The bronze, silver, and gold jobs read and write the production table set instead of the synthetic scaffold.
-
-### Confirm the Unity Catalog privilege model for human consumers
-
-**What this is.** The generated baseline establishes the runtime principals, but the article does not define how human users or downstream groups should be granted catalog access.
-
-**Why deferred.** Consumer access is a tenant and operating-model decision, not a blog-derived constant.
-
-**Source.** SPEC.md § Security and identity.
-
-**Resolution.**
-1. Decide which groups own the catalogs and which groups merely consume them.
-2. Grant the human or group principals the catalog and schema rights that match the operating model.
-3. Verify the generated tables are visible only where intended.
-
-**Done looks like.** The catalogs and schemas are accessible to the right groups and blocked from the wrong ones.
+Resolution.
+1. Create or confirm Bronze, Silver, and Gold catalogs and schemas.
+2. Grant least-privilege rights to each layer principal for only required sources and targets.
 
 ## Post-DAB
 
-### Verify the orchestrator job runs end-to-end
+### Run orchestrator functional smoke test
 
-**What this is.** The bundle deploys the jobs, but the first real signal that the whole chain works is a successful orchestrator run.
+Why deferred. End-to-end execution requires infrastructure, secrets, and grants to be in place first.
 
-**Why deferred.** Functional validation requires the deployed pipeline to actually execute.
+Source. SKILL.md functional validation guidance.
 
-**Source.** SKILL.md Step 10.2.8 functional test.
-
-**Resolution.**
-1. Trigger the orchestrator job in the deployed workspace.
-2. Confirm Bronze, Silver, and Gold each run once and complete.
-3. Confirm the smoke test passes after the layered jobs finish.
-
-**Done looks like.** The orchestrator run completes without permission, secret, or storage errors.
-
-### Review the output tables for the generated scaffold
-
-**What this is.** The synthetic bronze, silver, and gold tables are the generated proof that the medallion chain is wired correctly.
-
-**Why deferred.** They only exist after the bundle has been deployed and run.
-
-**Source.** SPEC.md § Data model.
-
-**Resolution.**
-1. Inspect the bronze, silver, and gold managed tables in Unity Catalog.
-2. Confirm each table has at least one row after the smoke test.
-3. Replace the scaffolded names once the real workload tables are decided.
-
-**Done looks like.** The tables exist, are populated, and reflect the intended layer flow.
+Resolution.
+1. Trigger the orchestrator job after DAB deployment.
+2. Verify setup, bronze, silver, gold, and smoke-test tasks all complete.
 
 ## Architectural decisions deferred
 
-### Confirm the Databricks workspace tier and cluster connectivity posture
+### Remote Terraform state backend
 
-**What this is.** The article uses Unity Catalog, but it does not state the workspace tier or whether secure cluster connectivity is required.
+Why deferred. This baseline favors first-run reproducibility and does not configure backend infrastructure.
 
-**Why deferred.** These are platform decisions that depend on cost, governance, and network posture.
+Source. Terraform skill state-management guidance.
 
-**Source.** SPEC.md § Databricks.
+Resolution.
+1. Decide whether this environment needs persistent non-destructive updates.
+2. If yes, introduce remote backend storage and lock strategy, then migrate state.
 
-**Resolution.**
-1. Decide whether the workspace should remain on the inferred Premium tier or be tightened further.
-2. Decide whether secure cluster connectivity and private networking are required.
-3. Regenerate the infrastructure if the network model changes.
+### Storage shared key hardening
 
-**Done looks like.** The workspace tier and connectivity settings match the platform policy instead of the article's silence.
+Why deferred. Some provider operations remain safer with shared key enabled at initial provisioning.
 
-### Decide on network restrictions and private endpoints
+Source. Terraform skill provider-compatibility guidance.
 
-**What this is.** The article does not state whether storage, Key Vault, or the workspace should be public or private.
+Resolution.
+1. Keep shared key enabled for baseline deployment compatibility.
+2. Disable it in a controlled hardening pass after validating all identity-based access paths.
 
-**Why deferred.** Network hardening often requires additional infrastructure and is environment-specific.
+### Observability and cost-governance depth
 
-**Source.** SPEC.md § Azure services; SPEC.md § Security and identity.
+Why deferred. The article provides principles but not environment-specific dashboards, alerts, and thresholds.
 
-**Resolution.**
-1. Decide whether the deployment should keep public endpoints or move to private endpoints.
-2. Add the supporting network infrastructure before tightening access.
-3. Revisit the generated Azure resource settings after the network model is chosen.
+Source. SPEC.md operational concerns.
 
-**Done looks like.** The deployed Azure resources reflect the chosen network boundary model.
-
-### Choose the runtime libraries, notebook runtime, and init-script policy
-
-**What this is.** The article does not specify the Databricks runtime version or any non-standard libraries.
-
-**Why deferred.** Runtime compatibility depends on the actual workload, not just the architecture pattern.
-
-**Source.** SPEC.md § Databricks.
-
-**Resolution.**
-1. Choose the Databricks runtime and any required Python packages.
-2. Decide whether init scripts are necessary.
-3. Update the bundle if the workload requires non-default dependencies.
-
-**Done looks like.** The runtime stack is documented and repeatable instead of relying on implicit defaults.
-
-### Define backup, retention, and disaster recovery expectations
-
-**What this is.** The article does not define backup windows, retention periods, or recovery objectives.
-
-**Why deferred.** DR policy is an operational decision that depends on business requirements.
-
-**Source.** SPEC.md § Operational concerns.
-
-**Resolution.**
-1. Decide the retention and recovery objectives for the storage accounts and Key Vault.
-2. Decide whether additional backup tooling is required.
-3. Document the chosen policy alongside the deployment process.
-
-**Done looks like.** The team can explain how the medallion data and secrets are recovered after a failure.
-
-### Define monitoring, logging, and cost controls beyond the built-in system tables
-
-**What this is.** The article mentions system tables and the Jobs UI, but it does not define alerting destinations or cost guardrails.
-
-**Why deferred.** Those choices depend on the operator's observability stack and budget policy.
-
-**Source.** SPEC.md § Operational concerns.
-
-**Resolution.**
-1. Decide whether to route logs to a monitoring workspace or another observability system.
-2. Decide whether job alerts, budgets, or usage thresholds are required.
-3. Add the chosen controls after the baseline deployment is working.
-
-**Done looks like.** The environment has a deliberate monitoring and cost posture rather than implicit defaults.
+Resolution.
+1. Enable and grant access to Databricks system tables.
+2. Define layer-level alerts, retries, and budget controls aligned to operational SLOs.

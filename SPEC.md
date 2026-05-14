@@ -1,69 +1,96 @@
 # Secure Medallion Architecture Pattern on Azure Databricks (Part I)
 
-Source URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+## Source
 
-Short summary: the article describes a security-first medallion pattern on Azure Databricks. It splits Bronze, Silver, and Gold into separate Lakeflow jobs, uses dedicated Entra service principals per layer, stores secrets in Azure Key Vault, and prefers Unity Catalog managed tables with separate storage accounts per layer.
+- URL: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+- Fetched: 2026-05-14
+- Summary: The article proposes a secure Azure Databricks medallion design with strict layer isolation. Each Bronze, Silver, and Gold layer has dedicated storage, compute, and identity. Unity Catalog, Azure Key Vault, and Lakeflow jobs are used to enforce least privilege and operational separation.
 
 ## Architecture
 
-- High-level architecture pattern: explicit medallion architecture with Bronze, Silver, and Gold layers.
-- Named components and the role each one plays: Bronze, Silver, and Gold jobs perform layer-specific processing; an orchestrator job chains them; Azure Data Lake Storage Gen2 provides per-layer storage; Azure Key Vault stores secrets; Unity Catalog governs catalogs, schemas, and managed tables; Databricks access connectors bridge workspace access to storage.
-- Data flow direction and triggers: explicit sequential multi-hop flow from Bronze to Silver to Gold, orchestrated as Lakeflow Jobs. The article describes the jobs as repeatable code rather than ad hoc interactive runs.
-- Stated or implied data volume, frequency, and latency requirements: not stated in article.
+- High-level architecture pattern: Medallion lakehouse (Bronze, Silver, Gold) with per-layer isolation.
+- Named components and role:
+  - Bronze layer: raw ingestion and append-focused persistence.
+  - Silver layer: cleansing and business-conformed transformations.
+  - Gold layer: curated data for BI and analytics consumption.
+  - Orchestrator job: coordinates the three layer jobs in order.
+- Data flow and triggers: Scheduled or triggered Lakeflow jobs with an orchestration layer; exact schedule not stated in article.
+- Data volume/frequency/latency: not stated in article.
 
-## Azure services
+## Azure Services
 
-- Azure Databricks workspace: explicit; hosts Lakeflow Jobs, the medallion workloads, and Unity Catalog-backed access patterns. Workspace tier is inferred as Premium because Unity Catalog is used.
-- Azure Data Lake Storage Gen2: explicit; separate storage accounts per layer are recommended so each layer has its own isolated storage boundary. Storage redundancy is assumed as LRS in the generated scaffold, but the article does not state a redundancy tier.
-- Azure Key Vault: explicit; secrets are kept out of code and job parameters and are read at runtime through AKV-backed secret scopes.
-- Azure Databricks Access Connector: inferred from the generated deployment contract and the article's workspace-to-storage governance model; one connector is provisioned per layer in the scaffold.
-- Microsoft Entra ID service principals / managed identities: explicit; each layer uses a dedicated identity and the deployment principal is separate.
-- Unity Catalog: explicit; the article calls for catalog.schema.table conventions, separate catalogs for Bronze/Silver/Gold, and managed tables.
-- Networking posture: not stated in article.
-- Region and redundancy: region not stated in article; redundancy tier not stated in article.
+- Azure Databricks: workspace and Lakeflow job execution platform.
+- ADLS Gen2: three storage accounts, one per layer.
+- Azure Key Vault: central secret storage and runtime secret retrieval.
+- Microsoft Entra ID: layer service principals and managed identities.
+- Azure Databricks Access Connector: layer-scoped identity bridge to storage for Unity Catalog operations.
+- Networking posture:
+  - Secure Cluster Connectivity (no public IP) is stated.
+  - Private endpoints, NSG rules, and full network topology are not stated in article.
+- Region and redundancy (LRS/ZRS/GRS): not stated in article.
 
 ## Databricks
 
-- Workspace tier: inferred Premium.
-- Workspace type Hybrid: not stated in article.
-- Deploy the Azure Databricks workspace with Secure Cluster Connectivity (No Public IP): not stated in article.
-- Unity Catalog usage: yes; the generated scaffold uses inferred catalog names `blg_dev_bronze`, `blg_dev_silver`, and `blg_dev_gold`, with schemas `bronze`, `silver`, and `gold`.
-- Compute model: Lakeflow Jobs with one job per layer, plus setup, orchestrator, and smoke-test jobs. Each layer runs on its own job cluster in the generated bundle.
-- Jobs and orchestration: explicit multi-job orchestration, with one job per medallion layer plus an overarching orchestrator job. Schedules and concurrency limits beyond the single-run layer separation are not stated in article.
-- Lakeflow Spark Declarative Pipelines usage and mode: not stated in article.
-- Task source format: Python files under `databricks-bundle/src/<job>/main.py`.
-- Libraries, runtime version, init scripts: not stated in article.
+- Workspace tier: not stated in article.
+- Workspace type: hybrid workspace concept is referenced.
+- Secure Cluster Connectivity (no public IP): explicitly stated.
+- Unity Catalog usage: yes.
+  - Separate catalogs per layer (Bronze, Silver, Gold) are explicitly recommended.
+  - Specific catalog and schema names are not stated in article.
+  - Metastore details are not stated in article.
+- Compute model:
+  - Three dedicated clusters, one per layer, explicitly recommended.
+  - Cluster policies per layer are explicitly recommended.
+  - Runtime versions and node SKUs are not stated in article.
+- Jobs and orchestration:
+  - Three Lakeflow jobs, one per layer, explicitly stated.
+  - One orchestrator job, explicitly stated.
+  - Exact schedules, retries, and concurrency values are not stated in article.
+- Task source format: notebooks are explicitly discussed.
+- Libraries and init scripts: not stated in article.
 
-## Data model
+## Data Model
 
 - Source systems and formats: not stated in article.
-- Target tables or datasets grouped by layer: the generated scaffold uses synthetic managed tables named `bronze_layer_runs`, `silver_layer_runs`, and `gold_layer_metrics` so the medallion flow can execute even though the article does not name concrete business tables.
-- Do not apply Partitioning and rather use Liquid Clustering or Z-ordering strategy only if stated in the blog: not stated in article.
-- Schema evolution or enforcement rules: not stated in article.
-- Data quality expectations or test rules: the generated smoke test checks only that each table exists and has at least one row; the article does not define formal quality rules.
+- Target datasets by layer: conceptual Bronze/Silver/Gold datasets are stated; concrete table names are not stated in article.
+- Table type choice: managed tables are explicitly chosen.
+- Partitioning and clustering strategy: liquid clustering is discussed conceptually; concrete table-level strategy is not stated in article.
+- Schema evolution/enforcement details: not stated in article.
+- Data quality tests/rules: conceptual quality gates by layer are implied; concrete rules not stated in article.
 
-## Security and identity
+## Security and Identity
 
-- Identities used: explicit deployment Service Principal; explicit per-layer service principals; inferred Databricks access connector managed identities for storage access.
-- Secrets referenced and where they are stored: explicit Azure Key Vault-backed Databricks secret scopes. The article does not name the secret keys, only the pattern of storing runtime secrets in Key Vault and reading them at runtime.
-- RBAC assignments and Unity Catalog grants: least privilege is explicit, but the exact Azure RBAC roles and Databricks grants are not fully stated in the article.
-- Network boundaries: not stated in article.
+- Identities used:
+  - Dedicated service principal per layer is explicitly stated.
+  - Access connector / managed identity per layer is explicitly stated.
+- Secrets and storage:
+  - Secrets must be stored in Azure Key Vault.
+  - Databricks AKV-backed secret scopes per environment are explicitly stated.
+- RBAC and Unity Catalog grants:
+  - Principle of least privilege is explicit.
+  - Exact role-assignment matrix and grant statements are not stated in article.
+- Network boundaries:
+  - Layer isolation objective is explicit.
+  - Exact routing and endpoint topology are not stated in article.
 
-## Operational concerns
+## Operational Concerns
 
-- Monitoring, logging, alerting services referenced: explicit use of system tables and the Jobs monitoring UI.
-- Cost controls: not stated in article.
-- CI/CD or deployment approach described in the article: the article points to a follow-up part for CI/CD and environment promotion; Part I does not define the implementation.
-- Backup, retention, or disaster recovery strategy: not stated in article.
+- Monitoring and observability:
+  - Databricks system tables and Jobs monitoring UI are explicitly recommended.
+  - Azure Monitor and Log Analytics configuration details are not stated in article.
+- Cost controls:
+  - Cluster policies, per-layer sizing, and auto-termination are explicitly recommended.
+  - Concrete cost budgets and SKU targets are not stated in article.
+- CI/CD approach:
+  - Part II will cover CI/CD code; concrete pipeline implementation is out of scope in this article.
+- Backup/retention/DR strategy: not stated in article.
 
-## Out-of-scope markers
+## Out-of-scope Markers
 
-- CI/CD implementation is deferred to Part II of the series.
-- Environment promotion, cluster reusability, and deployment automation details are not covered in Part I.
-- Exact source datasets, runtime secret keys, and downstream consumer tables are not named in the article.
+- CI/CD implementation details are deferred to Part II.
+- Cluster reuse and environment promotion mechanics are deferred to Part II.
 
-## Other observations
+## Other Observations
 
-- The article recommends one secret scope per environment and reading secrets at runtime with `dbutils.secrets.get(...)`.
-- The generated scaffold uses synthetic medallion tables so the jobs can run end-to-end without inventing a source system that the article never named.
-- Separate storage accounts per layer and separate clusters per layer are called out as part of the security and blast-radius story.
+- The article emphasizes blast-radius reduction through identity, storage, and compute segregation.
+- The design assumes strong governance around catalog ownership, grants, and secret rotation policy, but these remain implementation-time decisions.
