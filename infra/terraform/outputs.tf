@@ -1,58 +1,59 @@
 output "databricks_workspace_url" {
-  description = "Azure Databricks workspace URL"
   value       = azurerm_databricks_workspace.main.workspace_url
+  description = "Databricks workspace host URL used by the deploy bridge."
 }
 
 output "databricks_workspace_resource_id" {
-  description = "Azure Databricks workspace resource ID"
   value       = azurerm_databricks_workspace.main.id
-}
-
-output "bronze_catalog" {
-  value = local.bronze_catalog_name
-}
-
-output "silver_catalog" {
-  value = local.silver_catalog_name
-}
-
-output "gold_catalog" {
-  value = local.gold_catalog_name
-}
-
-output "bronze_schema" {
-  value = "bronze"
-}
-
-output "silver_schema" {
-  value = "silver"
-}
-
-output "gold_schema" {
-  value = "gold"
+  description = "Databricks workspace ARM resource ID used for Azure auth context."
 }
 
 output "secret_scope" {
-  value = local.secret_scope_name
+  value       = local.secret_scope
+  description = "Expected AKV-backed Databricks secret scope name."
+}
+
+output "bronze_catalog" {
+  value = local.bronze_catalog
+}
+
+output "silver_catalog" {
+  value = local.silver_catalog
+}
+
+output "gold_catalog" {
+  value = local.gold_catalog
+}
+
+output "bronze_schema" {
+  value = local.bronze_schema
+}
+
+output "silver_schema" {
+  value = local.silver_schema
+}
+
+output "gold_schema" {
+  value = local.gold_schema
 }
 
 output "bronze_principal_client_id" {
-  value = var.client_id
+  value = azuread_application.bronze.client_id
 }
 
 output "silver_principal_client_id" {
-  value = var.client_id
+  value = azuread_application.silver.client_id
 }
 
 output "gold_principal_client_id" {
-  value = var.client_id
+  value = azuread_application.gold.client_id
 }
 
 output "layer_principal_client_ids" {
   value = {
-    bronze = var.client_id
-    silver = var.client_id
-    gold   = var.client_id
+    bronze = azuread_application.bronze.client_id
+    silver = azuread_application.silver.client_id
+    gold   = azuread_application.gold.client_id
   }
 }
 

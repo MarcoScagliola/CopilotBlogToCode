@@ -1,40 +1,52 @@
-# Secure Medallion Architecture Pattern on Azure Databricks (Part I)
+# Secure Medallion On Azure Databricks
 
-This repository implements a security-first Azure Databricks medallion pattern derived from the Microsoft TechCommunity article:
-https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+This repository implements the secure Medallion pattern described in the article Secure Medallion Architecture Pattern on Azure Databricks (Part I).
 
-## What this repository deploys
+- Source article: https://techcommunity.microsoft.com/blog/analyticsonazure/secure-medallion-architecture-pattern-on-azure-databricks-part-i/4459268
+- Workload baseline: blg
+- Environment baseline: dev
+- Region baseline: uksouth
+- GitHub environment baseline: BLG2CODEDEV
 
-- Azure infrastructure with Terraform in `infra/terraform/`:
-	- Resource group, Azure Key Vault, three ADLS Gen2 storage accounts (bronze/silver/gold)
-	- Azure Databricks workspace
-	- Databricks access connectors with storage role assignments
-- Databricks jobs and entrypoints with Asset Bundles in `databricks-bundle/`
-- GitHub Actions workflows to validate Terraform, deploy infrastructure, and deploy DAB
+## What Gets Deployed
 
-Architecture details and blog-derived assumptions are in `SPEC.md`.
-Operator actions that cannot be auto-generated are in `TODO.md`.
+- Azure infrastructure with Terraform under `infra/terraform`.
+- Databricks Asset Bundle under `databricks-bundle`.
+- Three generated GitHub workflows:
+	- `.github/workflows/validate-terraform.yml`
+	- `.github/workflows/deploy-infrastructure.yml`
+	- `.github/workflows/deploy-dab.yml`
 
-## Run profile for this generation
+The architecture follows Bronze, Silver, and Gold isolation with one principal, one storage account, one access connector, and one job cluster family per layer.
 
-- Workload: `blg`
-- Environment: `dev`
-- Region: `uksouth`
-- Layer SP mode: `create`
-- GitHub environment: `BLG2CODEDEV`
+## Repository Layout
 
-## Quick flow
+- `infra/terraform`: Azure resources and identity/RBAC plumbing.
+- `databricks-bundle/databricks.yml`: bundle variables and targets.
+- `databricks-bundle/resources/jobs.yml`: generated Lakeflow job topology.
+- `databricks-bundle/src/*/main.py`: setup, Bronze, Silver, Gold, smoke-test entrypoints.
+- `SPEC.md`: extracted architecture facts and unresolved article gaps.
+- `TODO.md`: unresolved decisions and manual actions.
 
-1. Configure required GitHub environment secrets in `BLG2CODEDEV`.
-2. Run `Validate Terraform` workflow.
-3. Run `Deploy Infrastructure` workflow.
-4. Run `Deploy DAB` workflow.
-5. Complete post-deploy actions from `TODO.md` (secret scope, runtime secrets, UC grants, functional run).
+## Required Secrets
 
-## Repository layout
+Set these in GitHub Environment BLG2CODEDEV:
 
-- `infra/terraform/`: Azure infrastructure
-- `databricks-bundle/`: Databricks Asset Bundle and Python entrypoints
-- `.github/workflows/`: CI/CD workflows
-- `SPEC.md`: article analysis and architecture contract
-- `TODO.md`: deferred operator tasks and unresolved values
+- AZURE_TENANT_ID
+- AZURE_SUBSCRIPTION_ID
+- AZURE_CLIENT_ID
+- AZURE_CLIENT_SECRET
+- AZURE_SP_OBJECT_ID
+
+## Deployment Flow
+
+1. Run Validate Terraform workflow.
+2. Run Deploy Infrastructure workflow.
+3. Run Deploy DAB workflow using the infrastructure run artifact.
+4. Execute the orchestrator job in Databricks.
+
+## Notes
+
+- This baseline intentionally keeps unresolved architecture choices in TODO.md.
+- No Databricks PAT is required by the generated deploy bridge; Azure service-principal auth is used.
+- Runtime secrets are expected in Azure Key Vault and consumed via an AKV-backed scope.

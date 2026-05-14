@@ -1,50 +1,48 @@
 bundle:
-  name: secure-medallion
+  name: secure-medallion-blg
 
 include:
   - resources/*.yml
 
 variables:
   workspace_resource_id:
-    description: Azure Databricks workspace resource ID
+    description: Databricks workspace ARM resource ID.
   bronze_catalog:
-    description: Bronze catalog name
+    description: Bronze catalog name.
   silver_catalog:
-    description: Silver catalog name
+    description: Silver catalog name.
   gold_catalog:
-    description: Gold catalog name
+    description: Gold catalog name.
   bronze_schema:
-    description: Bronze schema name
+    description: Bronze schema name.
   silver_schema:
-    description: Silver schema name
+    description: Silver schema name.
   gold_schema:
-    description: Gold schema name
+    description: Gold schema name.
   secret_scope:
-    description: Databricks secret scope name
+    description: Key Vault-backed Databricks secret scope.
   bronze_principal_client_id:
-    description: Bronze layer service principal client ID
+    description: Bronze layer principal client ID.
   silver_principal_client_id:
-    description: Silver layer service principal client ID
+    description: Silver layer principal client ID.
   gold_principal_client_id:
-    description: Gold layer service principal client ID
+    description: Gold layer principal client ID.
   bronze_storage_account:
-    description: Bronze storage account name
+    description: Bronze storage account name.
   silver_storage_account:
-    description: Silver storage account name
+    description: Silver storage account name.
   gold_storage_account:
-    description: Gold storage account name
+    description: Gold storage account name.
   bronze_access_connector_id:
-    description: Bronze access connector resource ID
+    description: Bronze access connector resource ID.
   silver_access_connector_id:
-    description: Silver access connector resource ID
+    description: Silver access connector resource ID.
   gold_access_connector_id:
-    description: Gold access connector resource ID
+    description: Gold access connector resource ID.
 
 targets:
   dev:
+    mode: development
     default: true
-    workspace:
-      host: ${env.DATABRICKS_HOST}
   prd:
-    workspace:
-      host: ${env.DATABRICKS_HOST}
+    mode: production

@@ -12,7 +12,7 @@ on:
       workload:
         description: Workload short name used in Terraform naming
         required: true
-        default: blg
+        default: myapp
       environment:
         description: Environment value to pass to the downstream DAB deployment
         required: true
@@ -20,7 +20,7 @@ on:
       azure_region:
         description: Azure region for Terraform deployment
         required: true
-        default: uksouth
+        default: eastus2
       key_vault_recovery_mode:
         description: Key Vault soft-delete handling mode
         required: true
@@ -44,7 +44,7 @@ env:
 jobs:
   deploy_infrastructure:
     runs-on: ubuntu-latest
-    environment: BLG2CODEDEV
+    environment: MYAPP-DEV
 
     steps:
       - name: Checkout

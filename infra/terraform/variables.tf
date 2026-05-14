@@ -1,69 +1,56 @@
 variable "tenant_id" {
-  description = "Azure tenant ID used for provider authentication"
   type        = string
+  description = "Azure tenant ID for provider authentication."
 }
 
 variable "subscription_id" {
-  description = "Azure subscription ID used for provider authentication"
   type        = string
+  description = "Azure subscription ID for provider authentication."
 }
 
 variable "client_id" {
-  description = "Deployment service principal client ID"
   type        = string
+  description = "Deployment principal client ID."
 }
 
 variable "client_secret" {
-  description = "Deployment service principal client secret"
   type        = string
+  description = "Deployment principal client secret."
   sensitive   = true
 }
 
 variable "sp_object_id" {
-  description = "Deployment service principal object ID (Enterprise Application object ID)"
   type        = string
+  description = "Deployment principal service principal object ID from Enterprise Applications."
 }
 
 variable "workload" {
-  description = "Short workload identifier used in naming"
   type        = string
-}
-
-variable "environment" {
-  description = "Deployment environment name"
-  type        = string
-}
-
-variable "azure_region" {
-  description = "Azure region"
-  type        = string
-}
-
-variable "key_vault_recover_soft_deleted" {
-  description = "Controls key vault soft-delete recovery behavior in provider features"
-  type        = bool
-  default     = true
-}
-
-variable "layer_sp_mode" {
-  description = "Service principal sourcing model for layer runtime identity"
-  type        = string
-  default     = "create"
+  description = "Workload short code used in naming."
 
   validation {
-    condition     = contains(["create", "existing"], var.layer_sp_mode)
-    error_message = "layer_sp_mode must be either 'create' or 'existing'."
+    condition     = length(trimspace(var.workload)) >= 2 && length(trimspace(var.workload)) <= 12
+    error_message = "workload must be between 2 and 12 characters."
   }
 }
 
-variable "shared_access_key_enabled" {
-  description = "Whether account key authentication remains enabled on storage accounts"
-  type        = bool
-  default     = true
+variable "environment" {
+  type        = string
+  description = "Environment code used in naming."
+
+  validation {
+    condition     = contains(["dev", "tst", "prd"], var.environment)
+    error_message = "environment must be one of dev, tst, prd."
+  }
 }
 
-variable "tags" {
-  description = "Optional tags applied to all resources"
-  type        = map(string)
-  default     = {}
+variable "azure_region" {
+  type        = string
+  description = "Azure region name."
+}
+
+variable "key_vault_recover_soft_deleted" {
+  type        = bool
+  description = "Controls provider-level Key Vault soft-delete recovery behavior."
+  default     = true
 }

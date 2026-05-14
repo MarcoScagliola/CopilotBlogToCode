@@ -1,163 +1,207 @@
-# TODO — blg dev
+# TODO - blg dev
 
-This file lists unresolved operator actions and decisions after generation.
+This file tracks unresolved decisions and manual actions for the generated secure Medallion baseline.
 
 ## Pre-deployment
 
-### Deployment principal has required Azure roles
+### Confirm workspace tier and workspace network posture
 
-**What this is.** The deployment service principal used by GitHub Actions must be able to create resources and assign roles.
+What this is: The article focuses on security outcomes and isolation goals, but does not lock exact Azure Databricks SKU and full network hardening topology.
 
-**Why deferred.** Role assignment is an operator-controlled subscription action.
+Why deferred: These choices are tenant and cost-policy specific and must match enterprise controls.
 
-**Source.** `terraform` skill and deploy workflow requirements.
+Source: SPEC.md section Databricks.
 
-**Resolution.**
-1. Grant Contributor at deployment scope.
-2. Grant User Access Administrator at deployment scope.
-3. Verify role assignments before running infrastructure deployment.
+Resolution:
+1. Choose workspace SKU and document the rationale.
+2. Decide whether to remain on the generated public-access baseline or move to private-network hardening.
+3. Align workspace settings with organization policy before production rollout.
 
-### GitHub environment BLG2CODEDEV has all required secrets
+Done looks like: The chosen SKU and workspace network posture are approved and documented for the target environment.
 
-**What this is.** Workflows read ARM credentials and object IDs from GitHub Environment secrets/variables.
+### Confirm region redundancy and disaster posture
 
-**Why deferred.** Secret values are external credentials and cannot be generated into repository files.
+What this is: The article does not provide LRS/ZRS/GRS choices or regional failover pattern.
 
-**Source.** Deploy workflow generators.
+Why deferred: Redundancy and disaster posture are organization-level architecture decisions.
 
-**Resolution.**
-1. Ensure BLG2CODEDEV exists.
-2. Set AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SP_OBJECT_ID.
-3. If using existing layer principals, set EXISTING_LAYER_SP_CLIENT_ID and EXISTING_LAYER_SP_OBJECT_ID.
+Source: SPEC.md section Azure Services.
 
-### Networking hardening depth (private endpoints/firewall model)
+Resolution:
+1. Select redundancy by data criticality and recovery objectives.
+2. Document target recovery expectations and data-protection boundaries.
 
-**Why deferred.** Private-endpoint and firewall posture is not stated in article.
+Done looks like: Storage redundancy and DR position are explicitly defined for the workload.
 
-**Source.** SPEC.md section Azure services.
+### Validate source-system contract for Bronze ingestion
 
-**Resolution.**
-1. Decide whether storage, key vault, and workspace require private endpoints.
-2. Decide if public network access must be disabled on all data-plane resources.
-3. Update Terraform to enforce the chosen model.
+What this is: The article describes the layered model, but does not provide concrete source systems, payload formats, or ingestion timing contract.
+
+Why deferred: These depend on upstream systems external to this repository.
+
+Source: SPEC.md section Data Model.
+
+Resolution:
+1. Confirm source systems and expected schema contracts.
+2. Define ingestion cadence and acceptable lateness.
+3. Record source ownership and handoff responsibilities.
+
+Done looks like: Bronze input contracts and cadence are approved by source owners.
 
 ## Deployment-time inputs
 
-### Choose key_vault_recovery_mode for each run
+### Choose key-vault recovery mode per run
 
-**Why deferred.** Depends on soft-deleted vault state at deployment time.
+Why deferred: The correct value depends on whether a soft-deleted vault exists for the target name.
 
-**Source.** Deploy workflow input contract.
+Source: SPEC.md section Operational Concerns.
 
-**Resolution.**
-1. Use auto for standard runs.
-2. Use recover only when a matching soft-deleted vault must be restored.
-3. Use fresh only when no conflicting deleted vault exists.
+Resolution:
+1. Use auto as baseline.
+2. Use recover only when recovery is required.
+3. Use fresh only when no soft-deleted vault with matching name exists.
 
-### Choose state_strategy for each run
+### Choose state strategy per run
 
-**Why deferred.** Depends on whether the run is destructive-rebuild or non-destructive reuse.
+Why deferred: The right behavior depends on whether the run is destructive reset or non-destructive adoption.
 
-**Source.** Deploy workflow input contract.
+Source: SPEC.md section Operational Concerns.
 
-**Resolution.**
-1. Use fail for safe/non-destructive runs.
-2. Use recreate_rg only for disposable environments.
+Resolution:
+1. Use fail when preserving existing resources is required.
+2. Use recreate_rg only for disposable dev reruns.
 
-### Decide target region/redundancy profile
+### Pick runtime and clustering settings per layer
 
-**Why deferred.** Region and replication requirements are not stated in article.
+Why deferred: Runtime version and Photon tuning are discussed conceptually but exact values are not fixed by the article.
 
-**Source.** SPEC.md section Azure services.
+Source: SPEC.md section Databricks.
 
-**Resolution.**
-1. Confirm the production region(s).
-2. Decide storage redundancy strategy per layer.
-3. Align Terraform variables and policies with this decision.
+Resolution:
+1. Select runtime versions for Bronze, Silver, and Gold based on validation policy.
+2. Set cluster-policy guardrails per layer.
+3. Confirm autoscaling and auto-termination defaults.
 
-### Decide workspace tier and runtime baseline
+Done looks like: Layer runtimes and cluster-policy parameters are approved and repeatable.
 
-**Why deferred.** Workspace tier and exact Databricks runtime version are not stated in article.
+### Define scheduling and concurrency policy
 
-**Source.** SPEC.md section Databricks.
+Why deferred: Trigger mode and concrete schedules are not stated in the article.
 
-**Resolution.**
-1. Choose workspace tier by governance/features required.
-2. Choose supported DBR family/version and cluster policy constraints.
-3. Update bundle and policy definitions accordingly.
+Source: SPEC.md section Databricks.
+
+Resolution:
+1. Choose orchestrator schedule and retry semantics.
+2. Define concurrency and backfill behavior per layer.
+
+Done looks like: Job schedule and retry/concurrency rules are documented and applied.
 
 ## Post-infrastructure
 
-### Create Key Vault-backed Databricks secret scope
+### Create AKV-backed Databricks secret scope
 
-**What this is.** Databricks runtime secret access bridge to Azure Key Vault.
+What this is: Jobs expect a Key Vault-backed scope and runtime secret retrieval path.
 
-**Why deferred.** Requires workspace-side object creation after infrastructure exists.
+Why deferred: Scope creation requires the workspace and vault to already exist.
 
-**Source.** SPEC.md section Security and identity.
+Source: SPEC.md section Security And Identity.
 
-**Resolution.**
-1. Create a secret scope for the environment.
-2. Bind it to the deployed Key Vault.
-3. Validate a secret read path.
+Resolution:
+1. Create one secret scope for the environment.
+2. Bind it to the generated Key Vault.
+3. Validate secret-read access in non-production first.
 
-### Populate runtime secret keys
+Done looks like: The expected scope exists and resolves secrets from the correct vault.
 
-**Why deferred.** Secret values are environment-specific and not provided by the article.
+### Populate runtime secrets
 
-**Source.** SPEC.md sections Data model and Security and identity.
+What this is: Source credentials and API keys are intentionally excluded from generated code.
 
-**Resolution.**
-1. Enumerate required secret keys used by entrypoints.
-2. Insert corresponding secret values in Key Vault.
-3. Confirm key naming consistency between jobs and vault entries.
+Why deferred: Secret values must be supplied by operators and never embedded in repo artifacts.
 
-### Decide source interfaces and schema governance
+Source: SPEC.md section Security And Identity.
 
-**Why deferred.** Exact source systems/formats and schema-evolution policy are not stated in article.
+Resolution:
+1. Collect required keys from entrypoint secret-read usage.
+2. Store secret values in Azure Key Vault with stable key names.
+3. Validate no secret value is logged by job code.
 
-**Source.** SPEC.md section Data model.
+Done looks like: All required keys exist and jobs run without missing-secret failures.
 
-**Resolution.**
-1. Define each source endpoint and format contract.
-2. Define schema evolution/enforcement policy per layer.
-3. Update Bronze/Silver logic to enforce that policy.
+### Finalize Unity Catalog grants and ownership
+
+What this is: The architecture requires strict principal-scoped grants per layer.
+
+Why deferred: Exact grants depend on environment governance and downstream consumer model.
+
+Source: SPEC.md section Security And Identity.
+
+Resolution:
+1. Assign browse/read/write privileges per layer boundary.
+2. Confirm owner model for catalogs and schemas.
+3. Review grants against least-privilege policy.
+
+Done looks like: Layer jobs run successfully without privilege errors and without cross-layer overreach.
 
 ## Post-DAB
 
-### Validate orchestrator job end-to-end
+### Run orchestrator end-to-end validation
 
-**What this is.** Functional run of setup -> bronze -> silver -> gold -> smoke test.
+What this is: A deployed bundle does not prove runtime data flow correctness until jobs execute.
 
-**Why deferred.** Requires deployed infrastructure, populated secrets, and approved data access.
+Why deferred: This depends on completed identity, secrets, UC grants, and source availability.
 
-**Source.** SKILL validation step (functional test).
+Source: SPEC.md section Architecture.
 
-**Resolution.**
-1. Trigger orchestrator job in workspace.
-2. Verify each layer run succeeds.
-3. Verify expected target tables are created/updated with data.
+Resolution:
+1. Execute orchestrator job and inspect each layer run.
+2. Verify Bronze, Silver, and Gold tables are created or updated.
+3. Validate smoke test minimum row-count gate.
+
+Done looks like: Full run succeeds with expected tables and no identity/secret/storage failures.
+
+### Establish observability dashboards and alerts
+
+What this is: The article recommends system-table and job-UI observability, but concrete alert rules are not fully specified.
+
+Why deferred: Alert routing and threshold policy are operational decisions.
+
+Source: SPEC.md section Operational Concerns.
+
+Resolution:
+1. Enable and grant access to system tables used for job and cost analysis.
+2. Define actionable alert thresholds for failure, duration, and spend.
+3. Configure run notifications by environment.
+
+Done looks like: Teams receive actionable alerts and can query reliability and cost by layer.
 
 ## Architectural decisions deferred
 
-### Move from ephemeral local Terraform state to remote backend
+### Decide managed-table lifecycle and retention conventions
 
-**Why deferred.** Baseline generation targets first-run simplicity; production runs require persistent state.
+What this is: Managed tables are selected, but retention, vacuum, and table-lifecycle policy are not fully specified.
 
-**Source.** SKILL state management policy.
+Why deferred: Data-governance policy varies across organizations.
 
-**Resolution.**
-1. Create a remote backend storage location for state.
-2. Configure backend settings and migrate state.
-3. Use non-destructive reruns with state_strategy=fail.
+Source: SPEC.md section Data Model.
 
-### Define DR/retention controls
+Resolution:
+1. Define retention and cleanup expectations by layer.
+2. Define maintenance cadence for lifecycle operations.
+3. Align with compliance policy before production.
 
-**Why deferred.** Backup, retention, and DR strategy are not stated in article.
+Done looks like: Managed-table lifecycle policy is documented and auditable.
 
-**Source.** SPEC.md section Operational concerns.
+### Move from ephemeral state operation to durable state strategy
 
-**Resolution.**
-1. Define RPO/RTO targets.
-2. Add backup/retention policies aligned to those targets.
-3. Validate restoration runbooks.
+What this is: Ephemeral-state reruns are supported by workflow controls, but long-lived environments need durable state management.
+
+Why deferred: Backend/state governance is platform-level and may require shared infra standards.
+
+Source: SPEC.md section Operational Concerns.
+
+Resolution:
+1. Choose and approve durable state strategy for non-ephemeral environments.
+2. Adopt the chosen state approach before production change cadence.
+
+Done looks like: Non-destructive reruns are safe and repeatable for long-lived environments.

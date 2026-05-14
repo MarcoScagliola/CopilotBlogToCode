@@ -1,38 +1,32 @@
 locals {
-  region_abbrev = lookup({
-    eastus      = "eus"
-    eastus2     = "eus2"
-    westus2     = "wus2"
-    westeurope  = "weu"
-    northeurope = "neu"
-    uksouth     = "uks"
-    ukwest      = "ukw"
-  }, lower(var.azure_region), replace(lower(var.azure_region), " ", ""))
+  region_abbreviation_map = {
+    eastus       = "eus"
+    eastus2      = "eus2"
+    westus2      = "wus2"
+    westeurope   = "weu"
+    northeurope  = "neu"
+    uksouth      = "uks"
+    ukwest       = "ukw"
+  }
 
-  resource_group_name = "rg-${var.workload}-${var.environment}-${local.region_abbrev}"
+  region_abbreviation = lookup(local.region_abbreviation_map, var.azure_region, replace(var.azure_region, " ", ""))
 
-  key_vault_name = substr(
-    replace(lower("kv-${var.workload}-${var.environment}-${local.region_abbrev}"), "_", ""),
-    0,
-    24,
-  )
+  resource_group_name = "rg-${var.workload}-${var.environment}-${local.region_abbreviation}"
+  key_vault_name_raw  = "kv-${var.workload}-${var.environment}-${local.region_abbreviation}"
+  key_vault_name      = substr(replace(lower(local.key_vault_name_raw), "_", ""), 0, 24)
+  workspace_name      = "dbw-${var.workload}-${var.environment}-${local.region_abbreviation}"
 
-  workspace_name = "dbw-${var.workload}-${var.environment}-${local.region_abbrev}"
+  bronze_storage_account = substr(lower("st${var.workload}${var.environment}bronze${local.region_abbreviation}"), 0, 24)
+  silver_storage_account = substr(lower("st${var.workload}${var.environment}silver${local.region_abbreviation}"), 0, 24)
+  gold_storage_account   = substr(lower("st${var.workload}${var.environment}gold${local.region_abbreviation}"), 0, 24)
 
-  bronze_storage_name = substr(lower("st${var.workload}${var.environment}bronze${local.region_abbrev}"), 0, 24)
-  silver_storage_name = substr(lower("st${var.workload}${var.environment}silver${local.region_abbrev}"), 0, 24)
-  gold_storage_name   = substr(lower("st${var.workload}${var.environment}gold${local.region_abbrev}"), 0, 24)
+  bronze_catalog = "bronze_${var.environment}"
+  silver_catalog = "silver_${var.environment}"
+  gold_catalog   = "gold_${var.environment}"
 
-  bronze_catalog_name = "${var.workload}_${var.environment}_bronze"
-  silver_catalog_name = "${var.workload}_${var.environment}_silver"
-  gold_catalog_name   = "${var.workload}_${var.environment}_gold"
+  bronze_schema = "layer"
+  silver_schema = "layer"
+  gold_schema   = "layer"
 
-  secret_scope_name = "kv-${var.environment}-scope"
-
-  merged_tags = merge(var.tags, {
-    workload    = var.workload
-    environment = var.environment
-    managed_by  = "terraform"
-    pattern     = "secure-medallion"
-  })
+  secret_scope = "kv-${var.environment}-scope"
 }
