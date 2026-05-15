@@ -44,7 +44,7 @@ env:
 jobs:
   deploy_infrastructure:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.workload }}-${{ github.event.inputs.environment }}
+    environment: BLG2CODEDEV
 
     steps:
       - name: Checkout
