@@ -1,0 +1,80 @@
+{
+    "runTimestampUtc":  "2026-05-15T06:55:00Z",
+    "overallPass":  true,
+    "checks":  [
+                   {
+                       "name":  "python_compile_all_generated_py",
+                       "passed":  true,
+                       "detail":  "compiled"
+                   },
+                   {
+                       "name":  "terraform_init_backend_false",
+                       "passed":  true,
+                       "detail":  "init ok"
+                   },
+                   {
+                       "name":  "terraform_validate",
+                       "passed":  true,
+                       "detail":  "validate ok"
+                   },
+                   {
+                       "name":  "yaml_parse_all_generated_yml",
+                       "passed":  true,
+                       "detail":  "parsed files=5"
+                   },
+                   {
+                       "name":  "workflow_parity",
+                       "passed":  true,
+                       "detail":  "parity ok"
+                   },
+                   {
+                       "name":  "bundle_parity",
+                       "passed":  true,
+                       "detail":  "parity ok"
+                   },
+                   {
+                       "name":  "handler_coverage",
+                       "passed":  true,
+                       "detail":  "coverage ok"
+                   },
+                   {
+                       "name":  "templated_not_literal_workflows",
+                       "passed":  true,
+                       "detail":  "no forbidden literals"
+                   },
+                   {
+                       "name":  "interpolation_constraint_databricks_yml",
+                       "passed":  true,
+                       "detail":  "no interpolation violations"
+                   },
+                   {
+                       "name":  "cross_artifact_workspace_outputs_bridge",
+                       "passed":  true,
+                       "detail":  "workspace outputs and bridge mapping present"
+                   },
+                   {
+                       "name":  "feature_completeness_no_partial_vnet_family",
+                       "passed":  true,
+                       "detail":  "custom_parameters=False public_network_access_enabled=False network_security_group_rules_required=False"
+                   },
+                   {
+                       "name":  "external_dependency_names_documented_in_todo",
+                       "passed":  true,
+                       "detail":  "all dependencies documented"
+                   },
+                   {
+                       "name":  "spec_todo_not_stated_mapping",
+                       "passed":  true,
+                       "detail":  "spec_not_stated=17 todo_spec_sources=21"
+                   },
+                   {
+                       "name":  "idempotence_workflow_and_jobs_generators",
+                       "passed":  true,
+                       "detail":  "deterministic outputs"
+                   }
+               ],
+    "summary":  {
+                    "passed":  14,
+                    "failed":  0
+                }
+}

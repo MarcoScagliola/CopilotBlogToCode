@@ -1,32 +1,32 @@
 bundle:
-  name: secure-medallion-blg
+  name: secure_medallion_blg
 
 include:
   - resources/*.yml
 
 variables:
   workspace_resource_id:
-    description: Azure resource ID of the Databricks workspace.
+    description: Azure resource ID of the Databricks workspace used by runtime setup.
   bronze_catalog:
-    description: Unity Catalog catalog for bronze.
+    description: Bronze Unity Catalog name.
   silver_catalog:
-    description: Unity Catalog catalog for silver.
+    description: Silver Unity Catalog name.
   gold_catalog:
-    description: Unity Catalog catalog for gold.
+    description: Gold Unity Catalog name.
   bronze_schema:
-    description: Unity Catalog schema for bronze.
+    description: Bronze schema name.
   silver_schema:
-    description: Unity Catalog schema for silver.
+    description: Silver schema name.
   gold_schema:
-    description: Unity Catalog schema for gold.
+    description: Gold schema name.
   secret_scope:
-    description: Databricks secret scope name.
+    description: Databricks secret scope name backed by Azure Key Vault.
   bronze_principal_client_id:
-    description: Bronze layer service principal client ID.
+    description: Bronze execution principal client ID.
   silver_principal_client_id:
-    description: Silver layer service principal client ID.
+    description: Silver execution principal client ID.
   gold_principal_client_id:
-    description: Gold layer service principal client ID.
+    description: Gold execution principal client ID.
   bronze_storage_account:
     description: Bronze storage account name.
   silver_storage_account:
@@ -34,20 +34,19 @@ variables:
   gold_storage_account:
     description: Gold storage account name.
   bronze_access_connector_id:
-    description: Bronze access connector ID.
+    description: Bronze access connector resource ID.
   silver_access_connector_id:
-    description: Silver access connector ID.
+    description: Silver access connector resource ID.
   gold_access_connector_id:
-    description: Gold access connector ID.
+    description: Gold access connector resource ID.
 
 targets:
   dev:
     default: true
-    mode: development
+    mode: production
     workspace:
-      host: https://adb-placeholder-dev.azuredatabricks.net
-
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
   prd:
     mode: production
     workspace:
-      host: https://adb-placeholder-prd.azuredatabricks.net
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
